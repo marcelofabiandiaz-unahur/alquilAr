@@ -1,0 +1,17 @@
+{
+  "name": "alquilar-app",
+  "version": "1.0.0",
+  "description": "Monorrepo del Proyecto Integrador AlquilAR",
+  "main": "index.js",
+ "scripts": {
+  "backend": "cd backend && node --watch index.js",
+  "frontend": "cd frontend && npm run dev",
+  "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
