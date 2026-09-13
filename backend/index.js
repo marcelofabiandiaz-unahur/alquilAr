@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
   origin: [
     'http://localhost:5173',               // Permite que sigas probando en tu PC local
-    'https://onrender.com'   // Permite que tu Frontend en internet acceda a los datos
+    'https://alquilar-app.onrender.com'   // Permite que tu Frontend en internet acceda a los datos
   ],
   credentials: true
 }));
