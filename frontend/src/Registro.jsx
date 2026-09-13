@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.DEV 
   ? 'http://localhost:3000' 
-  : 'https://onrender.com';
+  : 'https://alquilar-pmdp-bkyh.onrender.com';
 
 export default function Registro() {
   const navigate = useNavigate();

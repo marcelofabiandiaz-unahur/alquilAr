@@ -4,7 +4,7 @@ import { AuthContext } from './AuthContext'; // 👈 Importamos el contexto
 
 const API_URL = import.meta.env.DEV 
   ? 'http://localhost:3000' 
-  : 'https://onrender.com';
+  : 'https://alquilar-pmdp-bkyh.onrender.com';
 
 export default function Dashboard() {
   const navigate = useNavigate();
