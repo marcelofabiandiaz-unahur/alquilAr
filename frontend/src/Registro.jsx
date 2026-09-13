@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = import.meta.env.DEV 
+  ? 'http://localhost:3000' 
+  : 'https://onrender.com';
+
 export default function Registro() {
   const navigate = useNavigate();
   
@@ -23,7 +27,7 @@ export default function Registro() {
     setCargando(true);
 
     try {
-      const respuesta = await fetch('http://localhost:3000/api/usuarios', {
+        const respuesta = await fetch(`${API_URL}/api/usuarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

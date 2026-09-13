@@ -2,6 +2,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './AuthContext'; // 👈 Importamos el contexto
 
+const API_URL = import.meta.env.DEV 
+  ? 'http://localhost:3000' 
+  : 'https://onrender.com';
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { usuario, logoutGlobal, cargando } = useContext(AuthContext); // 👈 Extraemos el estado global
@@ -20,7 +24,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (seccionActiva === 'usuarios') {
       setCargandoUsuarios(true);
-      fetch('http://localhost:3000/api/usuarios')
+      fetch(`${API_URL}/api/usuarios`)
         .then(res => res.json())
         .then(data => { setUsuarios(data); setCargandoUsuarios(false); })
         .catch(err => { console.error(err); setCargandoUsuarios(false); });

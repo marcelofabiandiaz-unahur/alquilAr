@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from './AuthContext';
 
+const API_URL = import.meta.env.DEV 
+  ? 'http://localhost:3000'                  // 💻 Si corres "npm run dev" en tu PC, usa localhost
+  : 'https://alquilar-pmdp.onrender.com';   // 🌐 Si está subido a Render, usa la nube
 
 
 export default function Login() {
@@ -21,11 +24,11 @@ export default function Login() {
     setCargando(true);
 
     try {
-      const respuesta = await fetch('http://localhost:3000/api/usuarios/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      const respuesta = await fetch(`${API_URL}/api/usuarios/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
 
       const datos = await respuesta.json();
 
