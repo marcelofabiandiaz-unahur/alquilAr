@@ -9,7 +9,14 @@ const Usuario = require('./src/models/usuario'); // 👈 Importamos el modelo ai
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',               // Permite que sigas probando en tu PC local
+    'https://onrender.com'   // Permite que tu Frontend en internet acceda a los datos
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
 mongoose.connect(process.env.MONGODB_URI)
