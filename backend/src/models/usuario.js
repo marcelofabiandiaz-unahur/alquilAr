@@ -14,10 +14,15 @@ const usuarioSchema = new mongoose.Schema({
     type: [String],
     enum: ['USUARIO', 'INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'], // 👈 Cambiamos VISITANTE por USUARIO
     default: ['USUARIO'] // 👈 Todos nacen con el rol base de USUARIO de forma automática
+  },
+  estado: {
+    type: String,
+    enum: ['ACTIVO', 'INACTIVO', 'PENDIENTE'],
+    default: 'ACTIVO'
   }
 }, { timestamps: true });
 
-// 🔐 El Middleware asíncrono limpio y corregido para Mongoose moderno
+
 usuarioSchema.pre('save', async function () {
   // Si la contraseña no se modificó, salimos de la función sin hacer nada
   if (!this.isModified('password')) return;
