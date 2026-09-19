@@ -8,10 +8,11 @@ const API_URL = import.meta.env.DEV
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { usuario, logoutGlobal, cargando } = useContext(AuthContext); // 👈 Extraemos el estado global
+  const { usuario, token, logoutGlobal, cargando } = useContext(AuthContext);
   const [seccionActiva, setSeccionActiva] = useState('inicio');
   const [usuarios, setUsuarios] = useState([]);
   const [cargandoUsuarios, setCargandoUsuarios] = useState(false);
+  const [errorUsuarios, setErrorUsuarios] = useState('');
 
   // Redirección de seguridad si intentan entrar al dashboard sin estar logueados
   useEffect(() => {
@@ -20,16 +21,31 @@ export default function Dashboard() {
     }
   }, [usuario, cargando, navigate]);
 
-  // API para listar usuarios
   useEffect(() => {
-    if (seccionActiva === 'usuarios') {
-      setCargandoUsuarios(true);
-      fetch(`${API_URL}/api/usuarios`)
-        .then(res => res.json())
-        .then(data => { setUsuarios(data); setCargandoUsuarios(false); })
-        .catch(err => { console.error(err); setCargandoUsuarios(false); });
-    }
-  }, [seccionActiva]);
+    if (seccionActiva !== 'usuarios' || !token) return;
+
+    setCargandoUsuarios(true);
+    setErrorUsuarios('');
+
+    fetch(`${API_URL}/api/usuarios`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.mensaje || 'Error al cargar usuarios');
+        }
+        if (!Array.isArray(data)) {
+          throw new Error('Respuesta inválida del servidor');
+        }
+        setUsuarios(data);
+      })
+      .catch((err) => {
+        setUsuarios([]);
+        setErrorUsuarios(err.message);
+      })
+      .finally(() => setCargandoUsuarios(false));
+  }, [seccionActiva, token]);
 
   if (cargando || !usuario) {
     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Verificando sesión...</div>;
@@ -149,6 +165,9 @@ export default function Dashboard() {
         {seccionActiva === 'usuarios' && (
           <div className="space-y-6">
             <h1 className="text-3xl font-extrabold">👥 Control de Usuarios (Vista de Administrador)</h1>
+            {errorUsuarios && (
+              <p className="text-red-400 text-sm">{errorUsuarios}</p>
+            )}
             {cargandoUsuarios ? (
               <p className="text-slate-400 text-sm">Cargando desde Atlas...</p>
             ) : (
