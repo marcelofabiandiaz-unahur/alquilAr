@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Contrato = require('../../src/models/contrato');
 const Propiedad = require('../../src/models/propiedad');
+const Usuario = require('../../src/models/usuario');
 const {
   listarContratos,
   obtenerContrato,
@@ -43,6 +44,68 @@ describe('contratoController', () => {
     assert.equal(res.body.mensaje, 'ID inválido.');
   });
 
+  it('crearContrato rechaza email_inquilino inexistente', async () => {
+    Usuario.findOne = async () => null;
+
+    const req = {
+      body: {
+        id_propiedad: propiedadId,
+        email_inquilino: 'noexiste@alquilar.com',
+      },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    };
+    const res = mockRes();
+
+    await crearContrato(req, res);
+
+    assert.equal(res.statusCode, 404);
+    assert.match(res.body.mensaje, /No existe un usuario/);
+  });
+
+  it('crearContrato fuerza BORRADOR si usuario sin rol INQUILINO', async () => {
+    Usuario.findOne = async () => ({
+      _id: inquilinoId,
+      roles: ['USUARIO'],
+    });
+
+    Propiedad.findById = async () => ({
+      _id: propiedadId,
+      id_propietario: usuarioId,
+      estado: 'DISPONIBLE',
+    });
+
+    Contrato.prototype.save = async function save() {
+      return this;
+    };
+
+    Contrato.findById = () => mockFindByIdQuery({
+      _id: contratoId,
+      estado: 'BORRADOR',
+      toObject() {
+        return { _id: contratoId, estado: 'BORRADOR' };
+      },
+    });
+
+    const req = {
+      body: {
+        id_propiedad: propiedadId,
+        email_inquilino: 'usuario1@alquilar.com',
+        fecha_inicio: '2026-01-01',
+        monto_mensual: 100000,
+        dia_vencimiento: 10,
+        estado: 'VIGENTE',
+      },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    };
+    const res = mockRes();
+
+    await crearContrato(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.requiere_rol_inquilino, true);
+    assert.equal(res.body.estado, 'BORRADOR');
+  });
+
   it('crearContrato rechaza id_propiedad invalido', async () => {
     const req = {
       body: { id_propiedad: 'mal', id_inquilino: inquilinoId },
@@ -60,12 +123,14 @@ describe('contratoController', () => {
     const contrato = {
       _id: contratoId,
       id_propiedad: propiedadId,
+      id_inquilino: inquilinoId,
       estado: 'BORRADOR',
       save: async () => contrato,
     };
 
     Contrato.findById = () => mockFindByIdQuery(contrato);
     Contrato.findOne = async () => null;
+    Usuario.findById = async () => ({ _id: inquilinoId, roles: ['INQUILINO'] });
     Propiedad.findById = async () => ({
       _id: propiedadId,
       id_propietario: usuarioId,
@@ -101,6 +166,7 @@ describe('contratoController', () => {
     const contrato = {
       _id: contratoId,
       id_propiedad: propiedadId,
+      id_inquilino: inquilinoId,
       estado: 'BORRADOR',
       save: async function save() {
         return this;
@@ -109,6 +175,7 @@ describe('contratoController', () => {
 
     Contrato.findById = () => mockFindByIdQuery(contrato);
     Contrato.findOne = async () => null;
+    Usuario.findById = async () => ({ _id: inquilinoId, roles: ['INQUILINO'] });
     Propiedad.findById = async () => propiedad;
 
     const req = {

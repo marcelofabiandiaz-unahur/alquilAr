@@ -45,7 +45,12 @@ const loginUsuario = async (req, res) => {
     res.json({
       mensaje: '¡Login exitoso! 🔓',
       token,
-      usuario: { nombre: usuario.nombre, apellido: usuario.apellido, roles: usuario.roles },
+      usuario: {
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        roles: usuario.roles,
+        email: usuario.email,
+      },
     });
   } catch (error) {
     res.status(500).json({ mensaje: error.message });
@@ -61,4 +66,35 @@ const listarUsuarios = async (req, res) => {
   }
 };
 
-module.exports = { registrarUsuario, loginUsuario, listarUsuarios };
+const agregarRolesUsuario = async (req, res) => {
+  try {
+    const { agregar } = req.body;
+    if (!agregar || !Array.isArray(agregar) || agregar.length === 0) {
+      return res.status(400).json({ mensaje: 'Debe indicar roles a agregar.' });
+    }
+
+    const usuario = await Usuario.findById(req.params.id);
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    }
+
+    const rolesValidos = ['USUARIO', 'INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'];
+    for (const rol of agregar) {
+      if (!rolesValidos.includes(rol)) {
+        return res.status(400).json({ mensaje: `Rol inválido: ${rol}` });
+      }
+      if (!usuario.roles.includes(rol)) {
+        usuario.roles.push(rol);
+      }
+    }
+
+    await usuario.save();
+    const respuesta = usuario.toObject();
+    delete respuesta.password;
+    res.json(respuesta);
+  } catch (error) {
+    res.status(400).json({ mensaje: 'Error al actualizar roles', error: error.message });
+  }
+};
+
+module.exports = { registrarUsuario, loginUsuario, listarUsuarios, agregarRolesUsuario };

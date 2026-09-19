@@ -35,6 +35,35 @@ const ejecutarTransaccion = async (callback) => {
   }
 };
 
+const resolverInquilino = async (body, res) => {
+  if (body.email_inquilino) {
+    const email = String(body.email_inquilino).trim().toLowerCase();
+    if (!email) {
+      res.status(400).json({ mensaje: 'email_inquilino es requerido.' });
+      return null;
+    }
+    const inquilino = await Usuario.findOne({ email });
+    if (!inquilino) {
+      res.status(404).json({ mensaje: 'No existe un usuario registrado con ese email.' });
+      return null;
+    }
+    return inquilino;
+  }
+
+  if (body.id_inquilino) {
+    if (!validarObjectIdBody(body.id_inquilino, res, 'id_inquilino')) return null;
+    const inquilino = await Usuario.findById(body.id_inquilino);
+    if (!inquilino) {
+      res.status(404).json({ mensaje: 'Inquilino no encontrado.' });
+      return null;
+    }
+    return inquilino;
+  }
+
+  res.status(400).json({ mensaje: 'Debe indicar email_inquilino o id_inquilino.' });
+  return null;
+};
+
 const obtenerPropiedadConPermiso = async (idPropiedad, usuarioId, roles) => {
   const propiedad = await Propiedad.findById(idPropiedad);
   if (!propiedad || propiedad.estado === 'INACTIVA') {
@@ -126,7 +155,9 @@ const crearContrato = async (req, res) => {
     }
 
     if (!validarObjectIdBody(req.body.id_propiedad, res, 'id_propiedad')) return;
-    if (!validarObjectIdBody(req.body.id_inquilino, res, 'id_inquilino')) return;
+
+    const inquilino = await resolverInquilino(req.body, res);
+    if (!inquilino) return;
 
     const { propiedad, error } = await obtenerPropiedadConPermiso(
       req.body.id_propiedad,
@@ -137,12 +168,13 @@ const crearContrato = async (req, res) => {
       return res.status(error.status).json({ mensaje: error.mensaje });
     }
 
-    const inquilino = await Usuario.findById(req.body.id_inquilino);
-    if (!inquilino || !inquilino.roles.includes('INQUILINO')) {
-      return res.status(400).json({ mensaje: 'El inquilino no existe o no tiene rol INQUILINO.' });
-    }
+    let estado = req.body.estado || 'BORRADOR';
+    let requiereRolInquilino = false;
 
-    const estado = req.body.estado || 'BORRADOR';
+    if (!inquilino.roles.includes('INQUILINO')) {
+      estado = 'BORRADOR';
+      requiereRolInquilino = true;
+    }
 
     if (estado === 'VIGENTE') {
       const vigenteExistente = await Contrato.findOne({
@@ -186,7 +218,12 @@ const crearContrato = async (req, res) => {
       .populate('id_propiedad', 'direccion tipo estado')
       .populate('id_inquilino', 'nombre apellido email dni');
 
-    res.status(201).json(contratoPopulado);
+    const respuesta = contratoPopulado.toObject();
+    if (requiereRolInquilino) {
+      respuesta.requiere_rol_inquilino = true;
+    }
+
+    res.status(201).json(respuesta);
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ mensaje: 'La propiedad ya tiene un contrato vigente.' });
@@ -222,6 +259,12 @@ const actualizarContrato = async (req, res) => {
     let propiedadModificada = false;
 
     if (nuevoEstado === 'VIGENTE' && contrato.estado !== 'VIGENTE') {
+      const inquilinoContrato = await Usuario.findById(contrato.id_inquilino);
+      if (!inquilinoContrato || !inquilinoContrato.roles.includes('INQUILINO')) {
+        return res.status(400).json({
+          mensaje: 'El inquilino debe tener rol INQUILINO antes de activar el contrato.',
+        });
+      }
       const vigenteExistente = await Contrato.findOne({
         id_propiedad: propiedad._id,
         estado: 'VIGENTE',
