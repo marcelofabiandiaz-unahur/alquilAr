@@ -1,32 +1,24 @@
-const Usuario = require('../models/usuario.model');
-const Inquilino = require('../models/inquilino.model');
-const Propietario = require('../models/propietario.model');
-const Administrador = require('../models/administrador.model');
+const Usuario = require('../models/usuario');
 const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 
 const registrarUsuario = async (req, res) => {
   try {
-    const { rol } = req.body;
-    let nuevoUsuario;
+    const datos = { ...req.body };
 
-    if (rol === 'INQUILINO') nuevoUsuario = new Inquilino(req.body);
-    else if (rol === 'PROPIETARIO') nuevoUsuario = new Propietario(req.body);
-    else if (rol === 'ADMINISTRADOR') nuevoUsuario = new Administrador(req.body);
-    else {
-      return res.status(400).json({ success: false, data: null, message: 'Rol inválido o faltante' });
+    if (!datos.roles || !Array.isArray(datos.roles) || datos.roles.length === 0) {
+      datos.roles = ['USUARIO'];
     }
 
+    const nuevoUsuario = new Usuario(datos);
     await nuevoUsuario.save();
-    nuevoUsuario.password = undefined; 
 
-    res.status(201).json({
-      success: true,
-      data: nuevoUsuario,
-      message: 'Usuario registrado con éxito'
-    });
+    const usuarioRespuesta = nuevoUsuario.toObject();
+    delete usuarioRespuesta.password;
+
+    res.status(201).json(usuarioRespuesta);
   } catch (error) {
-    res.status(400).json({ success: false, data: null, message: error.message });
+    res.status(400).json({ mensaje: 'Error al crear usuario', error: error.message });
   }
 };
 
@@ -36,32 +28,37 @@ const loginUsuario = async (req, res) => {
 
     const usuario = await Usuario.findOne({ email });
     if (!usuario) {
-      return res.status(401).json({ success: false, data: null, message: 'Credenciales inválidas' });
+      return res.status(401).json({ mensaje: 'Credenciales inválidas (Email no encontrado)' });
     }
 
     const passwordValido = await argon2.verify(usuario.password, password);
     if (!passwordValido) {
-      return res.status(401).json({ success: false, data: null, message: 'Credenciales inválidas' });
+      return res.status(401).json({ mensaje: 'Credenciales inválidas (Contraseña incorrecta)' });
     }
 
     const token = jwt.sign(
-      { id: usuario._id, rol: usuario.rol },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { id: usuario._id, roles: usuario.roles },
+      process.env.JWT_SECRET || 'CLAVE_SECRETA_MOCK_FACULTAD',
+      { expiresIn: '24h' },
     );
 
-    res.status(200).json({
-      success: true,
-      data: {
-        token,
-        usuario: { id: usuario._id, nombre: usuario.nombre, rol: usuario.rol }
-      },
-      message: 'Login exitoso'
+    res.json({
+      mensaje: '¡Login exitoso! 🔓',
+      token,
+      usuario: { nombre: usuario.nombre, apellido: usuario.apellido, roles: usuario.roles },
     });
-
   } catch (error) {
-    res.status(500).json({ success: false, data: null, message: 'Error en el servidor' });
+    res.status(500).json({ mensaje: error.message });
   }
 };
 
-module.exports = { registrarUsuario, loginUsuario };
+const listarUsuarios = async (req, res) => {
+  try {
+    const lista = await Usuario.find().select('-password');
+    res.json(lista);
+  } catch (error) {
+    res.status(500).json({ mensaje: error.message });
+  }
+};
+
+module.exports = { registrarUsuario, loginUsuario, listarUsuarios };

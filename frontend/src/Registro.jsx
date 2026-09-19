@@ -36,7 +36,8 @@ export default function Registro() {
           dni,
           email,
           password,
-          telefono
+          telefono,
+          roles: ['USUARIO'],
         })
       });
 
