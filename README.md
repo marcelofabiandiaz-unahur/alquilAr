@@ -90,6 +90,21 @@ npm run dev
 
 En desarrollo el front apunta a `http://localhost:3000`.
 
+#### Variables de entorno (`frontend/.env`)
+
+Crear `frontend/.env` (no commitear). Pedir valores al equipo o configurar presets en [Cloudinary Console](https://cloudinary.com/console) → Settings → Upload → Upload presets (modo **Unsigned**).
+
+| Variable | Uso |
+|---|---|
+| `VITE_CLOUDINARY_CLOUD_NAME` | Cloud name de la cuenta |
+| `VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES` | Fotos de inmuebles → carpeta `alquilar/propiedades` |
+| `VITE_CLOUDINARY_UPLOAD_PRESET_GARANTE` | Recibo del garante → carpeta `alquilar/garantes` |
+| `VITE_CLOUDINARY_UPLOAD_PRESET_GASTOS` | Comprobantes de gastos → carpeta `alquilar/gastos` |
+
+Compatibilidad: si falta `..._PROPIEDADES`, se usa el preset legacy `VITE_CLOUDINARY_UPLOAD_PRESET`.
+
+Tras editar `.env`, reiniciar Vite. El frontend sube archivos directo a Cloudinary y guarda solo la URL en MongoDB.
+
 ### Ambos a la vez
 
 ```bash
