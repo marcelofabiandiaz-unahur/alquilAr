@@ -97,6 +97,24 @@ npm install
 npm run dev
 ```
 
+### CI (GitHub Actions)
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en pushes y PRs hacia `develop` y `main`:
+
+| Job | Qué valida |
+|---|---|
+| **backend** | `npm test` (middleware auth) + syntax check de `index.js` |
+| **frontend** | `npm run build` |
+
+Tests locales del backend:
+
+```bash
+cd backend
+npm test
+```
+
+Lint del frontend pendiente; CI valida build del front, no `npm run lint`.
+
 ## Ramas y módulos
 
 | Rama | Uso |
