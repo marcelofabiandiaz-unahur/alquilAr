@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const authRoutes = require('./src/routes/authRoutes');
+const propiedadRoutes = require('./src/routes/propiedadRoutes');
+const contratoRoutes = require('./src/routes/contratoRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,5 +24,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch((err) => console.error('Error de conexión:', err));
 
 app.use('/api/usuarios', authRoutes);
+app.use('/api/propiedades', propiedadRoutes);
+app.use('/api/contratos', contratoRoutes);
 
 app.listen(PORT, () => console.log(`Servidor en http://localhost:${PORT}`));
