@@ -4,8 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/authMiddleware.test.js",
-    "seed": "node scripts/seed-usuarios.js"
+    "test": "node --test test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js",
+    "test:coverage": "node --test --experimental-test-coverage test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js",
+    "seed": "node scripts/seed-usuarios.js",
+    "seed:propiedades": "node scripts/seed-propiedades.js"
   },
   "keywords": [],
   "author": "",
