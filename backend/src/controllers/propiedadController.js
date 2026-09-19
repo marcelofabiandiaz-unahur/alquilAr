@@ -9,6 +9,21 @@ const {
 } = require('../utils/recursosHelpers');
 const { validarIdParam, responderErrorServidor } = require('../utils/controllerHelpers');
 
+const FOTOS_MAX = 5;
+
+function validarFotos(fotos, res) {
+  if (fotos === undefined) return true;
+  if (!Array.isArray(fotos)) {
+    res.status(400).json({ mensaje: 'El campo fotos debe ser un array.' });
+    return false;
+  }
+  if (fotos.length > FOTOS_MAX) {
+    res.status(400).json({ mensaje: `Máximo ${FOTOS_MAX} fotos por propiedad.` });
+    return false;
+  }
+  return true;
+}
+
 const listarPropiedades = async (req, res) => {
   try {
     const { roles, id: usuarioId } = req.usuario;
@@ -61,6 +76,8 @@ const crearPropiedad = async (req, res) => {
       ? req.body.id_propietario
       : usuarioId;
 
+    if (!validarFotos(req.body.fotos, res)) return;
+
     const propiedad = new Propiedad({
       id_propietario: idPropietario,
       direccion: req.body.direccion,
@@ -111,6 +128,8 @@ const actualizarPropiedad = async (req, res) => {
         }
       }
     }
+
+    if (!validarFotos(req.body.fotos, res)) return;
 
     const camposPermitidos = ['direccion', 'tipo', 'ambientes', 'descripcion', 'estado', 'valor_base', 'fotos'];
     for (const campo of camposPermitidos) {
@@ -176,9 +195,17 @@ const listarContratosPorPropiedad = async (req, res) => {
       return res.status(403).json({ mensaje: 'No tienes permiso para ver los contratos de esta propiedad.' });
     }
 
-    const contratos = await Contrato.find({ id_propiedad: propiedad._id })
-      .populate('id_inquilino', 'nombre apellido email dni')
-      .sort({ fecha_inicio: -1 });
+    const contratos = await Contrato.find({ id_propiedad: propiedad._id }).populate(
+      'id_inquilino',
+      'nombre apellido email dni',
+    );
+
+    contratos.sort((a, b) => {
+      const aVig = a.estado === 'VIGENTE' ? 0 : 1;
+      const bVig = b.estado === 'VIGENTE' ? 0 : 1;
+      if (aVig !== bVig) return aVig - bVig;
+      return new Date(b.fecha_inicio) - new Date(a.fecha_inicio);
+    });
 
     res.json(contratos);
   } catch (error) {
