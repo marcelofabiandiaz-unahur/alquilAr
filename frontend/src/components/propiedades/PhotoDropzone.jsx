@@ -7,13 +7,13 @@ import {
   validarArchivo,
 } from '../../lib/cloudinary';
 
-export default function PhotoDropzone({ fotos = [], onChange, disabled = false }) {
+export default function PhotoDropzone({ fotos = [], onChange, disabled = false, tipo = 'propiedades' }) {
   const inputRef = useRef(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [subiendo, setSubiendo] = useState(0);
   const [errorLocal, setErrorLocal] = useState('');
 
-  const configOk = estaConfigurado();
+  const configOk = estaConfigurado(tipo);
   const deshabilitado = disabled || !configOk || subiendo > 0;
   const cupoRestante = FOTOS_MAX - fotos.length;
 
@@ -50,7 +50,7 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false }
           return;
         }
         try {
-          const url = await subirImagen(file);
+          const url = await subirImagen(file, tipo);
           nuevasUrls.push(url);
         } catch (err) {
           errores.push(`${file.name}: ${err.message}`);
@@ -88,8 +88,8 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false }
 
       {!configOk && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Cloudinary no está configurado. Agregá VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET en
-          frontend/.env y reiniciá Vite.
+          Cloudinary no está configurado para propiedades. Revisá VITE_CLOUDINARY_CLOUD_NAME y
+          VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES en frontend/.env y reiniciá Vite.
         </p>
       )}
 
