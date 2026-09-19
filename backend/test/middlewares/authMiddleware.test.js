@@ -1,25 +1,11 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { verificarToken, verificarRol } = require('../src/middlewares/authMiddleware');
+const { verificarToken, verificarRol } = require('../../src/middlewares/authMiddleware');
+const { mockRes } = require('../helpers/mockRes');
+const { usuarioId } = require('../helpers/fixtures/ids');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'CLAVE_SECRETA_MOCK_FACULTAD';
-
-function mockRes() {
-  const res = {
-    statusCode: 200,
-    body: null,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    json(data) {
-      this.body = data;
-      return this;
-    },
-  };
-  return res;
-}
 
 describe('verificarToken', () => {
   it('rechaza request sin Authorization con 403', () => {
@@ -51,7 +37,7 @@ describe('verificarToken', () => {
   });
 
   it('acepta token valido y llama next', () => {
-    const token = jwt.sign({ id: '507f1f77bcf86cd799439011', roles: ['ADMINISTRADOR'] }, JWT_SECRET);
+    const token = jwt.sign({ id: usuarioId, roles: ['ADMINISTRADOR'] }, JWT_SECRET);
     const req = { headers: { authorization: `Bearer ${token}` } };
     const res = mockRes();
     let nextCalled = false;
@@ -68,7 +54,7 @@ describe('verificarToken', () => {
 describe('verificarRol', () => {
   it('rechaza si no hay roles en el payload', () => {
     const middleware = verificarRol(['ADMINISTRADOR']);
-    const req = { usuario: { id: '507f1f77bcf86cd799439011' } };
+    const req = { usuario: { id: usuarioId } };
     const res = mockRes();
     let nextCalled = false;
 
@@ -83,7 +69,7 @@ describe('verificarRol', () => {
 
   it('rechaza INQUILINO en ruta de administrador', () => {
     const middleware = verificarRol(['ADMINISTRADOR']);
-    const req = { usuario: { id: '507f1f77bcf86cd799439011', roles: ['INQUILINO'] } };
+    const req = { usuario: { id: usuarioId, roles: ['INQUILINO'] } };
     const res = mockRes();
     let nextCalled = false;
 
@@ -98,7 +84,7 @@ describe('verificarRol', () => {
 
   it('permite ADMINISTRADOR en ruta de administrador', () => {
     const middleware = verificarRol(['ADMINISTRADOR']);
-    const req = { usuario: { id: '507f1f77bcf86cd799439011', roles: ['ADMINISTRADOR'] } };
+    const req = { usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] } };
     const res = mockRes();
     let nextCalled = false;
 
