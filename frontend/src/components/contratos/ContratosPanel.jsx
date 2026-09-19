@@ -8,6 +8,7 @@ import EmptyState from '../ui/EmptyState';
 import LoadingRow from '../ui/LoadingRow';
 import Modal from '../ui/Modal';
 import DataTable from '../ui/DataTable';
+import FileDropzone from '../ui/FileDropzone';
 import {
   inputClass,
   labelClass,
@@ -23,6 +24,7 @@ const FORM_VACIO = {
   dia_vencimiento: 10,
   garante_nombre: '',
   garante_telefono: '',
+  garante_recibo: '',
 };
 
 function nombreInquilino(contrato) {
@@ -110,11 +112,14 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }) {
         dia_vencimiento: Number(form.dia_vencimiento),
         estado: 'BORRADOR',
       };
-      if (form.garante_nombre) {
+      if (form.garante_nombre || form.garante_telefono || form.garante_recibo) {
         body.garante = {
           nombre: form.garante_nombre,
           telefono: form.garante_telefono,
         };
+        if (form.garante_recibo) {
+          body.garante.recibo = form.garante_recibo;
+        }
       }
       const data = await apiPost('/api/contratos', token, body);
       setModalAbierto(false);
@@ -352,6 +357,13 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }) {
               />
             </div>
           </div>
+          <FileDropzone
+            value={form.garante_recibo}
+            onChange={(url) => setForm({ ...form, garante_recibo: url })}
+            disabled={guardando}
+            tipo="garante"
+            label="Recibo del garante (opcional)"
+          />
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setModalAbierto(false)} className={btnGhostClass}>
               Cancelar
