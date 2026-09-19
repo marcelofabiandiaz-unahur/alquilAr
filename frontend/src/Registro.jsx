@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const API_URL = import.meta.env.DEV 
-  ? 'http://localhost:3000' 
-  : 'https://alquilar-pmdp-bkyh.onrender.com';
+import { API_URL } from './config/api';
+import AuthLayout from './components/auth/AuthLayout';
+import Alert from './components/ui/Alert';
+import {
+  labelClassSm,
+  inputClassSm,
+  btnPrimaryClassSm,
+  linkClass,
+} from './components/auth/authStyles';
 
 export default function Registro() {
   const navigate = useNavigate();
-  
-  // Estados para todos los campos de tu DER
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [telefono, setTelefono] = useState('');
-  
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -27,7 +29,7 @@ export default function Registro() {
     setCargando(true);
 
     try {
-        const respuesta = await fetch(`${API_URL}/api/usuarios`, {
+      const respuesta = await fetch(`${API_URL}/api/usuarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -38,7 +40,7 @@ export default function Registro() {
           password,
           telefono,
           roles: ['USUARIO'],
-        })
+        }),
       });
 
       const datos = await respuesta.json();
@@ -47,13 +49,11 @@ export default function Registro() {
         throw new Error(datos.mensaje || 'Error al registrar el usuario');
       }
 
-      setMensaje('¡Registro exitoso! 🔐 Contraseña protegida con Argon2id. Redirigiendo...');
-      
-      // Redirige al Login automáticamente después de 2 segundos de éxito
+      setMensaje('¡Registro exitoso! Redirigiendo al inicio de sesión...');
+
       setTimeout(() => {
         navigate('/');
       }, 2500);
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,62 +62,111 @@ export default function Registro() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4 py-8">
-      <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700">
-        
-        <div className="text-center mb-6">
-          <h2 className="text-3xl font-extrabold text-white">Alquil<span className="text-blue-500">AR</span></h2>
-          <p className="text-sm text-slate-400 mt-1">Crea tu cuenta única en el sistema</p>
-        </div>
-
-        {error && <div className="mb-4 p-3 bg-red-500/20 border border-red-500 text-red-300 text-sm rounded-lg text-center">❌ {error}</div>}
-        {mensaje && <div className="mb-4 p-3 bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-sm rounded-lg text-center">🎉 {mensaje}</div>}
+    <AuthLayout
+      title="Crear cuenta"
+      subtitle="Completá tus datos para registrarte en AlquilAR"
+    >
+      <div className="space-y-4">
+        {error && (
+          <Alert type="error" theme="light" onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+        {mensaje && (
+          <Alert type="success" theme="light" onClose={() => setMensaje('')}>
+            {mensaje}
+          </Alert>
+        )}
 
         <form onSubmit={manejarRegistro} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Nombre</label>
-              <input type="text" required value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label htmlFor="nombre" className={labelClassSm}>Nombre</label>
+              <input
+                id="nombre"
+                type="text"
+                required
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className={inputClassSm}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Apellido</label>
-              <input type="text" required value={apellido} onChange={(e) => setApellido(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label htmlFor="apellido" className={labelClassSm}>Apellido</label>
+              <input
+                id="apellido"
+                type="text"
+                required
+                value={apellido}
+                onChange={(e) => setApellido(e.target.value)}
+                className={inputClassSm}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">DNI</label>
-              <input type="text" required value={dni} onChange={(e) => setDni(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label htmlFor="dni" className={labelClassSm}>DNI</label>
+              <input
+                id="dni"
+                type="text"
+                required
+                value={dni}
+                onChange={(e) => setDni(e.target.value)}
+                className={inputClassSm}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Teléfono</label>
-              <input type="text" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label htmlFor="telefono" className={labelClassSm}>Teléfono</label>
+              <input
+                id="telefono"
+                type="text"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                className={inputClassSm}
+              />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Correo Electrónico</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label htmlFor="email" className={labelClassSm}>Correo electrónico</label>
+            <input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="correo@ejemplo.com"
+              className={inputClassSm}
+              autoComplete="email"
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Contraseña</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label htmlFor="password" className={labelClassSm}>Contraseña</label>
+            <input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className={inputClassSm}
+              autoComplete="new-password"
+            />
           </div>
 
-          <button type="submit" disabled={cargando} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 text-sm">
-            {cargando ? 'Procesando Criptografía...' : 'Registrar Cuenta Única'}
+          <button type="submit" disabled={cargando} className={btnPrimaryClassSm}>
+            {cargando ? 'Registrando...' : 'Registrar cuenta'}
           </button>
         </form>
 
-        <div className="text-center mt-4">
-          <button onClick={() => navigate('/')} className="text-xs text-blue-400 hover:underline">
-            ¿Ya tienes cuenta? Inicia Sesión
+        <p className="text-center pt-2">
+          <button type="button" onClick={() => navigate('/')} className={linkClass}>
+            ¿Ya tenés cuenta? Iniciá sesión
           </button>
-        </div>
-
+        </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
