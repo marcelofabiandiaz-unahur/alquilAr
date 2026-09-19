@@ -4,8 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/authMiddleware.test.js",
-    "seed": "node scripts/seed-usuarios.js"
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:coverage": "node --test --experimental-test-coverage \"test/**/*.test.js\"",
+    "seed": "node scripts/seed-usuarios.js",
+    "seed:propiedades": "node scripts/seed-propiedades.js"
   },
   "keywords": [],
   "author": "",
