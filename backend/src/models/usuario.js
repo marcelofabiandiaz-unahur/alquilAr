@@ -1,28 +1,32 @@
 const mongoose = require("mongoose");
-const { v4: uuidv4 } = require("uuid");
 const argon2 = require("argon2");
-
-const baseOptions = {
-  discriminatorKey: "rol",
-  timestamps: true,
-};
 
 const usuarioSchema = new mongoose.Schema(
   {
-    _id: { type: String, default: uuidv4 },
     nombre: { type: String, required: true },
     apellido: { type: String, required: true },
     dni: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
+    roles: {
+      type: [String],
+      enum: ["USUARIO", "INQUILINO", "PROPIETARIO", "ADMINISTRADOR"],
+      required: true,
+      validate: {
+        validator: (v) => Array.isArray(v) && v.length > 0,
+        message: "Debe tener al menos un rol",
+      },
+    },
     telefono: { type: String },
+    cbu_alias: { type: String },
+    cuit_cuil: { type: String },
     estado: {
       type: String,
       enum: ["ACTIVO", "INACTIVO", "PENDIENTE"],
       default: "ACTIVO",
     },
   },
-  baseOptions,
+  { timestamps: true },
 );
 
 usuarioSchema.pre("save", async function () {
