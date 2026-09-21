@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js test/controllers/authController.test.js",
+    "test:coverage": "node --test --experimental-test-coverage test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js test/controllers/authController.test.js",
+    "seed": "node scripts/seed-usuarios.js",
+    "seed:propiedades": "node scripts/seed-propiedades.js"
   },
   "keywords": [],
   "author": "",
@@ -16,7 +19,6 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.10.0",
-    "uuid": "^14.0.2"
+    "mongoose": "^9.10.0"
   }
 }

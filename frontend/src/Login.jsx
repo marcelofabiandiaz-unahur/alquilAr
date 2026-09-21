@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useContext } from 'react';
 import { AuthContext } from './AuthContext';
-
-const API_URL = import.meta.env.DEV 
-  ? 'http://localhost:3000'                  // 💻 Si corres "npm run dev" en tu PC, usa localhost
-  : 'https://alquilar-pmdp-bkyh.onrender.com';   // 🌐 Si está subido a Render, usa la nube
-
+import { API_URL } from './config/api';
+import AuthLayout from './components/auth/AuthLayout';
+import Alert from './components/ui/Alert';
+import { labelClass, inputClass, btnPrimaryClass, linkClass } from './components/auth/authStyles';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,10 +23,10 @@ export default function Login() {
 
     try {
       const respuesta = await fetch(`${API_URL}/api/usuarios/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
       const datos = await respuesta.json();
 
@@ -36,15 +34,12 @@ export default function Login() {
         throw new Error(datos.mensaje || 'Error al iniciar sesión');
       }
 
-      // 🎫 Guardamos el Token JWT en el navegador
       loginGlobal(datos.usuario, datos.token);
-      
       setMensaje(`¡Bienvenido/a, ${datos.usuario.nombre}! Inicio de sesión correcto.`);
 
       setTimeout(() => {
-         navigate('/dashboard'); // 👈 Te manda al panel central automáticamente tras 1 segundo
+        navigate('/dashboard');
       }, 1000);
-      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -53,69 +48,66 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
-      <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700">
-        
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-extrabold text-white">Alquil<span className="text-blue-500">AR</span></h2>
-          <p className="text-sm text-slate-400 mt-2">Gestión Digital de Alquileres de Forma Segura</p>
-        </div>
-
+    <AuthLayout
+      title="Iniciar sesión"
+      subtitle="Ingresá con tu email y contraseña"
+    >
+      <div className="space-y-4">
         {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500 text-red-300 text-sm rounded-lg text-center">
-            ❌ {error}
-          </div>
+          <Alert type="error" theme="light" onClose={() => setError('')}>
+            {error}
+          </Alert>
         )}
         {mensaje && (
-          <div className="mb-4 p-3 bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-sm rounded-lg text-center">
-            🔓 {mensaje}
-          </div>
+          <Alert type="success" theme="light" onClose={() => setMensaje('')}>
+            {mensaje}
+          </Alert>
         )}
 
-        <form onSubmit={manejarLogin} className="space-y-6">
+        <form onSubmit={manejarLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Correo Electrónico</label>
+            <label htmlFor="email" className={labelClass}>
+              Correo electrónico
+            </label>
             <input
+              id="email"
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="ejemplo@alquilar.com"
-              className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className={inputClass}
+              autoComplete="email"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Contraseña</label>
+            <label htmlFor="password" className={labelClass}>
+              Contraseña
+            </label>
             <input
+              id="password"
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className={inputClass}
+              autoComplete="current-password"
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={cargando}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-all disabled:opacity-50"
-          >
-            {cargando ? 'Verificando Criptografía...' : 'Ingresar al Sistema'}
+          <button type="submit" disabled={cargando} className={btnPrimaryClass}>
+            {cargando ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
 
-        <div className="text-center mt-6">
-          <button 
-            onClick={() => window.location.href = '/registro'} 
-            className="text-xs text-blue-400 hover:underline"
-          >
-            ¿No tienes cuenta? Regístrate aquí
+        <p className="text-center pt-2">
+          <button type="button" onClick={() => navigate('/registro')} className={linkClass}>
+            ¿No tenés cuenta? Registrate aquí
           </button>
-        </div>
-
+        </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
