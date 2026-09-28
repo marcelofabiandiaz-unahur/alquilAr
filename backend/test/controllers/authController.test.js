@@ -101,9 +101,7 @@ describe('authController', () => {
 
     const req = { params: { id: usuarioId }, body: { agregar: ['INQUILINO'] } };
     const res = mockRes();
-
     await agregarRolesUsuario(req, res);
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(usuario.roles, ['USUARIO', 'INQUILINO']);
   });
@@ -118,12 +116,9 @@ describe('authController', () => {
       },
     };
     Usuario.findById = async () => usuario;
-
     const req = { params: { id: inquilinoId }, body: { agregar: ['PROPIETARIO'] } };
     const res = mockRes();
-
     await agregarRolesUsuario(req, res);
-
     assert.equal(res.statusCode, 200);
     assert.ok(usuario.roles.includes('PROPIETARIO'));
   });
@@ -141,10 +136,34 @@ describe('authController', () => {
 
     const req = { params: { id: usuarioId }, body: { agregar: ['INQUILINO'] } };
     const res = mockRes();
-
     await agregarRolesUsuario(req, res);
 
     assert.equal(res.statusCode, 200);
     assert.equal(usuario.roles.filter((r) => r === 'INQUILINO').length, 1);
+  });
+
+  it('loginUsuario rechaza cuando la contraseña no coincide', async () => {
+    const argon2 = require('argon2');
+    const origVerify = argon2.verify;
+    argon2.verify = async () => false;
+
+    Usuario.findOne = async () => ({
+      _id: usuarioId,
+      email: 'propietario1@alquilar.com',
+      password: 'hash',
+    });
+
+    const req = { body: { email: 'propietario1@alquilar.com', password: 'ClaveErronea' } };
+    const res = mockRes();
+    await loginUsuario(req, res);
+    argon2.verify = origVerify;
+    assert.equal(res.statusCode, 401);
+  });
+
+  it('loginUsuario valida la presencia del correo en la petición', async () => {
+    const req = { body: { password: 'ClaveSinEmail' } };
+    const res = mockRes();
+    await loginUsuario(req, res);
+    assert.equal(res.statusCode, 400);
   });
 });

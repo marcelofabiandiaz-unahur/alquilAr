@@ -28,8 +28,18 @@ const responderErrorServidor = (res, error) => {
   return res.status(500).json({ mensaje: error.message });
 };
 
+const sendResponse = (res, statusCode, { success = true, message = '', data = null, error = null } = {}) => {
+  return res.status(statusCode).json({
+    success,
+    message,
+    data,
+    error,
+  });
+};
+
 module.exports = {
   validarIdParam,
   validarObjectIdBody,
   responderErrorServidor,
+  sendResponse,
 };
