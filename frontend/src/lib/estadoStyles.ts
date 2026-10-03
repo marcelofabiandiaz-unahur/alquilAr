@@ -1,4 +1,4 @@
-const ESTADO_STYLES = {
+const ESTADO_STYLES: Record<string, string> = {
   DISPONIBLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   BORRADOR: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   ALQUILADA: 'bg-sky-50 text-sky-700 border-sky-200',
@@ -9,11 +9,11 @@ const ESTADO_STYLES = {
   CANCELADO: 'bg-red-50 text-red-700 border-red-200',
 };
 
-export function getEstadoClass(estado) {
+export function getEstadoClass(estado: string): string {
   return ESTADO_STYLES[estado] || ESTADO_STYLES.INACTIVA;
 }
 
-export function formatMoneda(valor) {
+export function formatMoneda(valor: number): string {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',

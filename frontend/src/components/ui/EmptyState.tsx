@@ -1,4 +1,12 @@
-export default function EmptyState({ title, description, action }) {
+import type { ReactNode } from 'react';
+
+interface EmptyStateProps {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}
+
+export default function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 bg-white rounded-xl border border-dashed border-slate-200 shadow-sm text-center">
       <p className="text-lg font-semibold text-slate-700">{title}</p>

@@ -1,4 +1,13 @@
-export default function Alert({ type = 'error', theme = 'dark', children, onClose }) {
+import type { ReactNode } from 'react';
+
+interface AlertProps {
+  type?: 'error' | 'success' | 'info';
+  theme?: 'dark' | 'light';
+  children: ReactNode;
+  onClose?: () => void;
+}
+
+export default function Alert({ type = 'error', theme = 'dark', children, onClose }: AlertProps) {
   const darkStyles = {
     error: 'bg-red-500/10 border-red-500/40 text-red-300',
     success: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300',

@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import type { MouseEvent } from 'react';
 import { miniatura } from '../../lib/cloudinary';
 
-export default function PropertyPhotoCarousel({ fotos = [], alt }) {
+export default function PropertyPhotoCarousel({ fotos = [], alt }: { fotos?: string[]; alt: string }) {
   const urls = fotos.filter(Boolean).slice(0, 5);
   const [indice, setIndice] = useState(0);
 
@@ -17,17 +18,17 @@ export default function PropertyPhotoCarousel({ fotos = [], alt }) {
   const actual = urls[indiceSeguro];
   const multiples = urls.length > 1;
 
-  const irAnterior = (e) => {
+  const irAnterior = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     setIndice((i) => (i - 1 + urls.length) % urls.length);
   };
 
-  const irSiguiente = (e) => {
+  const irSiguiente = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     setIndice((i) => (i + 1) % urls.length);
   };
 
-  const irA = (e, i) => {
+  const irA = (e: MouseEvent<HTMLButtonElement>, i: number) => {
     e.stopPropagation();
     setIndice(i);
   };

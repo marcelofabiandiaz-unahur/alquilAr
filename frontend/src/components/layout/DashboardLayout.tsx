@@ -1,7 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import logoAlquilar from '../../assets/logo-alquilar.jpg';
+import type { AuthUsuario, RolesDashboard } from '../../types';
 
-const NAV_GROUPS = [
+interface NavItem {
+  id: string;
+  label: string;
+  show?: (roles: RolesDashboard) => boolean;
+}
+
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'General',
     items: [{ id: 'inicio', label: 'Inicio' }],
@@ -13,6 +21,10 @@ const NAV_GROUPS = [
       { id: 'mis-alquileres', label: 'Mis alquileres', show: (r) => r.esInquilino },
       { id: 'propiedades', label: 'Mis propiedades', show: (r) => r.esPropietario },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
+      { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
+      { id: 'gastos', label: 'Gastos', show: (r) => r.esPropietario || r.esAdministrador },
+      { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
+      { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario },
     ],
   },
   {
@@ -34,7 +46,7 @@ const NAV_GROUPS = [
   },
 ];
 
-function ChevronIcon({ className = '' }) {
+function ChevronIcon({ className = '' }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -55,7 +67,7 @@ function ChevronIcon({ className = '' }) {
   );
 }
 
-function MailIcon({ className = '' }) {
+function MailIcon({ className = '' }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -82,7 +94,7 @@ function MailIcon({ className = '' }) {
   );
 }
 
-function LogoutIcon({ className = '' }) {
+function LogoutIcon({ className = '' }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -109,7 +121,17 @@ function LogoutIcon({ className = '' }) {
   );
 }
 
-function NavButton({ id, label, active, onClick }) {
+function NavButton({
+  id,
+  label,
+  active,
+  onClick,
+}: {
+  id: string;
+  label: string;
+  active: boolean;
+  onClick: (id: string) => void;
+}) {
   return (
     <button
       type="button"
@@ -125,6 +147,15 @@ function NavButton({ id, label, active, onClick }) {
   );
 }
 
+interface DashboardLayoutProps {
+  usuario: AuthUsuario;
+  logoutGlobal: () => void;
+  seccionActiva: string;
+  setSeccionActiva: (id: string) => void;
+  roles: RolesDashboard;
+  children: ReactNode;
+}
+
 export default function DashboardLayout({
   usuario,
   logoutGlobal,
@@ -132,21 +163,21 @@ export default function DashboardLayout({
   setSeccionActiva,
   roles,
   children,
-}) {
+}: DashboardLayoutProps) {
   const [usuarioExpandido, setUsuarioExpandido] = useState(false);
-  const panelRef = useRef(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const iniciales = `${usuario.nombre[0]}${usuario.apellido[0]}`.toUpperCase();
 
   useEffect(() => {
     if (!usuarioExpandido) return;
 
-    const cerrarSiClickFuera = (event) => {
-      if (panelRef.current && !panelRef.current.contains(event.target)) {
+    const cerrarSiClickFuera = (event: globalThis.MouseEvent) => {
+      if (panelRef.current && event.target instanceof Node && !panelRef.current.contains(event.target)) {
         setUsuarioExpandido(false);
       }
     };
 
-    const cerrarConEscape = (event) => {
+    const cerrarConEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') setUsuarioExpandido(false);
     };
 

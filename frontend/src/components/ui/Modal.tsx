@@ -1,4 +1,14 @@
-export default function Modal({ open, title, onClose, children, wide }) {
+import type { ReactNode } from 'react';
+
+interface ModalProps {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}
+
+export default function Modal({ open, title, onClose, children, wide = false }: ModalProps) {
   if (!open) return null;
 
   return (

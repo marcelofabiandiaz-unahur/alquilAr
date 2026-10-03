@@ -1,6 +1,8 @@
-import React, { useState, useContext } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from './AuthContext';
+import { useAuthContext } from './authContext';
+import type { AuthUsuario } from './types';
 import { API_URL } from './config/api';
 import AuthLayout from './components/auth/AuthLayout';
 import Alert from './components/ui/Alert';
@@ -8,14 +10,14 @@ import { labelClass, inputClass, btnPrimaryClass, linkClass } from './components
 
 export default function Login() {
   const navigate = useNavigate();
-  const { loginGlobal } = useContext(AuthContext);
+  const { loginGlobal } = useAuthContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
-  const manejarLogin = async (e) => {
+  const manejarLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setMensaje('');
@@ -28,7 +30,11 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      const datos = await respuesta.json();
+      const datos = await respuesta.json() as {
+        mensaje?: string;
+        token: string;
+        usuario: AuthUsuario;
+      };
 
       if (!respuesta.ok) {
         throw new Error(datos.mensaje || 'Error al iniciar sesión');
@@ -41,7 +47,7 @@ export default function Login() {
         navigate('/dashboard');
       }, 1000);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
     } finally {
       setCargando(false);
     }
