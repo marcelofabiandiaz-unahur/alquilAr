@@ -5,15 +5,16 @@ import Alert from '../ui/Alert';
 import LoadingRow from '../ui/LoadingRow';
 import DataTable from '../ui/DataTable';
 import { btnPrimaryClass } from '../layout/dashboardStyles';
+import type { Role, Usuario } from '../../types';
 
-const ROLE_CHIP_STYLES = {
+const ROLE_CHIP_STYLES: Record<Role, string> = {
   USUARIO: 'bg-slate-100 text-slate-700 border-slate-200',
   INQUILINO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   PROPIETARIO: 'bg-sky-50 text-sky-700 border-sky-200',
   ADMINISTRADOR: 'bg-violet-50 text-violet-700 border-violet-200',
 };
 
-const ROLES_ASIGNABLES = [
+const ROLES_ASIGNABLES: { rol: Extract<Role, 'INQUILINO' | 'PROPIETARIO'>; label: string; className: string }[] = [
   { rol: 'INQUILINO', label: '+ Inquilino', className: `${btnPrimaryClass} text-xs px-3 py-1.5` },
   {
     rol: 'PROPIETARIO',
@@ -25,7 +26,7 @@ const ROLES_ASIGNABLES = [
 const CHIP_BASE =
   'inline-flex items-center justify-center h-6 px-2.5 rounded-md border text-[11px] font-semibold uppercase tracking-wide leading-none font-sans whitespace-nowrap';
 
-function RoleChips({ roles }) {
+function RoleChips({ roles }: { roles: Role[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {roles.map((rol) => (
@@ -40,22 +41,22 @@ function RoleChips({ roles }) {
   );
 }
 
-export default function UsuariosPanel({ token }) {
-  const [usuarios, setUsuarios] = useState([]);
+export default function UsuariosPanel({ token }: { token: string }) {
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [accionId, setAccionId] = useState(null);
+  const [accionId, setAccionId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError('');
     try {
-      const data = await apiGet('/api/usuarios', token);
+      const data = await apiGet<Usuario[]>('/api/usuarios', token);
       if (!Array.isArray(data)) throw new Error('Respuesta inválida del servidor');
       setUsuarios(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los usuarios.');
       setUsuarios([]);
     } finally {
       setCargando(false);
@@ -63,10 +64,11 @@ export default function UsuariosPanel({ token }) {
   }, [token]);
 
   useEffect(() => {
-    cargar();
+    const timer = setTimeout(cargar, 0);
+    return () => clearTimeout(timer);
   }, [cargar]);
 
-  const asignarRol = async (usr, rol) => {
+  const asignarRol = async (usr: Usuario, rol: Role) => {
     setAccionId(`${usr._id}-${rol}`);
     setError('');
     setInfo('');
@@ -75,7 +77,7 @@ export default function UsuariosPanel({ token }) {
       setInfo(`Rol ${rol} asignado a ${usr.email}`);
       await cargar();
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudo asignar el rol.');
     } finally {
       setAccionId(null);
     }

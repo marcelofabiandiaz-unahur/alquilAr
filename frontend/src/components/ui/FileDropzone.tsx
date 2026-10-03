@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import type { ChangeEvent, DragEvent, KeyboardEvent } from 'react';
 import {
   estaConfigurado,
   subirArchivo,
@@ -6,6 +7,18 @@ import {
   esUrlPdf,
   validarArchivo,
 } from '../../lib/cloudinary';
+
+type TipoArchivo = 'propiedades' | 'garante' | 'gastos';
+
+interface FileDropzoneProps {
+  value?: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  tipo?: TipoArchivo;
+  permitirPdf?: boolean;
+  label?: string;
+  hint?: string;
+}
 
 export default function FileDropzone({
   value = '',
@@ -15,8 +28,8 @@ export default function FileDropzone({
   permitirPdf = true,
   label = 'Archivo',
   hint = 'JPG, PNG, WEBP o PDF · máx. 5 MB',
-}) {
-  const inputRef = useRef(null);
+}: FileDropzoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [errorLocal, setErrorLocal] = useState('');
@@ -24,7 +37,7 @@ export default function FileDropzone({
   const configOk = estaConfigurado(tipo);
   const deshabilitado = disabled || !configOk || subiendo || Boolean(value);
 
-  const procesarArchivo = async (fileList) => {
+  const procesarArchivo = async (fileList: FileList | null) => {
     if (!configOk) {
       setErrorLocal('Cloudinary no está configurado. Revisá frontend/.env');
       return;
@@ -45,13 +58,13 @@ export default function FileDropzone({
       const url = await subirArchivo(file, tipo, { permitirPdf });
       onChange(url);
     } catch (err) {
-      setErrorLocal(`${file.name}: ${err.message}`);
+      setErrorLocal(`${file.name}: ${err instanceof Error ? err.message : 'Error al subir el archivo.'}`);
     } finally {
       setSubiendo(false);
     }
   };
 
-  const onDrop = (e) => {
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setArrastrando(false);
     if (deshabilitado) return;
@@ -112,11 +125,11 @@ export default function FileDropzone({
         <div
           role="button"
           tabIndex={deshabilitado ? -1 : 0}
-          onKeyDown={(e) => {
+          onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
             if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click();
           }}
           onClick={() => !deshabilitado && inputRef.current?.click()}
-          onDragOver={(e) => {
+          onDragOver={(e: DragEvent<HTMLDivElement>) => {
             e.preventDefault();
             if (!deshabilitado) setArrastrando(true);
           }}
@@ -136,7 +149,7 @@ export default function FileDropzone({
             accept={accept}
             className="hidden"
             disabled={deshabilitado}
-            onChange={(e) => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               procesarArchivo(e.target.files);
               e.target.value = '';
             }}
