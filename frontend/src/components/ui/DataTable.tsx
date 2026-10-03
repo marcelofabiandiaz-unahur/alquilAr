@@ -1,4 +1,13 @@
-export default function DataTable({ columns, rows, renderRow, emptyMessage }) {
+import type { ReactNode } from 'react';
+
+interface DataTableProps<T> {
+  columns: string[];
+  rows: T[];
+  renderRow: (row: T) => ReactNode;
+  emptyMessage?: string;
+}
+
+export default function DataTable<T>({ columns, rows, renderRow, emptyMessage }: DataTableProps<T>) {
   if (!rows.length) {
     return (
       <p className="text-slate-500 text-sm py-6 text-center">{emptyMessage || 'Sin registros'}</p>

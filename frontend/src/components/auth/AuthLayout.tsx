@@ -1,6 +1,13 @@
 import AuthBrandPanel from './AuthBrandPanel';
+import type { ReactNode } from 'react';
 
-export default function AuthLayout({ children, title, subtitle }) {
+interface AuthLayoutProps {
+  children: ReactNode;
+  title?: string;
+  subtitle?: string;
+}
+
+export default function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
     <div className="min-h-screen grid md:grid-cols-2">
       <div className="hidden md:flex w-full">

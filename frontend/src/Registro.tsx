@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from './config/api';
 import AuthLayout from './components/auth/AuthLayout';
@@ -22,7 +23,7 @@ export default function Registro() {
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
-  const manejarRegistro = async (e) => {
+  const manejarRegistro = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setMensaje('');
@@ -43,7 +44,7 @@ export default function Registro() {
         }),
       });
 
-      const datos = await respuesta.json();
+      const datos = await respuesta.json() as { mensaje?: string };
 
       if (!respuesta.ok) {
         throw new Error(datos.mensaje || 'Error al registrar el usuario');
@@ -55,7 +56,7 @@ export default function Registro() {
         navigate('/');
       }, 2500);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el usuario.');
     } finally {
       setCargando(false);
     }

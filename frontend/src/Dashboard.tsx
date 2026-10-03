@@ -1,24 +1,29 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from './AuthContext';
+import { useAuthContext } from './authContext';
 import DashboardLayout from './components/layout/DashboardLayout';
 import InicioPanel, { PlaceholderSection } from './components/dashboard/InicioPanel';
 import PropiedadesPanel from './components/propiedades/PropiedadesPanel';
+import DisponibilidadPanel from './components/propiedades/DisponibilidadPanel';
 import ContratosPanel from './components/contratos/ContratosPanel';
+import HistorialPanel from './components/contratos/HistorialPanel';
+import GastosPanel from './components/gastos/GastosPanel';
+import PagosPanel from './components/pagos/PagosPanel';
+import ReclamosPanel from './components/reclamos/ReclamosPanel';
 import UsuariosPanel from './components/admin/UsuariosPanel';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { usuario, token, logoutGlobal, cargando } = useContext(AuthContext);
+  const { usuario, token, logoutGlobal, cargando } = useAuthContext();
   const [seccionActiva, setSeccionActiva] = useState('inicio');
 
   useEffect(() => {
-    if (!cargando && !usuario) {
+    if (!cargando && (!usuario || !token)) {
       navigate('/');
     }
-  }, [usuario, cargando, navigate]);
+  }, [usuario, token, cargando, navigate]);
 
-  if (cargando || !usuario) {
+  if (cargando || !usuario || !token) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-500">
         Verificando sesión...
@@ -53,22 +58,40 @@ export default function Dashboard() {
             esInquilino={roles.esInquilino}
           />
         );
+      case 'gastos':
+        return (
+          <GastosPanel
+            token={token}
+            esPropietario={roles.esPropietario}
+            esInquilino={roles.esInquilino}
+            esAdmin={roles.esAdministrador}
+          />
+        );
+      case 'pagos':
+        return (
+          <PagosPanel
+            token={token}
+            esPropietario={roles.esPropietario}
+            esInquilino={roles.esInquilino}
+            esAdmin={roles.esAdministrador}
+          />
+        );
+      case 'reclamos':
+        return (
+          <ReclamosPanel
+            token={token}
+            esPropietario={roles.esPropietario}
+            esInquilino={roles.esInquilino}
+            esAdmin={roles.esAdministrador}
+          />
+        );
+      case 'historial':
+      case 'mis-alquileres':
+        return <HistorialPanel />;
       case 'usuarios':
         return <UsuariosPanel token={token} />;
       case 'buscar':
-        return (
-          <PlaceholderSection
-            title="🔍 Buscar Alquileres"
-            description="Explorá propiedades disponibles para alquilar."
-          />
-        );
-      case 'mis-alquileres':
-        return (
-          <PlaceholderSection
-            title="🔑 Mis Alquileres"
-            description="Consultá tus alquileres activos. Por ahora usá la sección Mis Contratos."
-          />
-        );
+        return <DisponibilidadPanel />;
       case 'configuracion':
         return (
           <PlaceholderSection
