@@ -24,7 +24,10 @@ const registrarUsuario = async (req, res) => {
 
 const loginUsuario = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ mensaje: 'Email y contraseña son obligatorios' });
+    }
 
     const usuario = await Usuario.findOne({ email });
     if (!usuario) {
