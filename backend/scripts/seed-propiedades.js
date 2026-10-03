@@ -14,13 +14,6 @@ async function seed() {
   await mongoose.connect(process.env.MONGODB_URI);
   console.log('Conectado a MongoDB');
 
-  const colecciones = await mongoose.connection.db.listCollections().toArray();
-  const nombres = colecciones.map((c) => c.name);
-  if (nombres.includes('propiedads')) {
-    await mongoose.connection.db.dropCollection('propiedads');
-    console.log('Colección obsoleta propiedads eliminada');
-  }
-
   const propietario1 = await Usuario.findOne({ email: 'propietario1@alquilar.com' });
   const propietario2 = await Usuario.findOne({ email: 'propietario2@alquilar.com' });
   const inquilino1 = await Usuario.findOne({ email: 'inquilino1@alquilar.com' });
@@ -30,10 +23,6 @@ async function seed() {
     console.error('Faltan usuarios seed. Ejecutá primero: npm run seed');
     process.exit(1);
   }
-
-  await Contrato.deleteMany({});
-  await Propiedad.deleteMany({});
-  console.log('Colecciones propiedades y contratos vaciadas');
 
   const propiedadesSeed = [
     {
@@ -70,40 +59,61 @@ async function seed() {
 
   const propiedades = [];
   for (const datos of propiedadesSeed) {
-    const propiedad = new Propiedad(datos);
-    await propiedad.save();
+    let propiedad = await Propiedad.findOne({
+      id_propietario: datos.id_propietario,
+      direccion: datos.direccion,
+    });
+    if (propiedad) {
+      console.log(`  Propiedad existente: ${propiedad.direccion}`);
+    } else {
+      propiedad = new Propiedad(datos);
+      await propiedad.save();
+      console.log(`  Propiedad creada: ${propiedad.direccion} → _id: ${propiedad._id}`);
+    }
     propiedades.push(propiedad);
-    console.log(`  Propiedad: ${propiedad.direccion} → _id: ${propiedad._id}`);
   }
 
-  const contratoVigente = new Contrato({
-    id_propiedad: propiedades[0]._id,
-    id_inquilino: inquilino1._id,
-    fecha_inicio: new Date('2026-01-01'),
-    monto_mensual: 350000,
-    dia_vencimiento: 10,
-    estado: 'VIGENTE',
-    garante: {
-      nombre: 'Garante Demo',
-      telefono: '1122334455',
-      recibo: 'https://ejemplo.com/recibo.pdf',
+  const contratosSeed = [
+    {
+      id_propiedad: propiedades[0]._id,
+      id_inquilino: inquilino1._id,
+      fecha_inicio: new Date('2026-01-01'),
+      monto_mensual: 350000,
+      dia_vencimiento: 10,
+      estado: 'VIGENTE',
+      garante: {
+        nombre: 'Garante Demo',
+        telefono: '1122334455',
+        recibo: 'https://ejemplo.com/recibo.pdf',
+      },
     },
-  });
-  await contratoVigente.save();
-  console.log(`  Contrato vigente → _id: ${contratoVigente._id}`);
+    {
+      id_propiedad: propiedades[0]._id,
+      id_inquilino: inquilino2._id,
+      fecha_inicio: new Date('2024-06-01'),
+      fecha_fin: new Date('2025-12-31'),
+      monto_mensual: 300000,
+      dia_vencimiento: 5,
+      estado: 'FINALIZADO',
+      garante: { nombre: 'Garante Anterior' },
+    },
+  ];
 
-  const contratoHistorico = new Contrato({
-    id_propiedad: propiedades[0]._id,
-    id_inquilino: inquilino2._id,
-    fecha_inicio: new Date('2024-06-01'),
-    fecha_fin: new Date('2025-12-31'),
-    monto_mensual: 300000,
-    dia_vencimiento: 5,
-    estado: 'FINALIZADO',
-    garante: { nombre: 'Garante Anterior' },
-  });
-  await contratoHistorico.save();
-  console.log(`  Contrato histórico → _id: ${contratoHistorico._id}`);
+  for (const datos of contratosSeed) {
+    const contratoExistente = await Contrato.findOne({
+      id_propiedad: datos.id_propiedad,
+      id_inquilino: datos.id_inquilino,
+      fecha_inicio: datos.fecha_inicio,
+    });
+    if (contratoExistente) {
+      console.log(`  Contrato existente: ${contratoExistente._id}`);
+      continue;
+    }
+
+    const contrato = new Contrato(datos);
+    await contrato.save();
+    console.log(`  Contrato creado → _id: ${contrato._id}`);
+  }
 
   console.log('\nSeed propiedades/contratos completado');
   await mongoose.disconnect();
