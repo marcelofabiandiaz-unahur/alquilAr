@@ -4,7 +4,7 @@ const {
   crearReclamo,
   obtenerReclamosPorInquilino,
   actualizarEstadoReclamo,
-} = require('../controllers/reclamo.controller');
+} = require('../controllers/reclamoController');
 
 //Crear reclamo
 router.post('/', crearReclamo);

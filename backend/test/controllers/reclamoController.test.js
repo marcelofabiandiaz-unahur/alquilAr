@@ -20,7 +20,7 @@ class ReclamoMock {
 
 const controllerPath = path.resolve(__dirname, '../../src/controllers/reclamoController.js');
 const { crearReclamo, obtenerReclamosPorInquilino, actualizarEstadoReclamo } =
-  loadControllerWithModel(controllerPath, '../models/reclamo.model', ReclamoMock);
+  loadControllerWithModel(controllerPath, '../models/reclamo', ReclamoMock);
 
 describe('reclamoController', () => {
   let originalFind;

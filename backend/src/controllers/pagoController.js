@@ -1,4 +1,4 @@
-const Pago = require('../models/pago.model');
+const Pago = require('../models/pago');
 const { sendResponse, validarObjectIdBody } = require('../utils/controllerHelpers');
 
 //Crear un nuevo pago

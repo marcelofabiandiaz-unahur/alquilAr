@@ -1,4 +1,4 @@
-const Reclamo = require('../models/reclamo.model');
+const Reclamo = require('../models/reclamo');
 const { sendResponse } = require('../utils/controllerHelpers');
 
 //Crear un nuevo reclamo
