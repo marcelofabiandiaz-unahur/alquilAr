@@ -24,16 +24,28 @@ const reclamoSchema = new mongoose.Schema(
       enum: ['BAJA', 'MEDIA', 'ALTA', 'URGENTE'],
       default: 'MEDIA',
     },
-    categoria: { type: String, required: true, trim: true },
+    categoria: {
+      type: String,
+      enum: ['PLOMERIA', 'ELECTRICIDAD', 'GAS', 'ESTRUCTURAL', 'MANTENIMIENTO', 'OTRO'],
+      default: 'OTRO',
+      required: true,
+      trim: true,
+    },
     estado: {
       type: String,
-      enum: ['PENDIENTE', 'EN_PROCESO', 'RESUELTO'],
+      enum: ['PENDIENTE', 'EN_PROCESO', 'RESUELTO', 'CANCELADO'],
       default: 'PENDIENTE',
     },
     fecha_creacion: { type: Date, default: Date.now },
     fecha_actualizacion: { type: Date, default: Date.now },
   },
-  { timestamps: true, collection: 'reclamos' },
+  {
+    timestamps: {
+      createdAt: 'fecha_creacion',
+      updatedAt: 'fecha_actualizacion',
+    },
+    collection: 'reclamos',
+  },
 );
 
 reclamoSchema.index({ id_inquilino: 1, fecha_creacion: -1 });
