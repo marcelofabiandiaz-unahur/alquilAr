@@ -36,5 +36,4 @@ app.use('/api/contratos', contratoRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/gastos', gastoRoutes);
 app.use('/api/reclamos', reclamoRoutes);
-
 app.listen(PORT, () => console.log(`Servidor en http://localhost:${PORT}`));

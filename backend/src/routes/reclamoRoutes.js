@@ -11,6 +11,7 @@ const { verificarToken } = require('../middlewares/authMiddleware');
 const router = express.Router();
 router.use(verificarToken);
 router.get('/', listarReclamos);
+router.get('/inquilino', listarReclamos);
 router.post('/', crearReclamo);
 router.get('/:id', obtenerReclamo);
 router.patch('/:id/estado', actualizarReclamo);

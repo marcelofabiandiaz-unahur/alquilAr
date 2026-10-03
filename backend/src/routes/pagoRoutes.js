@@ -13,6 +13,7 @@ const { verificarToken } = require('../middlewares/authMiddleware');
 const router = express.Router();
 router.use(verificarToken);
 router.get('/', listarPagos);
+router.get('/inquilino', listarPagos);
 router.post('/', crearPago);
 router.get('/:id', obtenerPago);
 router.put('/:id', actualizarPago);
