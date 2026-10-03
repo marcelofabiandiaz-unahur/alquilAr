@@ -3,6 +3,15 @@ const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('../config/jwtSecret');
 
+const ROLES_VALIDOS = ['USUARIO', 'INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'];
+const CAMPOS_PERFIL_EDITABLES = ['telefono', 'cbu_alias', 'cuit_cuil'];
+
+const serializarUsuario = (usuario) => {
+  const respuesta = usuario.toObject ? usuario.toObject() : { ...usuario };
+  delete respuesta.password;
+  return respuesta;
+};
+
 const registrarUsuario = async (req, res) => {
   try {
     const datos = { ...(req.body || {}), roles: ['USUARIO'] };
@@ -10,10 +19,7 @@ const registrarUsuario = async (req, res) => {
     const nuevoUsuario = new Usuario(datos);
     await nuevoUsuario.save();
 
-    const usuarioRespuesta = nuevoUsuario.toObject();
-    delete usuarioRespuesta.password;
-
-    res.status(201).json(usuarioRespuesta);
+    res.status(201).json(serializarUsuario(nuevoUsuario));
   } catch (error) {
     res.status(400).json({ mensaje: 'Error al crear usuario', error: error.message });
   }
@@ -32,6 +38,10 @@ const loginUsuario = async (req, res) => {
       return res.status(401).json({ mensaje: 'Credenciales inválidas (Email no encontrado)' });
     }
 
+    if (usuario.estado && usuario.estado !== 'ACTIVO') {
+      return res.status(403).json({ mensaje: 'Usuario inactivo. Contactá al administrador.' });
+    }
+
     const passwordValido = await argon2.verify(usuario.password, password);
     if (!passwordValido) {
       return res.status(401).json({ mensaje: 'Credenciales inválidas (Contraseña incorrecta)' });
@@ -47,6 +57,7 @@ const loginUsuario = async (req, res) => {
       mensaje: '¡Login exitoso! 🔓',
       token,
       usuario: {
+        _id: usuario._id,
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         roles: usuario.roles,
@@ -55,6 +66,38 @@ const loginUsuario = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ mensaje: error.message });
+  }
+};
+
+const obtenerMiPerfil = async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.usuario._id).select('-password');
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    }
+    res.json(usuario);
+  } catch (error) {
+    res.status(500).json({ mensaje: error.message });
+  }
+};
+
+const actualizarMiPerfil = async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.usuario._id);
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    }
+
+    for (const campo of CAMPOS_PERFIL_EDITABLES) {
+      if (req.body?.[campo] !== undefined) {
+        usuario[campo] = req.body[campo];
+      }
+    }
+
+    await usuario.save();
+    res.json(serializarUsuario(usuario));
+  } catch (error) {
+    res.status(400).json({ mensaje: 'Error al actualizar perfil', error: error.message });
   }
 };
 
@@ -79,9 +122,8 @@ const agregarRolesUsuario = async (req, res) => {
       return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     }
 
-    const rolesValidos = ['USUARIO', 'INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'];
     for (const rol of agregar) {
-      if (!rolesValidos.includes(rol)) {
+      if (!ROLES_VALIDOS.includes(rol)) {
         return res.status(400).json({ mensaje: `Rol inválido: ${rol}` });
       }
       if (!usuario.roles.includes(rol)) {
@@ -90,12 +132,17 @@ const agregarRolesUsuario = async (req, res) => {
     }
 
     await usuario.save();
-    const respuesta = usuario.toObject();
-    delete respuesta.password;
-    res.json(respuesta);
+    res.json(serializarUsuario(usuario));
   } catch (error) {
     res.status(400).json({ mensaje: 'Error al actualizar roles', error: error.message });
   }
 };
 
-module.exports = { registrarUsuario, loginUsuario, listarUsuarios, agregarRolesUsuario };
+module.exports = {
+  registrarUsuario,
+  loginUsuario,
+  obtenerMiPerfil,
+  actualizarMiPerfil,
+  listarUsuarios,
+  agregarRolesUsuario,
+};
