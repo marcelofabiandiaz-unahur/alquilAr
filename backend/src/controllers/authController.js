@@ -1,14 +1,11 @@
 const Usuario = require('../models/usuario');
 const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 const registrarUsuario = async (req, res) => {
   try {
-    const datos = { ...req.body };
-
-    if (!datos.roles || !Array.isArray(datos.roles) || datos.roles.length === 0) {
-      datos.roles = ['USUARIO'];
-    }
+    const datos = { ...(req.body || {}), roles: ['USUARIO'] };
 
     const nuevoUsuario = new Usuario(datos);
     await nuevoUsuario.save();
@@ -25,11 +22,12 @@ const registrarUsuario = async (req, res) => {
 const loginUsuario = async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) {
+    if (typeof email !== 'string' || !email.trim() || !password) {
       return res.status(400).json({ mensaje: 'Email y contraseña son obligatorios' });
     }
 
-    const usuario = await Usuario.findOne({ email });
+    const emailNormalizado = email.trim().toLowerCase();
+    const usuario = await Usuario.findOne({ email: emailNormalizado });
     if (!usuario) {
       return res.status(401).json({ mensaje: 'Credenciales inválidas (Email no encontrado)' });
     }
@@ -41,7 +39,7 @@ const loginUsuario = async (req, res) => {
 
     const token = jwt.sign(
       { id: usuario._id, roles: usuario.roles },
-      process.env.JWT_SECRET || 'CLAVE_SECRETA_MOCK_FACULTAD',
+      getJwtSecret(),
       { expiresIn: '24h' },
     );
 
