@@ -166,4 +166,11 @@ describe('authController', () => {
     await loginUsuario(req, res);
     assert.equal(res.statusCode, 400);
   });
+
+  it('loginUsuario valida la presencia de la contraseña en la petición', async () => {
+    const req = { body: { email: 'propietario1@alquilar.com' } };
+    const res = mockRes();
+    await loginUsuario(req, res);
+    assert.equal(res.statusCode, 400);
+  });
 });
