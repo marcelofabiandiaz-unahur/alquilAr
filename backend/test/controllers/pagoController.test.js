@@ -20,7 +20,7 @@ class PagoMock {
 
 const controllerPath = path.resolve(__dirname, '../../src/controllers/pagoController.js');
 const { crearPago, obtenerPagosPorInquilino, registrarComprobante, marcarComoPagado } =
-  loadControllerWithModel(controllerPath, '../models/pago.model', PagoMock);
+  loadControllerWithModel(controllerPath, '../models/pago', PagoMock);
 
 describe('pagoController', () => {
   let originalFind;

@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const pagoSchema = new mongoose.Schema(
   {
@@ -47,4 +47,4 @@ const pagoSchema = new mongoose.Schema(
   }
 );
 
-export const Pago = mongoose.model('Pago', pagoSchema);
+module.exports = mongoose.model('Pago', pagoSchema);
