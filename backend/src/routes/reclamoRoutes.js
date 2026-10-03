@@ -1,18 +1,20 @@
 const express = require('express');
-const router = express.Router();
 const {
+  listarReclamos,
+  obtenerReclamo,
   crearReclamo,
-  obtenerReclamosPorInquilino,
-  actualizarEstadoReclamo,
+  actualizarReclamo,
+  eliminarReclamo,
 } = require('../controllers/reclamoController');
+const { verificarToken } = require('../middlewares/authMiddleware');
 
-//Crear reclamo
+const router = express.Router();
+router.use(verificarToken);
+router.get('/', listarReclamos);
+router.get('/inquilino', listarReclamos);
 router.post('/', crearReclamo);
-
-//Consultar reclamos propios
-router.get('/inquilino', obtenerReclamosPorInquilino);
-
-//Actualizar estado / prioridad
-router.patch('/:id/estado', actualizarEstadoReclamo);
+router.get('/:id', obtenerReclamo);
+router.patch('/:id/estado', actualizarReclamo);
+router.delete('/:id', eliminarReclamo);
 
 module.exports = router;
