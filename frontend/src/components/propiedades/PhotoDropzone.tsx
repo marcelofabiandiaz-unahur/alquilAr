@@ -1,14 +1,30 @@
 import { useRef, useState } from 'react';
+import type {
+  ChangeEvent,
+  Dispatch,
+  DragEvent,
+  KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  SetStateAction,
+} from 'react';
 import {
   estaConfigurado,
   subirImagen,
   miniatura,
   FOTOS_MAX,
   validarArchivo,
+  type TipoUpload,
 } from '../../lib/cloudinary';
 
-export default function PhotoDropzone({ fotos = [], onChange, disabled = false, tipo = 'propiedades' }) {
-  const inputRef = useRef(null);
+interface PhotoDropzoneProps {
+  fotos?: string[];
+  onChange: Dispatch<SetStateAction<string[]>>;
+  disabled?: boolean;
+  tipo?: TipoUpload;
+}
+
+export default function PhotoDropzone({ fotos = [], onChange, disabled = false, tipo = 'propiedades' }: PhotoDropzoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [subiendo, setSubiendo] = useState(0);
   const [errorLocal, setErrorLocal] = useState('');
@@ -17,7 +33,7 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
   const deshabilitado = disabled || !configOk || subiendo > 0;
   const cupoRestante = FOTOS_MAX - fotos.length;
 
-  const procesarArchivos = async (fileList) => {
+  const procesarArchivos = async (fileList: FileList | null) => {
     if (!configOk) {
       setErrorLocal('Cloudinary no está configurado. Revisá frontend/.env');
       return;
@@ -39,8 +55,8 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
     }
 
     setSubiendo(aSubir.length);
-    const nuevasUrls = [];
-    const errores = [];
+    const nuevasUrls: string[] = [];
+    const errores: string[] = [];
 
     await Promise.all(
       aSubir.map(async (file) => {
@@ -53,7 +69,7 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
           const url = await subirImagen(file, tipo);
           nuevasUrls.push(url);
         } catch (err) {
-          errores.push(`${file.name}: ${err.message}`);
+          errores.push(`${file.name}: ${err instanceof Error ? err.message : 'Error al subir la imagen.'}`);
         }
       }),
     );
@@ -69,14 +85,14 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
     }
   };
 
-  const onDrop = (e) => {
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setArrastrando(false);
     if (deshabilitado) return;
     procesarArchivos(e.dataTransfer.files);
   };
 
-  const quitarFoto = (index) => {
+  const quitarFoto = (index: number) => {
     onChange((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -96,11 +112,11 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
       <div
         role="button"
         tabIndex={deshabilitado ? -1 : 0}
-        onKeyDown={(e) => {
+        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
           if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click();
         }}
         onClick={() => !deshabilitado && inputRef.current?.click()}
-        onDragOver={(e) => {
+        onDragOver={(e: DragEvent<HTMLDivElement>) => {
           e.preventDefault();
           if (!deshabilitado) setArrastrando(true);
         }}
@@ -121,7 +137,7 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
           multiple
           className="hidden"
           disabled={deshabilitado}
-          onChange={(e) => {
+          onChange={(e: ChangeEvent<HTMLInputElement>) => {
             procesarArchivos(e.target.files);
             e.target.value = '';
           }}
@@ -152,7 +168,7 @@ export default function PhotoDropzone({ fotos = [], onChange, disabled = false, 
               {!disabled && (
                 <button
                   type="button"
-                  onClick={(e) => {
+                  onClick={(e: ReactMouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     quitarFoto(index);
                   }}
