@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { getJwtSecret } = require('./src/config/jwtSecret');
+getJwtSecret();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
