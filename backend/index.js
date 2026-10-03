@@ -5,8 +5,8 @@ const cors = require('cors');
 const authRoutes = require('./src/routes/authRoutes');
 const propiedadRoutes = require('./src/routes/propiedadRoutes');
 const contratoRoutes = require('./src/routes/contratoRoutes');
-const reclamoRoutes = require('./routes/reclamoRoutes');
-const pagoRoutes = require('./routes/pagoRoutes');
+const reclamoRoutes = require('./src/routes/reclamoRoutes');
+const pagoRoutes = require('./src/routes/pagoRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;

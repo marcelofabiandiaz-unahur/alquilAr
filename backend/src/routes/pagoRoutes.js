@@ -5,7 +5,7 @@ const {
   obtenerPagosPorInquilino,
   registrarComprobante,
   marcarComoPagado,
-} = require('../controllers/pago.controller');
+} = require('../controllers/pagoController');
 
 
 //Crear pago / cuota
