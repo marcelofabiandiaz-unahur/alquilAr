@@ -14,7 +14,7 @@ Plataforma web de gestión de alquileres con asistente de IA — Proyecto Integr
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | React, Vite, TailwindCSS |
+| Frontend | React, TypeScript, Vite, TailwindCSS |
 | Backend | Node.js, Express |
 | Base de datos | MongoDB Atlas, Mongoose |
 | Auth | Argon2id, JWT |
@@ -39,10 +39,25 @@ package.json                  Scripts npm run dev (front + back)
 
 - Un solo modelo `Usuario` con `roles: [String]` (perfil mixto) e `_id` ObjectId nativo de MongoDB.
 - Rutas montadas en `/api/usuarios`:
-  - `POST /` — registro (rol por defecto: `USUARIO`)
+  - `POST /` — registro (siempre asigna `USUARIO`; roles superiores se asignan desde administración)
   - `POST /login` — login JWT
   - `GET /` — listado (solo `ADMINISTRADOR`, requiere `Authorization: Bearer`)
 - Middleware: `verificarToken`, `verificarRol`.
+
+### Operación (semana 4)
+
+Los endpoints de pagos, gastos y reclamos requieren `Authorization: Bearer <token>`.
+Las respuestas nuevas usan `{ success, data, message }`; la identidad del usuario se obtiene del JWT.
+
+- `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, `PATCH /api/pagos/:id/comprobante` y `PATCH /api/pagos/:id/confirmar`.
+  El pago se relaciona con un contrato y período `YYYY-MM`; el importe y el vencimiento se derivan del contrato vigente.
+  El inquilino consulta sus pagos y carga el comprobante; el propietario del contrato o un administrador registra y confirma pagos.
+- `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`.
+  Permite filtrar por `id_propiedad`, `desde`, `hasta` y `estado_pago`. Propietarios y administradores gestionan gastos;
+  el inquilino puede consultar gastos de propiedades con su contrato vigente.
+- `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH /api/reclamos/:id/estado` y `DELETE /api/reclamos/:id`.
+  El inquilino abre reclamos ligados a un contrato vigente; propietario y administrador consultan y gestionan reclamos
+  de sus propiedades.
 
 ## Desarrollo local
 
@@ -68,16 +83,27 @@ Variables de entorno necesarias (solo nombres):
 - `PORT` (opcional, default 3000)
 - `SEED_PASSWORD` (opcional, default `ClaveTest123` para el script seed)
 
-### Seed de usuarios de prueba
+`JWT_SECRET` es obligatoria y debe tener al menos 32 bytes; el backend no inicia si falta o es demasiado corta.
+Generá un valor aleatorio para `backend/.env` con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
-Solo si necesitas resetear la coleccion `usuarios` (borra todos los documentos existentes):
+### Seeds de usuarios, propiedades y contratos de prueba
+
+Los seeds agregan únicamente los registros de prueba que no existan; no vacían colecciones ni modifican
+registros preexistentes. Verificá que `MONGODB_URI` apunte a la base local/de prueba antes de ejecutarlos:
 
 ```bash
 cd backend
 npm run seed
+npm run seed:propiedades
 ```
 
 Tras cambiar el modelo de usuario o re-seed: limpiar `localStorage` en el navegador (`token_arquilar`, `usuario_arquilar`).
+
+### Seed de datos operativos de semana 4
+
+Después de preparar usuarios, propiedades y un contrato vigente, se pueden agregar pagos, gastos y reclamos
+de prueba de forma idempotente con `cd backend && npm run seed:operacion`. El script no borra colecciones.
+Verificá que `MONGODB_URI` apunte a una base local/de prueba antes de ejecutarlo.
 
 ### Frontend
 
@@ -118,7 +144,7 @@ El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en push
 
 | Job | Qué valida |
 |---|---|
-| **backend** | `npm test` (middleware auth) + syntax check de `index.js` |
+| **backend** | `npm test` (auth, propiedades, contratos, pagos, gastos y reclamos) + syntax check de `index.js` |
 | **frontend** | `npm run build` |
 
 Tests locales del backend:
@@ -128,7 +154,8 @@ cd backend
 npm test
 ```
 
-Lint del frontend pendiente; CI valida build del front, no `npm run lint`.
+`npm test` cubre middlewares y controladores de autenticación, propiedades, contratos, pagos, gastos y reclamos.
+CI valida build del frontend; `npm run lint` también está disponible localmente.
 
 ## Ramas y módulos
 

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 const verificarToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -10,8 +11,8 @@ const verificarToken = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'CLAVE_SECRETA_MOCK_FACULTAD');
-    req.usuario = payload;
+    const payload = jwt.verify(token, getJwtSecret());
+    req.usuario = { ...payload, _id: payload.id || payload._id };
     next();
   } catch (error) {
     return res.status(401).json({ mensaje: 'Token inválido o expirado.' });
