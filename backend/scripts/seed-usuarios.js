@@ -42,16 +42,24 @@ async function seed() {
   await mongoose.connect(process.env.MONGODB_URI);
   console.log('Conectado a MongoDB');
 
-  const resultado = await Usuario.deleteMany({});
-  console.log(`Colección usuarios vaciada: ${resultado.deletedCount} documentos eliminados`);
+  let creados = 0;
+  let existentes = 0;
 
   for (const datos of usuariosSeed) {
+    const existente = await Usuario.findOne({ email: datos.email });
+    if (existente) {
+      existentes += 1;
+      console.log(`  ${datos.email} → ya existe, sin cambios`);
+      continue;
+    }
+
     const usuario = new Usuario({ ...datos, password: SEED_PASSWORD });
     await usuario.save();
+    creados += 1;
     console.log(`  ${usuario.email} → _id: ${usuario._id}`);
   }
 
-  console.log(`\nSeed completado: ${usuariosSeed.length} usuarios insertados`);
+  console.log(`\nSeed completado: ${creados} usuarios creados, ${existentes} ya existentes`);
   await mongoose.disconnect();
 }
 
