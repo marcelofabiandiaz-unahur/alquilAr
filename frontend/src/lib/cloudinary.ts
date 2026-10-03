@@ -3,13 +3,15 @@ const TIPO_PDF = 'application/pdf';
 const TAMANO_MAX_BYTES = 5 * 1024 * 1024;
 export const FOTOS_MAX = 5;
 
+export type TipoUpload = 'propiedades' | 'garante' | 'gastos';
+
 const ENV_PRESET = {
   propiedades: 'VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES',
   garante: 'VITE_CLOUDINARY_UPLOAD_PRESET_GARANTE',
   gastos: 'VITE_CLOUDINARY_UPLOAD_PRESET_GASTOS',
 };
 
-function getPreset(tipo) {
+function getPreset(tipo: TipoUpload): string | undefined {
   const envKey = ENV_PRESET[tipo];
   const preset = envKey ? import.meta.env[envKey] : undefined;
   if (preset) return preset;
@@ -19,11 +21,14 @@ function getPreset(tipo) {
   return undefined;
 }
 
-export function estaConfigurado(tipo = 'propiedades') {
+export function estaConfigurado(tipo: TipoUpload = 'propiedades'): boolean {
   return Boolean(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME && getPreset(tipo));
 }
 
-export function validarArchivo(file, { permitirPdf = false } = {}) {
+export function validarArchivo(
+  file: File,
+  { permitirPdf = false }: { permitirPdf?: boolean } = {},
+): string | null {
   const tiposPermitidos = permitirPdf ? [...TIPOS_IMAGEN, TIPO_PDF] : TIPOS_IMAGEN;
   if (!tiposPermitidos.includes(file.type)) {
     return permitirPdf
@@ -36,7 +41,11 @@ export function validarArchivo(file, { permitirPdf = false } = {}) {
   return null;
 }
 
-export async function subirArchivo(file, tipo = 'propiedades', { permitirPdf = false } = {}) {
+export async function subirArchivo(
+  file: File,
+  tipo: TipoUpload = 'propiedades',
+  { permitirPdf = false }: { permitirPdf?: boolean } = {},
+): Promise<string> {
   const errorValidacion = validarArchivo(file, { permitirPdf });
   if (errorValidacion) {
     throw new Error(errorValidacion);
@@ -76,16 +85,16 @@ export async function subirArchivo(file, tipo = 'propiedades', { permitirPdf = f
   return json.secure_url;
 }
 
-export async function subirImagen(file, tipo = 'propiedades') {
+export async function subirImagen(file: File, tipo: TipoUpload = 'propiedades'): Promise<string> {
   return subirArchivo(file, tipo, { permitirPdf: false });
 }
 
-export function esUrlPdf(url) {
+export function esUrlPdf(url: string): boolean {
   if (!url) return false;
   return /\.pdf(\?|$)/i.test(url) || url.includes('/raw/upload/');
 }
 
-export function miniatura(url, w = 400, h = 240) {
+export function miniatura(url: string, w = 400, h = 240): string {
   if (!url || !url.includes('cloudinary.com') || !url.includes('/upload/')) {
     return url;
   }

@@ -17,27 +17,45 @@ import {
   btnSecondaryClass,
   btnGhostClass,
 } from '../layout/dashboardStyles';
+import type { FormEvent } from 'react';
+import type { Contrato, Propiedad } from '../../types';
 
-const FORM_VACIO = {
+interface PropiedadForm {
+  direccion: string;
+  tipo: string;
+  ambientes: string;
+  valor_base: string;
+  descripcion: string;
+  estado: string;
+  fotos: string[];
+}
+
+const FORM_VACIO: PropiedadForm = {
   direccion: '',
   tipo: 'Departamento',
-  ambientes: 2,
+  ambientes: '2',
   valor_base: '',
   descripcion: '',
   estado: 'DISPONIBLE',
   fotos: [],
 };
 
-export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
-  const [propiedades, setPropiedades] = useState([]);
+interface PropiedadesPanelProps {
+  token: string;
+  esPropietario: boolean;
+  esAdmin: boolean;
+}
+
+export default function PropiedadesPanel({ token, esPropietario, esAdmin }: PropiedadesPanelProps) {
+  const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [editando, setEditando] = useState(null);
-  const [form, setForm] = useState(FORM_VACIO);
+  const [editando, setEditando] = useState<Propiedad | null>(null);
+  const [form, setForm] = useState<PropiedadForm>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [historialAbierto, setHistorialAbierto] = useState(false);
-  const [historial, setHistorial] = useState([]);
+  const [historial, setHistorial] = useState<Contrato[]>([]);
   const [historialTitulo, setHistorialTitulo] = useState('');
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
@@ -45,17 +63,18 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
     setCargando(true);
     setError('');
     try {
-      const data = await apiGet('/api/propiedades', token);
+      const data = await apiGet<Propiedad[]>('/api/propiedades', token);
       setPropiedades(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar las propiedades.');
     } finally {
       setCargando(false);
     }
   }, [token]);
 
   useEffect(() => {
-    cargar();
+    const timer = setTimeout(cargar, 0);
+    return () => clearTimeout(timer);
   }, [cargar]);
 
   const abrirNueva = () => {
@@ -64,13 +83,13 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
     setModalAbierto(true);
   };
 
-  const abrirEditar = (prop) => {
+  const abrirEditar = (prop: Propiedad) => {
     setEditando(prop);
     setForm({
       direccion: prop.direccion,
       tipo: prop.tipo,
-      ambientes: prop.ambientes,
-      valor_base: prop.valor_base,
+      ambientes: String(prop.ambientes),
+      valor_base: String(prop.valor_base),
       descripcion: prop.descripcion || '',
       estado: prop.estado,
       fotos: Array.isArray(prop.fotos) ? [...prop.fotos] : [],
@@ -78,12 +97,20 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
     setModalAbierto(true);
   };
 
-  const guardar = async (e) => {
+  const guardar = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setGuardando(true);
     setError('');
     try {
-      const body = {
+      const body: {
+        direccion: string;
+        tipo: string;
+        ambientes: number;
+        valor_base: number;
+        descripcion: string;
+        fotos: string[];
+        estado?: string;
+      } = {
         direccion: form.direccion,
         tipo: form.tipo,
         ambientes: Number(form.ambientes),
@@ -102,33 +129,33 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
       setModalAbierto(false);
       await cargar();
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudo guardar la propiedad.');
     } finally {
       setGuardando(false);
     }
   };
 
-  const darBaja = async (prop) => {
+  const darBaja = async (prop: Propiedad) => {
     if (!window.confirm(`¿Dar de baja "${prop.direccion}"?`)) return;
     setError('');
     try {
       await apiDelete(`/api/propiedades/${prop._id}`, token);
       await cargar();
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudo dar de baja la propiedad.');
     }
   };
 
-  const verHistorial = async (prop) => {
+  const verHistorial = async (prop: Propiedad) => {
     setHistorialTitulo(prop.direccion);
     setHistorialAbierto(true);
     setCargandoHistorial(true);
     setHistorial([]);
     try {
-      const data = await apiGet(`/api/propiedades/${prop._id}/contratos`, token);
+      const data = await apiGet<Contrato[]>(`/api/propiedades/${prop._id}/contratos`, token);
       setHistorial(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el historial.');
     } finally {
       setCargandoHistorial(false);
     }
@@ -194,7 +221,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
                     onClick={() => darBaja(prop)}
                     className="text-xs px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-medium"
                   >
-                    Baja
+                    Eliminar
                   </button>
                 )}
               </div>
@@ -310,9 +337,11 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }) {
               <li key={c._id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center gap-3">
                 <div>
                   <p className="text-sm font-medium">
-                    {c.id_inquilino?.nombre} {c.id_inquilino?.apellido}
+                    {typeof c.id_inquilino === 'object' ? `${c.id_inquilino.nombre || ''} ${c.id_inquilino.apellido || ''}` : ''}
                   </p>
-                  <p className="text-xs text-slate-500">{c.id_inquilino?.email}</p>
+                  <p className="text-xs text-slate-500">
+                    {typeof c.id_inquilino === 'object' ? c.id_inquilino.email : ''}
+                  </p>
                 </div>
                 <StatBadge estado={c.estado} />
               </li>
