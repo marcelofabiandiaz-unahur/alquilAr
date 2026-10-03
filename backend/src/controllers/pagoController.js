@@ -1,134 +1,202 @@
 const Pago = require('../models/pago');
-const { sendResponse, validarObjectIdBody } = require('../utils/controllerHelpers');
+const Contrato = require('../models/contrato');
+const {
+  obtenerIdentidad,
+  resolverId,
+  esAdministrador,
+  esPropietario,
+  esInquilino,
+  buscarContratoGestionable,
+  obtenerContratosVisibles,
+} = require('../utils/operacionHelpers');
+const { esObjectIdValido } = require('../utils/recursosHelpers');
 
-//Crear un nuevo pago
+const responder = (res, status, data, message) =>
+  res.status(status).json({ success: status < 400, data, message });
+
+const listarPagos = async (req, res) => {
+  try {
+    const contratos = await obtenerContratosVisibles(req.usuario);
+    if (!contratos) return responder(res, 403, null, 'No tenés permiso para consultar pagos.');
+
+    const filtro = { id_contrato: { $in: contratos.map((contrato) => contrato._id) } };
+    if (req.query.id_contrato) {
+      if (!esObjectIdValido(req.query.id_contrato)) {
+        return responder(res, 400, null, 'id_contrato inválido.');
+      }
+      filtro.id_contrato = req.query.id_contrato;
+      if (!contratos.some((contrato) => resolverId(contrato._id) === req.query.id_contrato)) {
+        return responder(res, 403, null, 'No tenés permiso para consultar este contrato.');
+      }
+    }
+
+    await Pago.updateMany(
+      { ...filtro, estado: 'PENDIENTE', fecha_vencimiento: { $lt: new Date() } },
+      { $set: { estado: 'ATRASADO' } },
+    );
+    const pagos = await Pago.find(filtro)
+      .populate({
+        path: 'id_contrato',
+        populate: { path: 'id_propiedad', select: 'direccion' },
+      })
+      .sort({ fecha_vencimiento: -1 });
+    return responder(res, 200, pagos, 'Pagos consultados.');
+  } catch (error) {
+    return responder(res, 500, null, error.message);
+  }
+};
+
+const obtenerPago = async (req, res) => {
+  try {
+    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
+    const pago = await Pago.findById(req.params.id).populate({
+      path: 'id_contrato',
+      populate: { path: 'id_propiedad', select: 'direccion' },
+    });
+    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
+    const { contrato, permitido } = await buscarContratoGestionable(
+      resolverId(pago.id_contrato),
+      req.usuario,
+    );
+    if (!contrato || !permitido) return responder(res, 403, null, 'No tenés permiso para ver este pago.');
+    return responder(res, 200, pago, 'Pago consultado.');
+  } catch (error) {
+    return responder(res, 500, null, error.message);
+  }
+};
+
 const crearPago = async (req, res) => {
   try {
-    const { contrato, inquilino, monto, fechaVencimiento } = req.body;
-
-    if (!contrato || !inquilino || !monto || !fechaVencimiento) {
-      return sendResponse(res, 400, {
-        success: false,
-        message: 'Todos los campos obligatorios deben ser proporcionados.',
-      });
+    const { id_contrato, mes_correspondiente } = req.body || {};
+    if (!id_contrato || !mes_correspondiente) {
+      return responder(res, 400, null, 'id_contrato y mes_correspondiente son obligatorios.');
+    }
+    if (!esObjectIdValido(id_contrato)) return responder(res, 400, null, 'id_contrato inválido.');
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes_correspondiente)) {
+      return responder(res, 400, null, 'mes_correspondiente debe tener formato YYYY-MM.');
     }
 
-    const nuevoPago = new Pago({
-      contrato,
-      inquilino,
-      monto,
-      fechaVencimiento,
-    });
+    const roles = obtenerIdentidad(req.usuario).roles;
+    if (!esAdministrador(roles) && !esPropietario(roles)) {
+      return responder(res, 403, null, 'Solo el propietario del contrato o un administrador puede registrar pagos.');
+    }
+    const { contrato, permitido } = await buscarContratoGestionable(id_contrato, req.usuario);
+    if (!contrato) return responder(res, 404, null, 'Contrato no encontrado.');
+    if (!permitido) {
+      return responder(res, 403, null, 'Solo el propietario del contrato o un administrador puede registrar pagos.');
+    }
+    if (contrato.estado !== 'VIGENTE') {
+      return responder(res, 409, null, 'Solo se pueden registrar pagos para contratos vigentes.');
+    }
 
-    await nuevoPago.save();
-
-    return sendResponse(res, 201, {
-      success: true,
-      message: 'Pago creado exitosamente.',
-      data: nuevoPago,
+    const [anio, mes] = mes_correspondiente.split('-').map(Number);
+    const fechaVencimiento = new Date(anio, mes - 1, contrato.dia_vencimiento, 12);
+    const pago = new Pago({
+      id_contrato,
+      mes_correspondiente,
+      monto_total: contrato.monto_mensual,
+      fecha_vencimiento: fechaVencimiento,
+      estado: fechaVencimiento < new Date() ? 'ATRASADO' : 'PENDIENTE',
     });
+    await pago.save();
+    return responder(res, 201, pago, 'Pago registrado.');
   } catch (error) {
-    return sendResponse(res, 500, {
-      success: false,
-      message: 'Error al crear el pago.',
-      error: error.message,
-    });
+    if (error.code === 11000) return responder(res, 409, null, 'Ya existe un pago para ese contrato y período.');
+    if (error.name === 'ValidationError') return responder(res, 400, null, error.message);
+    return responder(res, 500, null, error.message);
   }
 };
 
-//Obtener los pagos del inquilino autenticado
-const obtenerPagosPorInquilino = async (req, res) => {
-  try {
-    const inquilinoId = req.usuario._id;
-
-    const pagos = await Pago.find({ inquilino: inquilinoId }).populate('contrato');
-
-    return sendResponse(res, 200, {
-      success: true,
-      message: 'Pagos del inquilino recuperados exitosamente.',
-      data: pagos,
-    });
-  } catch (error) {
-    return sendResponse(res, 500, {
-      success: false,
-      message: 'Error al obtener pagos.',
-      error: error.message,
-    });
-  }
-};
-
-//Registrar comprobante de pago
 const registrarComprobante = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { comprobanteUrl } = req.body;
-
-    if (!comprobanteUrl) {
-      return sendResponse(res, 400, {
-        success: false,
-        message: 'La URL del comprobante es requerida.',
-      });
+    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
+    const { comprobante_url } = req.body || {};
+    if (typeof comprobante_url !== 'string' || !/^https:\/\/\S+$/.test(comprobante_url)) {
+      return responder(res, 400, null, 'comprobante_url debe ser una URL HTTPS válida.');
     }
-
-    const pago = await Pago.findById(id);
-    if (!pago) {
-      return sendResponse(res, 404, {
-        success: false,
-        message: 'Pago no encontrado.',
-      });
+    const pago = await Pago.findById(req.params.id);
+    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
+    const { contrato } = await buscarContratoGestionable(resolverId(pago.id_contrato), req.usuario);
+    const { id, roles } = obtenerIdentidad(req.usuario);
+    if (!contrato || !esInquilino(roles) || resolverId(contrato.id_inquilino) !== resolverId(id)) {
+      return responder(res, 403, null, 'Solo el inquilino del contrato puede cargar el comprobante.');
     }
-
-    pago.comprobanteUrl = comprobanteUrl;
+    if (pago.estado === 'PAGADO') return responder(res, 409, null, 'No se puede cambiar el comprobante de un pago confirmado.');
+    pago.comprobante_url = comprobante_url;
     await pago.save();
-
-    return sendResponse(res, 200, {
-      success: true,
-      message: 'Comprobante registrado correctamente.',
-      data: pago,
-    });
+    return responder(res, 200, pago, 'Comprobante registrado.');
   } catch (error) {
-    return sendResponse(res, 500, {
-      success: false,
-      message: 'Error al registrar el comprobante.',
-      error: error.message,
-    });
+    return responder(res, 500, null, error.message);
   }
 };
 
-//Marcar un pago como pagado
 const marcarComoPagado = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const pago = await Pago.findById(id);
-    if (!pago) {
-      return sendResponse(res, 404, {
-        success: false,
-        message: 'Pago no encontrado.',
-      });
+    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
+    const pago = await Pago.findById(req.params.id);
+    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
+    const { contrato, permitido } = await buscarContratoGestionable(resolverId(pago.id_contrato), req.usuario);
+    const roles = obtenerIdentidad(req.usuario).roles;
+    if (!contrato || !permitido || (!esAdministrador(roles) && !esPropietario(roles))) {
+      return responder(res, 403, null, 'Solo el propietario del contrato o un administrador puede confirmar el pago.');
     }
-
     pago.estado = 'PAGADO';
-    pago.fechaPago = new Date();
+    pago.fecha_pago = new Date();
     await pago.save();
-
-    return sendResponse(res, 200, {
-      success: true,
-      message: 'Estado del pago actualizado a PAGADO.',
-      data: pago,
-    });
+    return responder(res, 200, pago, 'Pago confirmado.');
   } catch (error) {
-    return sendResponse(res, 500, {
-      success: false,
-      message: 'Error al actualizar el pago.',
-      error: error.message,
-    });
+    return responder(res, 500, null, error.message);
+  }
+};
+
+const actualizarPago = async (req, res) => {
+  try {
+    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
+    const pago = await Pago.findById(req.params.id);
+    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
+    const { contrato, permitido } = await buscarContratoGestionable(resolverId(pago.id_contrato), req.usuario);
+    const roles = obtenerIdentidad(req.usuario).roles;
+    if (!contrato || !permitido || (!esAdministrador(roles) && !esPropietario(roles))) {
+      return responder(res, 403, null, 'Solo el propietario del contrato o un administrador puede modificar el pago.');
+    }
+    if (pago.estado === 'PAGADO') return responder(res, 409, null, 'No se puede modificar un pago confirmado.');
+    if (req.body?.fecha_vencimiento !== undefined) {
+      const fecha = new Date(req.body.fecha_vencimiento);
+      if (Number.isNaN(fecha.getTime())) return responder(res, 400, null, 'fecha_vencimiento inválida.');
+      pago.fecha_vencimiento = fecha;
+      pago.estado = fecha < new Date() ? 'ATRASADO' : 'PENDIENTE';
+    }
+    await pago.save();
+    return responder(res, 200, pago, 'Pago actualizado.');
+  } catch (error) {
+    return responder(res, 500, null, error.message);
+  }
+};
+
+const eliminarPago = async (req, res) => {
+  try {
+    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
+    const pago = await Pago.findById(req.params.id);
+    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
+    const { contrato, permitido } = await buscarContratoGestionable(resolverId(pago.id_contrato), req.usuario);
+    const roles = obtenerIdentidad(req.usuario).roles;
+    if (!contrato || !permitido || (!esAdministrador(roles) && !esPropietario(roles))) {
+      return responder(res, 403, null, 'No tenés permiso para eliminar este pago.');
+    }
+    if (pago.estado === 'PAGADO') return responder(res, 409, null, 'No se puede eliminar un pago confirmado.');
+    await pago.deleteOne();
+    return responder(res, 200, null, 'Pago eliminado.');
+  } catch (error) {
+    return responder(res, 500, null, error.message);
   }
 };
 
 module.exports = {
+  listarPagos,
+  obtenerPago,
   crearPago,
-  obtenerPagosPorInquilino,
+  actualizarPago,
   registrarComprobante,
   marcarComoPagado,
+  eliminarPago,
 };

@@ -1,23 +1,24 @@
 const express = require('express');
-const router = express.Router();
 const {
+  listarPagos,
+  obtenerPago,
   crearPago,
-  obtenerPagosPorInquilino,
+  actualizarPago,
   registrarComprobante,
   marcarComoPagado,
+  eliminarPago,
 } = require('../controllers/pagoController');
+const { verificarToken } = require('../middlewares/authMiddleware');
 
-
-//Crear pago / cuota
+const router = express.Router();
+router.use(verificarToken);
+router.get('/', listarPagos);
+router.get('/inquilino', listarPagos);
 router.post('/', crearPago);
-
-//Obtener historial del inquilino
-router.get('/inquilino', obtenerPagosPorInquilino);
-
-//Cargar comprobante de pago
+router.get('/:id', obtenerPago);
+router.put('/:id', actualizarPago);
 router.patch('/:id/comprobante', registrarComprobante);
-
-//Marcar pago como completado (Propietario/Admin)
 router.patch('/:id/confirmar', marcarComoPagado);
+router.delete('/:id', eliminarPago);
 
 module.exports = router;

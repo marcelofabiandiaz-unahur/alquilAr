@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js test/controllers/authController.test.js test/controllers/reclamoController.test.js test/controllers/pagoController.test.js",
-    "test:coverage": "node --test --experimental-test-coverage test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js test/controllers/authController.test.js test/controllers/reclamoController.test.js test/controllers/pagoController.test.js",
+    "test": "node --test test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js test/controllers/authController.test.js test/controllers/pagoController.test.js test/controllers/gastoController.test.js test/controllers/reclamoController.test.js",
+    "test:coverage": "node --test --experimental-test-coverage test/middlewares/authMiddleware.test.js test/unit/utils/recursosHelpers.test.js test/controllers/propiedadController.test.js test/controllers/contratoController.test.js test/controllers/authController.test.js test/controllers/pagoController.test.js test/controllers/gastoController.test.js test/controllers/reclamoController.test.js",
     "seed": "node scripts/seed-usuarios.js",
-    "seed:propiedades": "node scripts/seed-propiedades.js"
+    "seed:propiedades": "node scripts/seed-propiedades.js",
+    "seed:operacion": "node scripts/seed-operacion.js"
   },
   "keywords": [],
   "author": "",
