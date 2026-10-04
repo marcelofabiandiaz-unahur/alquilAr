@@ -6,6 +6,8 @@ const {
   registrarUsuario,
   agregarRolesUsuario,
   loginUsuario,
+  obtenerMiPerfil,
+  actualizarMiPerfil,
   obtenerSolicitudPropietario,
   solicitarRolPropietario,
   aprobarSolicitudPropietario,
@@ -85,6 +87,83 @@ describe('authController', () => {
     assert.deepEqual(filtroConsultado, { email: 'propietario1@alquilar.com' });
     assert.equal(res.body.usuario.email, 'propietario1@alquilar.com');
     assert.equal(res.body.usuario.nombre, 'Propietario');
+    assert.equal(String(res.body.usuario._id), String(usuarioId));
+  });
+
+  it('loginUsuario rechaza usuarios inactivos', async () => {
+    const argon2 = require('argon2');
+    const origVerify = argon2.verify;
+    argon2.verify = async () => true;
+
+    Usuario.findOne = async () => ({
+      _id: usuarioId,
+      email: 'inactivo@alquilar.com',
+      roles: ['USUARIO'],
+      estado: 'INACTIVO',
+      password: 'hash',
+    });
+
+    const res = mockRes();
+    await loginUsuario(
+      { body: { email: 'inactivo@alquilar.com', password: 'ClaveTest123' } },
+      res,
+    );
+    argon2.verify = origVerify;
+
+    assert.equal(res.statusCode, 403);
+    assert.match(res.body.mensaje, /inactivo/i);
+  });
+
+  it('obtenerMiPerfil devuelve el usuario autenticado sin password', async () => {
+    Usuario.findById = () => ({
+      select: async () => ({
+        _id: usuarioId,
+        nombre: 'Santiago',
+        apellido: 'Torales',
+        email: 'santiago@alquilar.com',
+        roles: ['ADMINISTRADOR'],
+      }),
+    });
+
+    const req = { usuario: { _id: usuarioId } };
+    const res = mockRes();
+    await obtenerMiPerfil(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.email, 'santiago@alquilar.com');
+    assert.equal('password' in res.body, false);
+  });
+
+  it('actualizarMiPerfil permite editar telefono y cbu_alias', async () => {
+    const usuario = {
+      _id: usuarioId,
+      nombre: 'Santiago',
+      telefono: '',
+      cbu_alias: '',
+      cuit_cuil: '',
+      save: async () => {},
+      toObject() {
+        return {
+          _id: this._id,
+          nombre: this.nombre,
+          telefono: this.telefono,
+          cbu_alias: this.cbu_alias,
+          cuit_cuil: this.cuit_cuil,
+        };
+      },
+    };
+    Usuario.findById = async () => usuario;
+
+    const req = {
+      usuario: { _id: usuarioId },
+      body: { telefono: '1155551234', cbu_alias: 'alquilar.santiago' },
+    };
+    const res = mockRes();
+    await actualizarMiPerfil(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(usuario.telefono, '1155551234');
+    assert.equal(usuario.cbu_alias, 'alquilar.santiago');
   });
 
   it('agregarRolesUsuario rechaza body sin array agregar', async () => {
