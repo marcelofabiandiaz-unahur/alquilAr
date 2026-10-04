@@ -12,6 +12,7 @@ import PagosPanel from './components/pagos/PagosPanel';
 import CobrosPanel from './components/pagos/CobrosPanel';
 import ReclamosPanel from './components/reclamos/ReclamosPanel';
 import UsuariosPanel from './components/admin/UsuariosPanel';
+import AsistentePanel from './components/asistente/AsistentePanel';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -102,12 +103,7 @@ export default function Dashboard() {
           />
         );
       case 'asistente':
-        return (
-          <PlaceholderSection
-            title="🤖 Asistente IA"
-            description="Chat inteligente para consultas de gestión."
-          />
-        );
+        return <AsistentePanel token={token} />;
       default:
         return null;
     }
