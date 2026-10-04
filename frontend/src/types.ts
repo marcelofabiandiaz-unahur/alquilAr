@@ -32,7 +32,7 @@ export interface PropiedadReferencia {
   tipo?: string;
   ambientes?: number;
   estado?: string;
-  id_propietario?: string | {
+  id_propietario?: string | Usuario | {
     cbu_alias?: string;
     cuit_cuil?: string;
   };
