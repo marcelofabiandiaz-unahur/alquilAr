@@ -67,6 +67,77 @@ const listarUsuarios = async (req, res) => {
   }
 };
 
+const obtenerSolicitudPropietario = async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.usuario.id).select('solicitud_propietario');
+    if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    return res.json({ solicitud: usuario.solicitud_propietario || null });
+  } catch (error) {
+    return res.status(500).json({ mensaje: error.message });
+  }
+};
+
+const solicitarRolPropietario = async (req, res) => {
+  try {
+    const { cbu_alias, cuit_cuil } = req.body || {};
+    if (typeof cbu_alias !== 'string' || !cbu_alias.trim() || cbu_alias.trim().length > 50) {
+      return res.status(400).json({ mensaje: 'El alias/CBU es obligatorio y no puede superar 50 caracteres.' });
+    }
+    if (typeof cuit_cuil !== 'string' || !/^[\d-]+$/.test(cuit_cuil.trim())
+      || cuit_cuil.replace(/\D/g, '').length !== 11) {
+      return res.status(400).json({ mensaje: 'El CUIT/CUIL debe contener 11 dígitos.' });
+    }
+
+    const usuario = await Usuario.findById(req.usuario.id);
+    if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    if (
+      usuario.roles.includes('ADMINISTRADOR')
+      || (!usuario.roles.includes('USUARIO') && !usuario.roles.includes('INQUILINO'))
+    ) {
+      return res.status(403).json({ mensaje: 'Esta cuenta no puede solicitar el rol Propietario.' });
+    }
+    if (usuario.roles.includes('PROPIETARIO')) {
+      return res.status(409).json({ mensaje: 'El usuario ya tiene el rol Propietario.' });
+    }
+    if (usuario.solicitud_propietario?.estado === 'PENDIENTE') {
+      return res.status(409).json({ mensaje: 'Ya existe una solicitud de propietario pendiente.' });
+    }
+
+    usuario.solicitud_propietario = {
+      cbu_alias: cbu_alias.trim(),
+      cuit_cuil: cuit_cuil.trim(),
+      estado: 'PENDIENTE',
+      solicitada_en: new Date(),
+    };
+    await usuario.save();
+    return res.status(201).json({ solicitud: usuario.solicitud_propietario });
+  } catch (error) {
+    return res.status(400).json({ mensaje: 'No se pudo crear la solicitud.', error: error.message });
+  }
+};
+
+const aprobarSolicitudPropietario = async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.params.id);
+    if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    if (usuario.solicitud_propietario?.estado !== 'PENDIENTE') {
+      return res.status(409).json({ mensaje: 'El usuario no tiene una solicitud pendiente.' });
+    }
+
+    if (!usuario.roles.includes('PROPIETARIO')) usuario.roles.push('PROPIETARIO');
+    usuario.cbu_alias = usuario.solicitud_propietario.cbu_alias;
+    usuario.cuit_cuil = usuario.solicitud_propietario.cuit_cuil;
+    usuario.solicitud_propietario.estado = 'APROBADA';
+    await usuario.save();
+
+    const respuesta = usuario.toObject();
+    delete respuesta.password;
+    return res.json(respuesta);
+  } catch (error) {
+    return res.status(400).json({ mensaje: 'No se pudo aprobar la solicitud.', error: error.message });
+  }
+};
+
 const agregarRolesUsuario = async (req, res) => {
   try {
     const { agregar } = req.body;
@@ -98,4 +169,12 @@ const agregarRolesUsuario = async (req, res) => {
   }
 };
 
-module.exports = { registrarUsuario, loginUsuario, listarUsuarios, agregarRolesUsuario };
+module.exports = {
+  registrarUsuario,
+  loginUsuario,
+  listarUsuarios,
+  agregarRolesUsuario,
+  obtenerSolicitudPropietario,
+  solicitarRolPropietario,
+  aprobarSolicitudPropietario,
+};
