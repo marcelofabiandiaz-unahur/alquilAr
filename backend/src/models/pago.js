@@ -10,17 +10,18 @@ const pagoSchema = new mongoose.Schema(
     mes_correspondiente: {
       type: String,
       required: true,
-      match: /^\d{4}-(0[1-9]|1[0-2])$/,
+      match: /^(?:DEPOSITO|\d{6}|\d{4}-(0[1-9]|1[0-2]))$/,
     },
     monto_total: { type: Number, required: true, min: 0 },
     fecha_vencimiento: { type: Date, required: true },
     fecha_pago: { type: Date, default: null },
     estado: {
       type: String,
-      enum: ['PENDIENTE', 'PAGADO', 'ATRASADO'],
+      enum: ['PENDIENTE', 'ATRASADO', 'INGRESADO', 'PAGADO'],
       default: 'PENDIENTE',
     },
     comprobante_url: { type: String, default: '' },
+    comprobantes: [{ type: String }],
   },
   { timestamps: true, collection: 'pagos' },
 );

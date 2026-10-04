@@ -9,6 +9,14 @@ export interface Usuario {
   email: string;
   roles: Role[];
   dni?: string;
+  cbu_alias?: string;
+  cuit_cuil?: string;
+  solicitud_propietario?: {
+    cbu_alias: string;
+    cuit_cuil: string;
+    estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
+    solicitada_en?: string;
+  };
 }
 
 export interface UsuarioReferencia {
@@ -26,6 +34,10 @@ export interface PropiedadReferencia {
   tipo?: string;
   ambientes?: number;
   estado?: string;
+  id_propietario?: string | Usuario | {
+    cbu_alias?: string;
+    cuit_cuil?: string;
+  };
 }
 
 export interface AuthUsuario {
@@ -75,6 +87,7 @@ export interface Pago {
   fecha_pago?: string;
   estado: string;
   comprobante_url?: string;
+  comprobantes?: string[];
 }
 
 export interface Gasto {
@@ -120,10 +133,12 @@ export interface RolesDashboard {
 export interface ResumenDashboard {
   aCobrar: number;
   cobrado: number;
+  cobrosParaValidar: number;
   atrasados: number;
   reclamosAbiertos: number;
   contratosPorVencer: number;
   propiedadesDisponibles: number;
+  propiedadesAlquiladas: number;
   contratos: number;
 }
 
@@ -140,6 +155,7 @@ export interface ContratoForm {
 
 export interface DashboardProps {
   usuario: AuthUsuario;
+  token: string;
   roles: RolesDashboard;
   setSeccionActiva: Dispatch<SetStateAction<string>>;
 }
