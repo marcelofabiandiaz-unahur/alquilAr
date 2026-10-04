@@ -8,6 +8,9 @@ const {
   loginUsuario,
   obtenerMiPerfil,
   actualizarMiPerfil,
+  obtenerSolicitudPropietario,
+  solicitarRolPropietario,
+  aprobarSolicitudPropietario,
 } = require('../../src/controllers/authController');
 const { mockRes } = require('../helpers/mockRes');
 const { usuarioId, inquilinoId } = require('../helpers/fixtures/ids');
@@ -171,6 +174,127 @@ describe('authController', () => {
 
     assert.equal(res.statusCode, 400);
     assert.match(res.body.mensaje, /roles a agregar/);
+  });
+
+  it('solicitarRolPropietario valida CUIT/CUIL de 11 dígitos', async () => {
+    const res = mockRes();
+    await solicitarRolPropietario({
+      usuario: { id: usuarioId },
+      body: { cbu_alias: 'mi.alias', cuit_cuil: '1234' },
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.mensaje, /11 dígitos/);
+  });
+
+  it('solicitarRolPropietario guarda la solicitud sin asignar el rol', async () => {
+    const usuario = {
+      roles: ['USUARIO', 'INQUILINO'],
+      save: async () => {},
+    };
+    Usuario.findById = async () => usuario;
+    const res = mockRes();
+
+    await solicitarRolPropietario({
+      usuario: { id: usuarioId },
+      body: { cbu_alias: 'mi.alias', cuit_cuil: '20-12345678-9' },
+    }, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(usuario.solicitud_propietario.estado, 'PENDIENTE');
+    assert.equal(usuario.solicitud_propietario.cbu_alias, 'mi.alias');
+    assert.deepEqual(usuario.roles, ['USUARIO', 'INQUILINO']);
+  });
+
+  it('permite que una cuenta con solo rol INQUILINO solicite ser propietaria', async () => {
+    const usuario = {
+      roles: ['INQUILINO'],
+      save: async () => {},
+    };
+    Usuario.findById = async () => usuario;
+    const res = mockRes();
+
+    await solicitarRolPropietario({
+      usuario: { id: usuarioId },
+      body: { cbu_alias: 'mi.alias', cuit_cuil: '20-12345678-9' },
+    }, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(usuario.solicitud_propietario.estado, 'PENDIENTE');
+  });
+
+  it('no permite que una cuenta administradora solicite el rol propietario', async () => {
+    Usuario.findById = async () => ({ roles: ['USUARIO', 'ADMINISTRADOR'] });
+    const res = mockRes();
+
+    await solicitarRolPropietario({
+      usuario: { id: usuarioId },
+      body: { cbu_alias: 'mi.alias', cuit_cuil: '20-12345678-9' },
+    }, res);
+
+    assert.equal(res.statusCode, 403);
+  });
+
+  it('no permite generar una segunda solicitud pendiente', async () => {
+    Usuario.findById = async () => ({
+      roles: ['USUARIO'],
+      solicitud_propietario: { estado: 'PENDIENTE' },
+    });
+    const res = mockRes();
+
+    await solicitarRolPropietario({
+      usuario: { id: usuarioId },
+      body: { cbu_alias: 'mi.alias', cuit_cuil: '20123456789' },
+    }, res);
+
+    assert.equal(res.statusCode, 409);
+  });
+
+  it('aprobarSolicitudPropietario asigna rol y activa los datos bancarios', async () => {
+    const usuario = {
+      roles: ['USUARIO'],
+      solicitud_propietario: {
+        cbu_alias: 'mi.alias',
+        cuit_cuil: '20123456789',
+        estado: 'PENDIENTE',
+      },
+      cbu_alias: undefined,
+      cuit_cuil: undefined,
+      save: async () => {},
+      toObject() {
+        return {
+          roles: this.roles,
+          cbu_alias: this.cbu_alias,
+          cuit_cuil: this.cuit_cuil,
+          solicitud_propietario: this.solicitud_propietario,
+        };
+      },
+    };
+    Usuario.findById = async () => usuario;
+    const res = mockRes();
+
+    await aprobarSolicitudPropietario({ params: { id: usuarioId } }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(usuario.roles.includes('PROPIETARIO'));
+    assert.equal(usuario.cbu_alias, 'mi.alias');
+    assert.equal(usuario.cuit_cuil, '20123456789');
+    assert.equal(usuario.solicitud_propietario.estado, 'APROBADA');
+  });
+
+  it('obtenerSolicitudPropietario devuelve únicamente la solicitud de la cuenta autenticada', async () => {
+    const solicitud = { estado: 'PENDIENTE' };
+    Usuario.findById = () => ({
+      select: async (campos) => {
+        assert.equal(campos, 'solicitud_propietario');
+        return { solicitud_propietario: solicitud };
+      },
+    });
+    const res = mockRes();
+
+    await obtenerSolicitudPropietario({ usuario: { id: usuarioId } }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.solicitud, solicitud);
   });
 
   it('agregarRolesUsuario responde 404 si usuario no existe', async () => {
