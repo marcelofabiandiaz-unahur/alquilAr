@@ -89,8 +89,7 @@ export default function Dashboard() {
           />
         );
       case 'historial':
-      case 'mis-alquileres':
-        return <HistorialPanel />;
+        return <HistorialPanel token={token} roles={roles} />;
       case 'usuarios':
         return <UsuariosPanel token={token} />;
       case 'buscar':
