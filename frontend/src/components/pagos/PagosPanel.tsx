@@ -1,27 +1,45 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiDelete, apiGet, apiPatch, apiPost } from '../../lib/apiClient';
+import { apiDelete, apiGet, apiPatch, apiUploadMany } from '../../lib/apiClient';
 import { formatMoneda } from '../../lib/estadoStyles';
 import PageHeader from '../ui/PageHeader';
-import Card from '../ui/Card';
 import DataTable from '../ui/DataTable';
 import EmptyState from '../ui/EmptyState';
 import LoadingRow from '../ui/LoadingRow';
 import Alert from '../ui/Alert';
 import StatBadge from '../ui/StatBadge';
 import Modal from '../ui/Modal';
+import ComprobantePagoLink from './ComprobantePagoLink';
 import { btnPrimaryClass, btnGhostClass, inputClass, labelClass } from '../layout/dashboardStyles';
 import type { FormEvent } from 'react';
-import type { Contrato, Pago } from '../../types';
+import type { Pago } from '../../types';
 
-const PERIODO_INICIAL = new Date().toISOString().slice(0, 7);
+interface DatosBancariosPropietario {
+  cbu_alias?: string;
+  cuit_cuil?: string;
+}
 
-function contratoLabel(contrato: string | Contrato): string {
-  if (typeof contrato === 'string') return contrato;
-  const propiedad = contrato?.id_propiedad;
-  const direccion = typeof propiedad === 'object' ? propiedad?.direccion : '';
-  const inquilino = contrato.id_inquilino;
-  const email = typeof inquilino === 'object' ? inquilino.email : '';
-  return `${direccion || 'Propiedad'} · ${email || contrato._id}`;
+function obtenerComprobantes(pago: Pago): string[] {
+  return [...new Set([...(pago.comprobantes || []), ...(pago.comprobante_url ? [pago.comprobante_url] : [])])];
+}
+
+function conceptoPago(pago: Pago): string {
+  return pago.mes_correspondiente === 'DEPOSITO' ? 'Depósito' : 'Alquiler';
+}
+
+function periodoVisible(pago: Pago): string {
+  if (pago.mes_correspondiente === 'DEPOSITO') return '—';
+  if (/^\d{6}$/.test(pago.mes_correspondiente)) {
+    return `${pago.mes_correspondiente.slice(0, 4)}-${pago.mes_correspondiente.slice(4)}`;
+  }
+  return pago.mes_correspondiente;
+}
+
+function obtenerDatosBancarios(pago: Pago): DatosBancariosPropietario | null {
+  if (typeof pago.id_contrato !== 'object') return null;
+  const propiedad = pago.id_contrato.id_propiedad;
+  if (typeof propiedad !== 'object') return null;
+  const propietario = propiedad.id_propietario;
+  return propietario && typeof propietario === 'object' ? propietario : null;
 }
 
 interface PagosPanelProps {
@@ -33,33 +51,26 @@ interface PagosPanelProps {
 
 export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin }: PagosPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
-  const [contratos, setContratos] = useState<Contrato[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
   const [accionId, setAccionId] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [contratoSeleccionado, setContratoSeleccionado] = useState('');
-  const [periodo, setPeriodo] = useState(PERIODO_INICIAL);
+  const [pagoEditandoComprobantes, setPagoEditandoComprobantes] = useState<Pago | null>(null);
+  const [pagoVerCBU, setPagoVerCBU] = useState<Pago | null>(null);
+  const [archivosSeleccionados, setArchivosSeleccionados] = useState<File[]>([]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError('');
     try {
-      const [pagosData, contratosData] = await Promise.all([
-        apiGet<Pago[]>('/api/pagos', token),
-        apiGet<Contrato[]>('/api/contratos', token),
-      ]);
-      if (!Array.isArray(pagosData) || !Array.isArray(contratosData)) {
+      const pagosData = await apiGet<Pago[]>('/api/pagos', token);
+      if (!Array.isArray(pagosData)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
       }
       setPagos(pagosData);
-      setContratos(contratosData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los pagos.');
       setPagos([]);
-      setContratos([]);
     } finally {
       setCargando(false);
     }
@@ -70,38 +81,56 @@ export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin 
     return () => clearTimeout(timer);
   }, [cargar]);
 
-  const crearPago = async (event: FormEvent<HTMLFormElement>) => {
+  const cargarComprobante = async (pago: Pago) => {
+    setError('');
+    setInfo('');
+    setArchivosSeleccionados([]);
+    setPagoEditandoComprobantes(pago);
+  };
+
+  const subirComprobantes = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setGuardando(true);
+    if (!pagoEditandoComprobantes || archivosSeleccionados.length === 0) return;
+    const existentes = obtenerComprobantes(pagoEditandoComprobantes);
+    if (existentes.length + archivosSeleccionados.length > 5) {
+      setError('Se permiten hasta 5 comprobantes por pago.');
+      return;
+    }
+    setAccionId(pagoEditandoComprobantes._id);
     setError('');
     setInfo('');
     try {
-      await apiPost('/api/pagos', token, {
-        id_contrato: contratoSeleccionado,
-        mes_correspondiente: periodo,
-      });
-      setModalAbierto(false);
-      setInfo('Pago registrado para el contrato y período seleccionados.');
+      await apiUploadMany<{ comprobantes: string[] }>(
+        `/api/pagos/${pagoEditandoComprobantes._id}/comprobantes`,
+        token,
+        archivosSeleccionados,
+      );
+      setPagoEditandoComprobantes(null);
+      setArchivosSeleccionados([]);
+      setInfo('Comprobantes enviados para revisión.');
       await cargar();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear el pago.');
+      setError(err instanceof Error ? err.message : 'No se pudieron enviar los comprobantes.');
     } finally {
-      setGuardando(false);
+      setAccionId('');
     }
   };
 
-  const cargarComprobante = async (pago: Pago) => {
-    const comprobante = window.prompt('Pegá la URL HTTPS del comprobante de pago:');
-    if (comprobante === null) return;
+  const quitarComprobante = async (pago: Pago, url: string) => {
     setAccionId(pago._id);
     setError('');
     setInfo('');
     try {
-      await apiPatch(`/api/pagos/${pago._id}/comprobante`, token, { comprobante_url: comprobante.trim() });
-      setInfo('Comprobante enviado para revisión.');
+      const actualizado = await apiDelete<Pago & { advertencia?: string }>(
+        `/api/pagos/${pago._id}/comprobantes`,
+        token,
+        { comprobante_url: url },
+      );
+      setInfo(actualizado.advertencia || 'Comprobante quitado del pago.');
+      setPagoEditandoComprobantes(actualizado);
       await cargar();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo enviar el comprobante.');
+      setError(err instanceof Error ? err.message : 'No se pudo quitar el comprobante.');
     } finally {
       setAccionId('');
     }
@@ -138,90 +167,220 @@ export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin 
     }
   };
 
-  const puedeRegistrar = esPropietario || esAdmin;
   const puedeSubir = esInquilino;
+  const ordenarPorVencimiento = (lista: Pago[]) => [...lista].sort((a, b) => {
+    const vencimientoA = new Date(a.fecha_vencimiento).getTime();
+    const vencimientoB = new Date(b.fecha_vencimiento).getTime();
+    if (Number.isNaN(vencimientoA)) return Number.isNaN(vencimientoB) ? 0 : 1;
+    if (Number.isNaN(vencimientoB)) return -1;
+    return vencimientoA - vencimientoB;
+  });
+  const pagosPendientes = ordenarPorVencimiento(pagos.filter((pago) => pago.estado !== 'PAGADO'));
+  const pagosPagados = ordenarPorVencimiento(pagos.filter((pago) => pago.estado === 'PAGADO'));
+  const datosBancariosPago = pagoVerCBU ? obtenerDatosBancarios(pagoVerCBU) : null;
+  const renderTabla = (lista: Pago[]) => (
+    <DataTable
+      columns={['Concepto', 'Período', 'Vencimiento', 'Importe', 'Estado', 'Comprobante', 'Acciones']}
+      rows={lista}
+      renderRow={(pago) => (
+        <tr key={pago._id} className="hover:bg-slate-50">
+          <td className="p-4">{conceptoPago(pago)}</td>
+          <td className="p-4">{periodoVisible(pago)}</td>
+          <td className="p-4">{pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento).toLocaleDateString() : '—'}</td>
+          <td className="p-4 font-semibold">{formatMoneda(pago.monto_total)}</td>
+          <td className="p-4"><StatBadge estado={pago.estado} /></td>
+          <td className="p-4">
+            {obtenerComprobantes(pago).length ? (
+              <div className="flex flex-col gap-1">
+                {obtenerComprobantes(pago).map((_url, index) => (
+                  <ComprobantePagoLink
+                    key={`${pago._id}-${index}`}
+                    token={token}
+                    pagoId={pago._id}
+                    indice={index}
+                    label={`Comprobante ${index + 1}`}
+                  />
+                ))}
+              </div>
+            ) : '—'}
+          </td>
+          <td className="p-4">
+            {puedeSubir && (
+              <button type="button" onClick={() => setPagoVerCBU(pago)} className={btnGhostClass}>
+                Ver CBU
+              </button>
+            )}
+            {puedeSubir && pago.estado !== 'PAGADO' && (
+              <button type="button" disabled={accionId === pago._id} onClick={() => cargarComprobante(pago)} className={btnGhostClass}>
+                {obtenerComprobantes(pago).length ? 'Editar comprobantes' : 'Informar pago'}
+              </button>
+            )}
+            {esPropietario || esAdmin ? (
+              pago.estado === 'INGRESADO' && (
+                <div className="flex flex-wrap gap-1">
+                  <button type="button" disabled={accionId === pago._id} onClick={() => confirmarPago(pago)} className={btnPrimaryClass}>
+                    {accionId === pago._id ? 'Guardando...' : 'Confirmar'}
+                  </button>
+                  <button type="button" disabled={accionId === pago._id} onClick={() => eliminarPago(pago)} className="px-2 py-2 text-xs text-red-600 disabled:opacity-50">
+                    Eliminar
+                  </button>
+                </div>
+              )
+            ) : null}
+          </td>
+        </tr>
+      )}
+    />
+  );
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Pagos"
-        subtitle="Consultá vencimientos, registrá períodos y seguí los comprobantes"
-        action={puedeRegistrar ? (
-          <button type="button" onClick={() => setModalAbierto(true)} className={btnPrimaryClass}>
-            + Registrar pago
-          </button>
-        ) : null}
+        subtitle={puedeSubir
+          ? 'Consultá tus cuotas, vencimientos e informá tus pagos'
+          : 'Consultá las cuotas y vencimientos generados desde los contratos'}
       />
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
-      <Card className="p-4">
-        <p className="text-sm text-slate-600">
-          Los importes y vencimientos se calculan desde el contrato vigente; el período se registra con formato AAAA-MM.
-        </p>
-      </Card>
       {cargando ? (
         <LoadingRow label="Cargando pagos..." />
       ) : pagos.length === 0 ? (
         <EmptyState title="Sin pagos" description="Todavía no hay pagos asociados a tus contratos." />
       ) : (
-        <DataTable
-          columns={['Contrato', 'Período', 'Vencimiento', 'Importe', 'Estado', 'Comprobante', 'Acciones']}
-          rows={pagos}
-          renderRow={(pago) => (
-            <tr key={pago._id} className="hover:bg-slate-50">
-              <td className="p-4">{contratoLabel(pago.id_contrato)}</td>
-              <td className="p-4">{pago.mes_correspondiente}</td>
-              <td className="p-4">{pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento).toLocaleDateString() : '—'}</td>
-              <td className="p-4 font-semibold">{formatMoneda(pago.monto_total)}</td>
-              <td className="p-4"><StatBadge estado={pago.estado} /></td>
-              <td className="p-4">
-                {pago.comprobante_url ? (
-                  <a href={pago.comprobante_url} target="_blank" rel="noreferrer" className="text-emerald-700 underline">Ver</a>
-                ) : '—'}
-              </td>
-              <td className="p-4">
-                {puedeSubir && pago.estado !== 'PAGADO' && (
-                  <button type="button" disabled={accionId === pago._id} onClick={() => cargarComprobante(pago)} className={btnGhostClass}>
-                    {accionId === pago._id ? 'Enviando...' : 'Cargar comprobante'}
-                  </button>
-                )}
-                {puedeRegistrar && pago.estado !== 'PAGADO' && (
-                  <div className="flex flex-wrap gap-1">
-                    <button type="button" disabled={accionId === pago._id} onClick={() => confirmarPago(pago)} className={btnPrimaryClass}>
-                      {accionId === pago._id ? 'Guardando...' : 'Confirmar'}
-                    </button>
-                    <button type="button" disabled={accionId === pago._id} onClick={() => eliminarPago(pago)} className="px-2 py-2 text-xs text-red-600 disabled:opacity-50">
-                      Eliminar
+        <div className="space-y-6">
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-800">Pendientes y vencidos</h2>
+            {pagosPendientes.length > 0
+              ? renderTabla(pagosPendientes)
+              : <p className="text-sm text-slate-500">No hay pagos pendientes ni vencidos.</p>}
+          </section>
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-800">Pagados</h2>
+            {pagosPagados.length > 0
+              ? renderTabla(pagosPagados)
+              : <p className="text-sm text-slate-500">Todavía no hay pagos confirmados.</p>}
+          </section>
+        </div>
+      )}
+      <Modal open={Boolean(pagoVerCBU)} title="Datos para transferir" onClose={() => setPagoVerCBU(null)}>
+        <dl className="space-y-4 text-sm">
+          <div>
+            <dt className="font-semibold text-slate-600">Alias / CBU</dt>
+            <dd className="mt-1 text-slate-900">{datosBancariosPago?.cbu_alias || 'No informado'}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-slate-600">CUIT / CUIL</dt>
+            <dd className="mt-1 text-slate-900">{datosBancariosPago?.cuit_cuil || 'No informado'}</dd>
+          </div>
+        </dl>
+      </Modal>
+      <Modal
+        open={Boolean(pagoEditandoComprobantes)}
+        title="Informar pago y comprobantes"
+        onClose={() => {
+          if (!accionId) {
+            setPagoEditandoComprobantes(null);
+            setArchivosSeleccionados([]);
+          }
+        }}
+      >
+        {pagoEditandoComprobantes && (
+          <form onSubmit={subirComprobantes} className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Podés adjuntar hasta 5 archivos PDF, JPG, PNG o WEBP (máximo 5 MB cada uno). Podrás editar los comprobantes hasta que el propietario confirme el pago.
+            </p>
+            {obtenerComprobantes(pagoEditandoComprobantes).length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-slate-700">Comprobantes cargados</h3>
+                {obtenerComprobantes(pagoEditandoComprobantes).map((url, index) => (
+                  <div key={`${url}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
+                    <ComprobantePagoLink
+                      token={token}
+                      pagoId={pagoEditandoComprobantes._id}
+                      indice={index}
+                      label={`Comprobante ${index + 1}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={Boolean(accionId)}
+                      onClick={() => void quitarComprobante(pagoEditandoComprobantes, url)}
+                      className="shrink-0 text-sm text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      Quitar
                     </button>
                   </div>
-                )}
-              </td>
-            </tr>
-          )}
-        />
-      )}
-      <Modal open={modalAbierto} title="Registrar pago mensual" onClose={() => setModalAbierto(false)}>
-        <form onSubmit={crearPago} className="space-y-4">
-          <div>
-            <label className={labelClass}>Contrato</label>
-            <select required value={contratoSeleccionado} onChange={(event) => setContratoSeleccionado(event.target.value)} className={inputClass}>
-              <option value="">Seleccionar contrato vigente...</option>
-              {contratos.filter((contrato) => contrato.estado === 'VIGENTE').map((contrato) => (
-                <option key={contrato._id} value={contrato._id}>{contratoLabel(contrato)}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Mes correspondiente</label>
-            <input type="month" required value={periodo} onChange={(event) => setPeriodo(event.target.value)} className={inputClass} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setModalAbierto(false)} className={btnGhostClass}>Cancelar</button>
-            <button type="submit" disabled={guardando || !contratoSeleccionado} className={btnPrimaryClass}>
-              {guardando ? 'Registrando...' : 'Registrar'}
-            </button>
-          </div>
-        </form>
+                ))}
+              </div>
+            )}
+            <div>
+              <label htmlFor="comprobantes-pago" className={labelClass}>Agregar archivos</label>
+              <input
+                id="comprobantes-pago"
+                type="file"
+                multiple
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                disabled={Boolean(accionId)}
+                className={inputClass}
+                onChange={(event) => {
+                  const nuevos = Array.from(event.target.files || []);
+                  const total = obtenerComprobantes(pagoEditandoComprobantes).length
+                    + archivosSeleccionados.length
+                    + nuevos.length;
+                  const invalidos = nuevos.filter((file) =>
+                    !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+                    || file.size > 5 * 1024 * 1024);
+                  if (invalidos.length > 0) {
+                    setError('Cada archivo debe ser PDF, JPG, PNG o WEBP y pesar hasta 5 MB.');
+                  } else if (total > 5) {
+                    setError('Se permiten hasta 5 comprobantes por pago.');
+                  } else {
+                    setError('');
+                    setArchivosSeleccionados((actuales) => [...actuales, ...nuevos]);
+                  }
+                  event.target.value = '';
+                }}
+              />
+            </div>
+            {archivosSeleccionados.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-slate-700">Nuevos archivos</h3>
+                {archivosSeleccionados.map((file, index) => (
+                  <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 text-sm text-slate-600">
+                    <span className="truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setArchivosSeleccionados((actuales) => actuales.filter((_, i) => i !== index))}
+                      className="shrink-0 text-red-600 hover:underline"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className={btnGhostClass}
+                disabled={Boolean(accionId)}
+                onClick={() => {
+                  setPagoEditandoComprobantes(null);
+                  setArchivosSeleccionados([]);
+                }}
+              >
+                Cerrar
+              </button>
+              <button
+                type="submit"
+                disabled={Boolean(accionId) || archivosSeleccionados.length === 0}
+                className={btnPrimaryClass}
+              >
+                {accionId ? 'Subiendo...' : 'Cargar comprobantes'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );
