@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '../../lib/apiClient';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiGet, apiGetBlob, apiPost, apiPut, apiPatch, apiDelete } from '../../lib/apiClient';
 import { formatMoneda } from '../../lib/estadoStyles';
 import PageHeader from '../ui/PageHeader';
 import StatBadge from '../ui/StatBadge';
@@ -22,6 +22,7 @@ interface ContratoFormState {
   id_propiedad: string;
   email_inquilino: string;
   fecha_inicio: string;
+  fecha_fin: string;
   monto_mensual: string;
   dia_vencimiento: string;
   garante_nombre: string;
@@ -33,6 +34,7 @@ const FORM_VACIO: ContratoFormState = {
   id_propiedad: '',
   email_inquilino: '',
   fecha_inicio: new Date().toISOString().slice(0, 10),
+  fecha_fin: '',
   monto_mensual: '',
   dia_vencimiento: '10',
   garante_nombre: '',
@@ -63,6 +65,12 @@ function fechaContrato(fecha?: string): string {
   return new Intl.DateTimeFormat('es-AR').format(new Date(anio, mes - 1, dia));
 }
 
+function fechaInput(fecha?: string): string {
+  if (!fecha) return '';
+  const fechaISO = fecha.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(fechaISO) ? fechaISO : '';
+}
+
 interface ContratosPanelProps {
   token: string;
   esPropietario: boolean;
@@ -76,13 +84,21 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [edicionAbierta, setEdicionAbierta] = useState(false);
   const [form, setForm] = useState<ContratoFormState>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState('');
+  const [contratoEnEdicion, setContratoEnEdicion] = useState<Contrato | null>(null);
   const [accionId, setAccionId] = useState<string | null>(null);
   const [contratoSeleccionado, setContratoSeleccionado] = useState<Contrato | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState('');
-  const [reciboAbierto, setReciboAbierto] = useState<string | null>(null);
+  const [reciboAbierto, setReciboAbierto] = useState(false);
+  const [reciboPreviewUrl, setReciboPreviewUrl] = useState<string | null>(null);
+  const [cargandoRecibo, setCargandoRecibo] = useState(false);
+  const [errorRecibo, setErrorRecibo] = useState('');
+  const reciboRequestId = useRef(0);
 
   const titulo = esPropietario && esInquilino
     ? 'Contratos (propietario e inquilino)'
@@ -141,6 +157,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
         id_propiedad: string;
         email_inquilino: string;
         fecha_inicio: string;
+        fecha_fin: string;
         monto_mensual: number;
         dia_vencimiento: number;
         estado: string;
@@ -149,6 +166,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
         id_propiedad: form.id_propiedad,
         email_inquilino: form.email_inquilino.trim(),
         fecha_inicio: form.fecha_inicio,
+        fecha_fin: form.fecha_fin,
         monto_mensual: Number(form.monto_mensual),
         dia_vencimiento: Number(form.dia_vencimiento),
         estado: 'BORRADOR',
@@ -176,6 +194,58 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
       setError(err instanceof Error ? err.message : 'No se pudo crear el contrato.');
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const abrirEdicion = (contrato: Contrato) => {
+    if (contrato.estado !== 'VIGENTE' || !esPropietario) return;
+    setErrorEdicion('');
+    setContratoEnEdicion(contrato);
+    setForm({
+      ...FORM_VACIO,
+      fecha_inicio: fechaInput(contrato.fecha_inicio),
+      fecha_fin: fechaInput(contrato.fecha_fin),
+      monto_mensual: String(contrato.monto_mensual),
+      dia_vencimiento: String(contrato.dia_vencimiento),
+      garante_nombre: contrato.garante?.nombre || '',
+      garante_telefono: contrato.garante?.telefono || '',
+      garante_recibo: contrato.garante?.recibo || '',
+    });
+    setEdicionAbierta(true);
+  };
+
+  const guardarEdicion = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!contratoEnEdicion) return;
+    setGuardandoEdicion(true);
+    setErrorEdicion('');
+    try {
+      const garante: { nombre?: string; telefono?: string; recibo?: string } = {};
+      if (form.garante_nombre.trim()) garante.nombre = form.garante_nombre.trim();
+      if (form.garante_telefono.trim()) garante.telefono = form.garante_telefono.trim();
+      if (form.garante_recibo.trim()) garante.recibo = form.garante_recibo.trim();
+
+      const actualizado = await apiPut<Contrato>(
+        `/api/contratos/${contratoEnEdicion._id}`,
+        token,
+        {
+          fecha_inicio: form.fecha_inicio,
+          fecha_fin: form.fecha_fin,
+          dia_vencimiento: Number(form.dia_vencimiento),
+          garante,
+        },
+      );
+      setContratoSeleccionado((actual) => (
+        actual?._id === actualizado._id ? actualizado : actual
+      ));
+      setEdicionAbierta(false);
+      setContratoEnEdicion(null);
+      setInfo('Contrato actualizado correctamente.');
+      await cargar();
+    } catch (err) {
+      setErrorEdicion(err instanceof Error ? err.message : 'No se pudo actualizar el contrato.');
+    } finally {
+      setGuardandoEdicion(false);
     }
   };
 
@@ -227,6 +297,42 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
     setCargandoDetalle(false);
     setErrorDetalle('');
   };
+
+  const abrirReciboGarante = async (contratoId: string) => {
+    const requestId = ++reciboRequestId.current;
+    setReciboAbierto(true);
+    setCargandoRecibo(true);
+    setErrorRecibo('');
+    setReciboPreviewUrl(null);
+    try {
+      const blob = await apiGetBlob(`/api/contratos/${contratoId}/garante/recibo`, token);
+      const previewUrl = URL.createObjectURL(blob);
+      if (reciboRequestId.current === requestId) setReciboPreviewUrl(previewUrl);
+      else URL.revokeObjectURL(previewUrl);
+    } catch (err) {
+      if (reciboRequestId.current === requestId) {
+        setErrorRecibo(err instanceof Error ? err.message : 'No se pudo consultar el recibo del garante.');
+      }
+    } finally {
+      if (reciboRequestId.current === requestId) setCargandoRecibo(false);
+    }
+  };
+
+  const cerrarRecibo = () => {
+    reciboRequestId.current += 1;
+    setReciboAbierto(false);
+    setReciboPreviewUrl(null);
+    setCargandoRecibo(false);
+    setErrorRecibo('');
+  };
+
+  useEffect(() => () => {
+    if (reciboPreviewUrl) URL.revokeObjectURL(reciboPreviewUrl);
+  }, [reciboPreviewUrl]);
+
+  useEffect(() => () => {
+    reciboRequestId.current += 1;
+  }, []);
 
   const contratosVigentes = contratos.filter((contrato) => contrato.estado === 'VIGENTE');
   const contratosFinalizados = contratos.filter((contrato) => contrato.estado === 'FINALIZADO');
@@ -283,17 +389,30 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                   </button>
                 )}
                 {c.estado === 'VIGENTE' && (
-                  <button
-                    type="button"
-                    disabled={accionId === c._id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      finalizar(c._id);
-                    }}
-                    className="text-xs px-2 py-1 rounded bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
-                  >
-                    Finalizar
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={accionId === c._id}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        abrirEdicion(c);
+                      }}
+                      className="text-xs px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={accionId === c._id}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        finalizar(c._id);
+                      }}
+                      className="text-xs px-2 py-1 rounded bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
+                    >
+                      Finalizar
+                    </button>
+                  </>
                 )}
                 {(c.estado === 'BORRADOR' || c.estado === 'VIGENTE') && (
                   <button
@@ -490,7 +609,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                         <button
                           type="button"
                           className="font-medium text-emerald-700 hover:underline"
-                          onClick={() => setReciboAbierto(contratoSeleccionado.garante?.recibo || null)}
+                          onClick={() => void abrirReciboGarante(contratoSeleccionado._id)}
                         >
                           Ver recibo del garante
                         </button>
@@ -507,19 +626,134 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
       )}
 
       <Modal
-        open={Boolean(reciboAbierto)}
+        open={reciboAbierto}
         title="Recibo del garante"
-        onClose={() => setReciboAbierto(null)}
+        onClose={cerrarRecibo}
         wide
       >
-        {reciboAbierto && (
+        {cargandoRecibo && <LoadingRow label="Cargando recibo del garante..." />}
+        {errorRecibo && <Alert theme="light">{errorRecibo}</Alert>}
+        {reciboPreviewUrl && (
           <iframe
-            src={reciboAbierto}
+            src={reciboPreviewUrl}
             title="Vista previa del recibo del garante"
             className="h-[70vh] min-h-80 w-full rounded-xl border border-slate-200 bg-slate-50"
             referrerPolicy="no-referrer"
           />
         )}
+      </Modal>
+
+      <Modal
+        open={edicionAbierta}
+        title="Editar contrato vigente"
+        onClose={() => {
+          if (!guardandoEdicion) {
+            setEdicionAbierta(false);
+            setContratoEnEdicion(null);
+          }
+        }}
+        wide
+      >
+        <form onSubmit={guardarEdicion} className="space-y-4">
+          {errorEdicion && <Alert theme="light">{errorEdicion}</Alert>}
+          <p className="text-sm text-slate-600">
+            Podés actualizar las fechas, el día de vencimiento y los datos del garante. El monto mensual acordado no se puede modificar. La propiedad,
+            el inquilino y el estado del contrato no se modifican desde aquí.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className={labelClass}>Fecha inicio</label>
+              <input
+                required
+                type="date"
+                className={inputClass}
+                value={form.fecha_inicio}
+                onChange={(event) => setForm({
+                  ...form,
+                  fecha_inicio: event.target.value,
+                  fecha_fin: form.fecha_fin && form.fecha_fin < event.target.value ? '' : form.fecha_fin,
+                })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Fecha de fin</label>
+              <input
+                required
+                type="date"
+                min={form.fecha_inicio}
+                className={inputClass}
+                value={form.fecha_fin}
+                onChange={(event) => setForm({ ...form, fecha_fin: event.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Día vencimiento (1-28)</label>
+              <input
+                required
+                type="number"
+                min="1"
+                max="28"
+                className={inputClass}
+                value={form.dia_vencimiento}
+                onChange={(event) => setForm({ ...form, dia_vencimiento: event.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Monto mensual (ARS)</label>
+            <input
+              required
+              type="number"
+              min="0"
+              className={inputClass}
+              value={form.monto_mensual}
+              onChange={(event) => setForm({ ...form, monto_mensual: event.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Garante</label>
+              <input
+                className={inputClass}
+                value={form.garante_nombre}
+                onChange={(event) => setForm({ ...form, garante_nombre: event.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Tel. garante</label>
+              <input
+                className={inputClass}
+                value={form.garante_telefono}
+                onChange={(event) => setForm({ ...form, garante_telefono: event.target.value })}
+              />
+            </div>
+          </div>
+          <FileDropzone
+            value={form.garante_recibo}
+            onChange={(url) => setForm({ ...form, garante_recibo: url })}
+            disabled={guardandoEdicion}
+            tipo="garante"
+            label="Recibo del garante"
+            hint="JPG, PNG, WEBP o PDF · máx. 5 MB."
+            backendUpload={{ path: '/api/contratos/garantes/recibos', token }}
+            eliminarArchivo={async (url) => {
+              await apiDelete('/api/contratos/garantes/recibos', token, { url });
+            }}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              disabled={guardandoEdicion}
+              onClick={() => setEdicionAbierta(false)}
+              className={btnGhostClass}
+            >
+              Cancelar
+            </button>
+            <button type="submit" disabled={guardandoEdicion} className={btnPrimaryClass}>
+              {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       <Modal open={modalAbierto} title="Nuevo contrato" onClose={() => setModalAbierto(false)} wide>
@@ -555,7 +789,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               onChange={(e) => setForm({ ...form, email_inquilino: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className={labelClass}>Fecha inicio</label>
               <input
@@ -563,7 +797,22 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                 type="date"
                 className={inputClass}
                 value={form.fecha_inicio}
-                onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
+                onChange={(e) => setForm({
+                  ...form,
+                  fecha_inicio: e.target.value,
+                  fecha_fin: form.fecha_fin && form.fecha_fin < e.target.value ? '' : form.fecha_fin,
+                })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Fecha de fin</label>
+              <input
+                required
+                type="date"
+                min={form.fecha_inicio}
+                className={inputClass}
+                value={form.fecha_fin}
+                onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
               />
             </div>
             <div>
@@ -582,12 +831,12 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
           <div>
             <label className={labelClass}>Monto mensual (ARS)</label>
             <input
-              required
               type="number"
               min="0"
-              className={inputClass}
+              readOnly
+              aria-readonly="true"
+              className={`${inputClass} cursor-not-allowed bg-slate-50`}
               value={form.monto_mensual}
-              onChange={(e) => setForm({ ...form, monto_mensual: e.target.value })}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -614,6 +863,11 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
             disabled={guardando}
             tipo="garante"
             label="Recibo del garante (opcional)"
+            hint="JPG, PNG, WEBP o PDF · máx. 5 MB."
+            backendUpload={{ path: '/api/contratos/garantes/recibos', token }}
+            eliminarArchivo={async (url) => {
+              await apiDelete('/api/contratos/garantes/recibos', token, { url });
+            }}
           />
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setModalAbierto(false)} className={btnGhostClass}>
