@@ -128,9 +128,11 @@ export function obtenerResumenMock(): Promise<Omit<ResumenDashboard, 'contratos'
   return resolver({
     aCobrar,
     cobrado,
+    cobrosParaValidar: 0,
     atrasados,
     reclamosAbiertos,
     contratosPorVencer: 1,
     propiedadesDisponibles: PROPIEDADES_DISPONIBLES.length,
+    propiedadesAlquiladas: 0,
   });
 }

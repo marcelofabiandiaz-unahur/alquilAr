@@ -2,6 +2,7 @@ const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Contrato = require('../../src/models/contrato');
+const Pago = require('../../src/models/pago');
 const Propiedad = require('../../src/models/propiedad');
 const Usuario = require('../../src/models/usuario');
 const {
@@ -32,6 +33,7 @@ describe('contratoController', () => {
       contratoFindById: Contrato.findById,
       contratoFindOne: Contrato.findOne,
       contratoSave: Contrato.prototype.save,
+      pagoBulkWrite: Pago.bulkWrite,
       propiedadFind: Propiedad.find,
       propiedadFindById: Propiedad.findById,
       usuarioFindById: Usuario.findById,
@@ -44,6 +46,7 @@ describe('contratoController', () => {
     Contrato.findById = original.contratoFindById;
     Contrato.findOne = original.contratoFindOne;
     Contrato.prototype.save = original.contratoSave;
+    Pago.bulkWrite = original.pagoBulkWrite;
     Propiedad.find = original.propiedadFind;
     Propiedad.findById = original.propiedadFindById;
     Usuario.findById = original.usuarioFindById;
@@ -188,9 +191,18 @@ describe('contratoController', () => {
       id_propiedad: propiedadId,
       id_inquilino: inquilinoId,
       estado: 'BORRADOR',
+      fecha_inicio: new Date('2026-01-15T00:00:00.000Z'),
+      fecha_fin: new Date('2026-03-31T00:00:00.000Z'),
+      monto_mensual: 100000,
+      dia_vencimiento: 10,
       save: async function save() {
         return this;
       },
+    };
+    let operacionesCuotas = [];
+    Pago.bulkWrite = async (ops) => {
+      operacionesCuotas = ops;
+      return { upsertedCount: ops.length };
     };
 
     Contrato.findById = () => mockFindByIdQuery(contrato);
@@ -210,6 +222,39 @@ describe('contratoController', () => {
     assert.equal(res.statusCode, 200);
     assert.equal(contrato.estado, 'VIGENTE');
     assert.equal(propiedadGuardada.estado, 'ALQUILADA');
+    assert.equal(operacionesCuotas.length, 3);
+    assert.deepEqual(
+      operacionesCuotas.map((op) => op.updateOne.update.$setOnInsert.mes_correspondiente),
+      ['DEPOSITO', '202602', '202603'],
+    );
+    assert.equal(operacionesCuotas[0].updateOne.update.$setOnInsert.fecha_vencimiento.toISOString(), '2026-01-15T00:00:00.000Z');
+  });
+
+  it('actualizarContrato no permite cambiar el monto mensual de un contrato vigente', async () => {
+    let guardado = false;
+    Contrato.findById = async () => ({
+      _id: contratoId,
+      id_propiedad: propiedadId,
+      estado: 'VIGENTE',
+      monto_mensual: 100000,
+      save: async () => { guardado = true; },
+    });
+    Propiedad.findById = async () => ({
+      _id: propiedadId,
+      id_propietario: usuarioId,
+      estado: 'ALQUILADA',
+    });
+    const res = mockRes();
+
+    await actualizarContrato({
+      params: { id: contratoId },
+      body: { monto_mensual: 125000 },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.mensaje, /No se puede modificar el monto mensual/);
+    assert.equal(guardado, false);
   });
 
   it('actualizarContrato libera propiedad al cancelar contrato vigente', async () => {
@@ -485,7 +530,11 @@ describe('contratoController', () => {
   });
 
   it('listarContratos filtra por propietario e inquilino individual', async () => {
-    Propiedad.find = () => ({ select: async () => [{ _id: propiedadId }] });
+    let filtroPropiedades;
+    Propiedad.find = (filtro) => {
+      filtroPropiedades = filtro;
+      return { select: async () => [{ _id: propiedadId }] };
+    };
     let filtroPropietario;
     Contrato.find = (filtro) => {
       filtroPropietario = filtro;
@@ -497,6 +546,7 @@ describe('contratoController', () => {
     const propietario = mockRes();
     await listarContratos({ usuario: { id: usuarioId, roles: ['PROPIETARIO'] } }, propietario);
     assert.equal(propietario.statusCode, 200);
+    assert.deepEqual(filtroPropiedades, { id_propietario: usuarioId });
     assert.deepEqual(filtroPropietario, { id_propiedad: { $in: [propiedadId] } });
 
     let filtroInquilino;

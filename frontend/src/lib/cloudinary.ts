@@ -51,6 +51,7 @@ export async function subirArchivo(
     throw new Error(errorValidacion);
   }
 
+  const recurso = file.type === TIPO_PDF ? 'raw' : 'image';
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = getPreset(tipo);
 
@@ -59,9 +60,6 @@ export async function subirArchivo(
       `Cloudinary no está configurado para "${tipo}". Revisá frontend/.env y reiniciá Vite.`,
     );
   }
-
-  const esPdf = file.type === TIPO_PDF;
-  const recurso = esPdf ? 'raw' : 'image';
 
   const data = new FormData();
   data.append('file', file);

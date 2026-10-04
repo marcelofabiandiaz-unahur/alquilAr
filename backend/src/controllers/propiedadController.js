@@ -1,5 +1,7 @@
 const Propiedad = require('../models/propiedad');
 const Contrato = require('../models/contrato');
+const cloudinaryConfig = require('../config/cloudinary');
+const { parsePropiedadImageUrl } = require('../utils/cloudinaryAssets');
 const {
   esAdmin,
   esPropietario,
@@ -38,6 +40,17 @@ const listarPropiedades = async (req, res) => {
     }
 
     const propiedades = await Propiedad.find(filtro).sort({ createdAt: -1 });
+    res.json(propiedades);
+  } catch (error) {
+    responderErrorServidor(res, error);
+  }
+};
+
+const listarPropiedadesDisponibles = async (_req, res) => {
+  try {
+    const propiedades = await Propiedad.find({ estado: 'DISPONIBLE' })
+      .select('_id direccion tipo ambientes descripcion valor_base fotos estado')
+      .sort({ createdAt: -1 });
     res.json(propiedades);
   } catch (error) {
     responderErrorServidor(res, error);
@@ -130,6 +143,9 @@ const actualizarPropiedad = async (req, res) => {
     }
 
     if (!validarFotos(req.body.fotos, res)) return;
+    const fotosEliminadas = Array.isArray(req.body.fotos)
+      ? (propiedad.fotos || []).filter((url) => !req.body.fotos.includes(url))
+      : [];
 
     const camposPermitidos = ['direccion', 'tipo', 'ambientes', 'descripcion', 'estado', 'valor_base', 'fotos'];
     for (const campo of camposPermitidos) {
@@ -139,7 +155,42 @@ const actualizarPropiedad = async (req, res) => {
     }
 
     await propiedad.save();
-    res.json(propiedad);
+
+    const advertencias = [];
+    for (const url of fotosEliminadas) {
+      const asset = parsePropiedadImageUrl(url);
+      if (!asset) {
+        advertencias.push('Una foto quitada de la propiedad no se pudo borrar de Cloudinary porque su URL no es compatible.');
+        continue;
+      }
+
+      try {
+        const usadaEnOtraPropiedad = await Propiedad.findOne({
+          _id: { $ne: propiedad._id },
+          fotos: url,
+        });
+        if (usadaEnOtraPropiedad) continue;
+
+        const cloudinary = cloudinaryConfig.getCloudinary();
+        const resultado = await cloudinary.uploader.destroy(asset.publicId, {
+          resource_type: asset.resourceType,
+          type: 'upload',
+          invalidate: true,
+        });
+        if (!['ok', 'not found'].includes(resultado?.result)) {
+          throw new Error(`Cloudinary devolvió ${resultado?.result || 'sin resultado'}.`);
+        }
+      } catch (error) {
+        console.error(`No se pudo borrar de Cloudinary una foto de la propiedad ${propiedad._id}:`, error.message);
+        advertencias.push('La propiedad se guardó, pero no se pudo borrar una de las fotos quitadas de Cloudinary.');
+      }
+    }
+
+    const propiedadActualizada = typeof propiedad.toObject === 'function'
+      ? propiedad.toObject()
+      : propiedad;
+    if (advertencias.length > 0) propiedadActualizada.advertencias = advertencias;
+    res.json(propiedadActualizada);
   } catch (error) {
     if (esErrorCast(error)) {
       return res.status(400).json({ mensaje: 'ID inválido.' });
@@ -215,6 +266,7 @@ const listarContratosPorPropiedad = async (req, res) => {
 
 module.exports = {
   listarPropiedades,
+  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,

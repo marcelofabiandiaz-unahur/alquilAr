@@ -83,6 +83,22 @@ export default function UsuariosPanel({ token }: { token: string }) {
     }
   };
 
+  const aprobarSolicitud = async (usr: Usuario) => {
+    setAccionId(`${usr._id}-solicitud`);
+    setError('');
+    setInfo('');
+    try {
+      await apiPatch(`/api/usuarios/${usr._id}/solicitud-propietario/aprobar`, token, {});
+      setInfo(`Solicitud de propietario aprobada para ${usr.email}.`);
+      await cargar();
+      window.dispatchEvent(new Event('alquilar:notificaciones-actualizar'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo aprobar la solicitud.');
+    } finally {
+      setAccionId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -97,7 +113,7 @@ export default function UsuariosPanel({ token }: { token: string }) {
         <LoadingRow label="Cargando usuarios..." />
       ) : (
         <DataTable
-          columns={['Nombre', 'Email', 'Roles', 'Acciones']}
+          columns={['Nombre', 'Email', 'Roles', 'Solicitud de propietario', 'Acciones']}
           rows={usuarios}
           renderRow={(usr) => (
             <tr key={usr._id} className="hover:bg-slate-50">
@@ -109,7 +125,26 @@ export default function UsuariosPanel({ token }: { token: string }) {
                 <RoleChips roles={usr.roles} />
               </td>
               <td className="p-4">
+                {usr.solicitud_propietario ? (
+                  <div className="space-y-1 text-xs">
+                    <p className="font-semibold">{usr.solicitud_propietario.estado}</p>
+                    <p>Alias/CBU: {usr.solicitud_propietario.cbu_alias}</p>
+                    <p>CUIT/CUIL: {usr.solicitud_propietario.cuit_cuil}</p>
+                  </div>
+                ) : '—'}
+              </td>
+              <td className="p-4">
                 <div className="flex flex-wrap gap-2">
+                  {usr.solicitud_propietario?.estado === 'PENDIENTE' && (
+                    <button
+                      type="button"
+                      disabled={accionId === `${usr._id}-solicitud`}
+                      onClick={() => void aprobarSolicitud(usr)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      {accionId === `${usr._id}-solicitud` ? 'Aprobando...' : 'Aprobar propietario'}
+                    </button>
+                  )}
                   {ROLES_ASIGNABLES.filter(({ rol }) => !usr.roles.includes(rol)).map(({ rol, label, className }) => (
                     <button
                       key={rol}
