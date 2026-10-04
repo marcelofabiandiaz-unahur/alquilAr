@@ -94,7 +94,7 @@ export default function Dashboard() {
       case 'usuarios':
         return <UsuariosPanel token={token} />;
       case 'buscar':
-        return <DisponibilidadPanel />;
+        return <DisponibilidadPanel token={token} />;
       case 'configuracion':
         return (
           <PlaceholderSection
