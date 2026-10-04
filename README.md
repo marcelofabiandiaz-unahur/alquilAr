@@ -62,7 +62,6 @@ Las respuestas nuevas usan `{ success, data, message }`; la identidad del usuari
   El inquilino abre reclamos ligados a un contrato vigente; propietario y administrador consultan y gestionan reclamos
   de sus propiedades.
 
-## Desarrollo local
 
 ### Requisitos
 
