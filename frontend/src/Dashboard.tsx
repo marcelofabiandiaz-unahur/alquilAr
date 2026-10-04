@@ -42,7 +42,7 @@ export default function Dashboard() {
   const renderContenido = () => {
     switch (seccionActiva) {
       case 'inicio':
-        return <InicioPanel usuario={usuario} roles={roles} setSeccionActiva={setSeccionActiva} />;
+        return <InicioPanel usuario={usuario} token={token} roles={roles} setSeccionActiva={setSeccionActiva} />;
       case 'propiedades':
         return (
           <PropiedadesPanel
