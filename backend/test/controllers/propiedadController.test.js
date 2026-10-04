@@ -2,8 +2,10 @@ const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Propiedad = require('../../src/models/propiedad');
 const Contrato = require('../../src/models/contrato');
+const cloudinaryConfig = require('../../src/config/cloudinary');
 const {
   listarPropiedades,
+  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,
@@ -17,23 +19,34 @@ describe('propiedadController', () => {
   let origFindById;
   let origFindOne;
   let origFind;
+  let origPropiedadFindOne;
   let origContratoFind;
   let origSave;
+  let origGetCloudinary;
+  let origCloudName;
 
   beforeEach(() => {
     origFindById = Propiedad.findById;
     origFindOne = Contrato.findOne;
     origFind = Propiedad.find;
+    origPropiedadFindOne = Propiedad.findOne;
     origContratoFind = Contrato.find;
     origSave = Propiedad.prototype.save;
+    origGetCloudinary = cloudinaryConfig.getCloudinary;
+    origCloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    process.env.CLOUDINARY_CLOUD_NAME = 'demo-cloud';
   });
 
   afterEach(() => {
     Propiedad.findById = origFindById;
     Contrato.findOne = origFindOne;
     Propiedad.find = origFind;
+    Propiedad.findOne = origPropiedadFindOne;
     Contrato.find = origContratoFind;
     Propiedad.prototype.save = origSave;
+    cloudinaryConfig.getCloudinary = origGetCloudinary;
+    if (origCloudName === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
+    else process.env.CLOUDINARY_CLOUD_NAME = origCloudName;
   });
 
   it('obtenerPropiedad responde 400 con id invalido', async () => {
@@ -150,6 +163,27 @@ describe('propiedadController', () => {
     assert.equal(res.statusCode, 403);
   });
 
+  it('listarPropiedadesDisponibles devuelve solo propiedades disponibles para usuarios autenticados', async () => {
+    const disponibles = [{ _id: propiedadId, direccion: 'Calle 123', estado: 'DISPONIBLE' }];
+    Propiedad.find = (filtro) => {
+      assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
+      return {
+        select: (campos) => {
+          assert.equal(campos, '_id direccion tipo ambientes descripcion valor_base fotos estado');
+          return { sort: async () => disponibles };
+        },
+      };
+    };
+
+    const req = { usuario: { id: usuarioId, roles: ['USUARIO'] } };
+    const res = mockRes();
+
+    await listarPropiedadesDisponibles(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, disponibles);
+  });
+
   it('crearPropiedad rechaza mas de 5 fotos', async () => {
     const req = {
       body: {
@@ -235,6 +269,98 @@ describe('propiedadController', () => {
 
     assert.equal(res.statusCode, 400);
     assert.match(res.body.mensaje, /Máximo 5 fotos/);
+  });
+
+  it('actualizarPropiedad borra de Cloudinary las fotos quitadas al guardar', async () => {
+    const fotoQuitada = 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/propiedades/antigua.jpg';
+    const fotoConservada = 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/propiedades/nueva.jpg';
+    let guardado = false;
+    let recursoBorrado = '';
+    Propiedad.findById = async () => ({
+      _id: propiedadId,
+      id_propietario: usuarioId,
+      estado: 'DISPONIBLE',
+      fotos: [fotoQuitada, fotoConservada],
+      save: async function save() {
+        guardado = true;
+      },
+    });
+    Propiedad.findOne = async () => null;
+    cloudinaryConfig.getCloudinary = () => ({
+      uploader: {
+        destroy: async (publicId, options) => {
+          assert.equal(guardado, true);
+          assert.equal(options.resource_type, 'image');
+          recursoBorrado = publicId;
+          return { result: 'ok' };
+        },
+      },
+    });
+
+    const res = mockRes();
+    await actualizarPropiedad({
+      params: { id: propiedadId },
+      body: { fotos: [fotoConservada] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(recursoBorrado, 'alquilar/propiedades/antigua.jpg');
+    assert.deepEqual(res.body.fotos, [fotoConservada]);
+    assert.equal(res.body.advertencias, undefined);
+  });
+
+  it('conserva en Cloudinary una foto que todavía usa otra propiedad', async () => {
+    const fotoCompartida = 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/propiedades/compartida.jpg';
+    Propiedad.findById = async () => ({
+      _id: propiedadId,
+      id_propietario: usuarioId,
+      estado: 'DISPONIBLE',
+      fotos: [fotoCompartida],
+      save: async () => {},
+    });
+    Propiedad.findOne = async () => ({ _id: 'otra-propiedad' });
+    cloudinaryConfig.getCloudinary = () => ({
+      uploader: {
+        destroy: async () => assert.fail('No debe borrar un asset aún referenciado.'),
+      },
+    });
+
+    const res = mockRes();
+    await actualizarPropiedad({
+      params: { id: propiedadId },
+      body: { fotos: [] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.fotos, []);
+  });
+
+  it('avisa si la propiedad se guardó pero Cloudinary no pudo borrar la foto', async () => {
+    const foto = 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/propiedades/antigua.jpg';
+    Propiedad.findById = async () => ({
+      _id: propiedadId,
+      id_propietario: usuarioId,
+      estado: 'DISPONIBLE',
+      fotos: [foto],
+      save: async () => {},
+    });
+    Propiedad.findOne = async () => null;
+    cloudinaryConfig.getCloudinary = () => ({
+      uploader: { destroy: async () => ({ result: 'error' }) },
+    });
+
+    const res = mockRes();
+    await actualizarPropiedad({
+      params: { id: propiedadId },
+      body: { fotos: [] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.fotos, []);
+    assert.match(res.body.advertencias[0], /no se pudo borrar/);
   });
 
   it('bajaLogicaPropiedad bloquea si hay contrato vigente', async () => {

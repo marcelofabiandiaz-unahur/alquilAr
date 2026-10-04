@@ -9,6 +9,7 @@ import ContratosPanel from './components/contratos/ContratosPanel';
 import HistorialPanel from './components/contratos/HistorialPanel';
 import GastosPanel from './components/gastos/GastosPanel';
 import PagosPanel from './components/pagos/PagosPanel';
+import CobrosPanel from './components/pagos/CobrosPanel';
 import ReclamosPanel from './components/reclamos/ReclamosPanel';
 import UsuariosPanel from './components/admin/UsuariosPanel';
 
@@ -76,6 +77,8 @@ export default function Dashboard() {
             esAdmin={roles.esAdministrador}
           />
         );
+      case 'cobros':
+        return <CobrosPanel token={token} />;
       case 'reclamos':
         return (
           <ReclamosPanel
@@ -118,6 +121,7 @@ export default function Dashboard() {
       seccionActiva={seccionActiva}
       setSeccionActiva={setSeccionActiva}
       roles={roles}
+      token={token}
     >
       {renderContenido()}
     </DashboardLayout>

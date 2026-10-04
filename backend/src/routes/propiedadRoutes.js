@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   listarPropiedades,
+  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,
@@ -13,6 +14,7 @@ const { verificarToken } = require('../middlewares/authMiddleware');
 router.use(verificarToken);
 
 router.get('/', listarPropiedades);
+router.get('/disponibles', listarPropiedadesDisponibles);
 router.post('/', crearPropiedad);
 router.get('/:id/contratos', listarContratosPorPropiedad);
 router.get('/:id', obtenerPropiedad);
