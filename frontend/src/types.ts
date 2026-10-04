@@ -9,6 +9,8 @@ export interface Usuario {
   email: string;
   roles: Role[];
   dni?: string;
+  cbu_alias?: string;
+  cuit_cuil?: string;
   solicitud_propietario?: {
     cbu_alias: string;
     cuit_cuil: string;
