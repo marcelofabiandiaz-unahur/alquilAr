@@ -7,7 +7,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function parseResponse<T>(res: Response): Promise<T> {
   const data: unknown = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = isRecord(data) ? data.message || data.mensaje : undefined;
+    const message = isRecord(data) ? data.message || data.mensaje || data.error : undefined;
     throw new Error(typeof message === 'string' ? message : `Error ${res.status}`);
   }
   if (isRecord(data) && data.success === true && Object.prototype.hasOwnProperty.call(data, 'data')) {

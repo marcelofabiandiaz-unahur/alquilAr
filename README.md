@@ -62,6 +62,12 @@ Las respuestas nuevas usan `{ success, data, message }`; la identidad del usuari
   El inquilino abre reclamos ligados a un contrato vigente; propietario y administrador consultan y gestionan reclamos
   de sus propiedades.
 
+### Asistente IA
+
+- `POST /api/ai/chat` requiere `Authorization: Bearer` y recibe `mensajes` con roles `user` y `assistant`.
+- El backend usa Gemini (`gemini-3.8-flash`) con `GEMINI_API_KEY`, configurada solo en `backend/.env`.
+- Las herramientas permiten consultar contratos vigentes propios, listar reclamos visibles para el usuario y crear un reclamo sobre uno de sus contratos vigentes. Los permisos y validaciones se aplican en los controladores existentes.
+- La pantalla Asistente IA está disponible para inquilinos, propietarios y administradores. Los mensajes no se guardan en la base de datos.
 
 ### Requisitos
 
@@ -82,6 +88,7 @@ Variables de entorno necesarias (solo nombres):
 
 - `MONGODB_URI`
 - `JWT_SECRET`
+- `GEMINI_API_KEY` (para el asistente IA; secreto, solo backend)
 - `PORT` (opcional, default 3000)
 - `SEED_PASSWORD` (opcional, default `ClaveTest123` para el script seed)
 - `CLOUDINARY_CLOUD_NAME` (para subir, consultar y eliminar recibos de garante y limpiar fotos quitadas de propiedades; debe coincidir con `VITE_CLOUDINARY_CLOUD_NAME`)
