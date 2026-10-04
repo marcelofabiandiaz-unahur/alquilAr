@@ -1,7 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import logoAlquilar from '../../assets/logo-alquilar.jpg';
-import type { AuthUsuario, RolesDashboard } from '../../types';
+import { apiGet } from '../../lib/apiClient';
+import type { AuthUsuario, Pago, RolesDashboard, Usuario } from '../../types';
+import SolicitudPropietario from './SolicitudPropietario';
+
+interface Notificacion {
+  id: string;
+  titulo: string;
+  detalle: string;
+  seccion?: string;
+  volverAIniciarSesion?: boolean;
+}
 
 interface NavItem {
   id: string;
@@ -18,10 +28,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Operación',
     items: [
       { id: 'buscar', label: 'Buscar alquileres', show: (r) => r.esUsuarioBase },
-      { id: 'mis-alquileres', label: 'Mis alquileres', show: (r) => r.esInquilino },
       { id: 'propiedades', label: 'Mis propiedades', show: (r) => r.esPropietario },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
-      { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
+      { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
+      { id: 'cobros', label: 'Cobros', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'gastos', label: 'Gastos', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
       { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario },
@@ -153,6 +163,7 @@ interface DashboardLayoutProps {
   seccionActiva: string;
   setSeccionActiva: (id: string) => void;
   roles: RolesDashboard;
+  token: string;
   children: ReactNode;
 }
 
@@ -162,11 +173,138 @@ export default function DashboardLayout({
   seccionActiva,
   setSeccionActiva,
   roles,
+  token,
   children,
 }: DashboardLayoutProps) {
   const [usuarioExpandido, setUsuarioExpandido] = useState(false);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [notificacionesAbiertas, setNotificacionesAbiertas] = useState(false);
+  const [errorNotificaciones, setErrorNotificaciones] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
+  const notificacionesRef = useRef<HTMLDivElement>(null);
   const iniciales = `${usuario.nombre[0]}${usuario.apellido[0]}`.toUpperCase();
+
+  useEffect(() => {
+    let activa = true;
+    const cargarNotificaciones = async () => {
+      const nuevas: Notificacion[] = [];
+      const errores: string[] = [];
+
+      if (roles.esAdministrador) {
+        try {
+          const usuarios = await apiGet<Usuario[]>('/api/usuarios', token);
+          if (!Array.isArray(usuarios)) throw new Error('Respuesta inválida del servidor.');
+          nuevas.push(...usuarios
+            .filter((usr) => usr.solicitud_propietario?.estado === 'PENDIENTE')
+            .map((usr) => ({
+              id: `solicitud-${usr._id}`,
+              titulo: 'Solicitud para publicar propiedad',
+              detalle: `${usr.nombre} ${usr.apellido} · ${usr.email}`,
+              seccion: 'usuarios',
+            })));
+        } catch (error) {
+          errores.push(error instanceof Error ? error.message : 'No se pudieron consultar las solicitudes.');
+        }
+      }
+
+      if (!roles.esAdministrador && (roles.esUsuarioBase || roles.esInquilino)) {
+        try {
+          const respuesta = await apiGet<{ solicitud: Usuario['solicitud_propietario'] | null }>(
+            '/api/usuarios/solicitud-propietario',
+            token,
+          );
+          if (respuesta.solicitud?.estado === 'APROBADA') {
+            nuevas.push({
+              id: 'solicitud-propietario-aprobada',
+              titulo: 'Solicitud de propietario aprobada',
+              detalle: 'Volvé a iniciar sesión para activar tu nuevo rol.',
+              volverAIniciarSesion: true,
+            });
+          }
+        } catch (error) {
+          errores.push(error instanceof Error ? error.message : 'No se pudo consultar tu solicitud de propietario.');
+        }
+      }
+
+      if (roles.esInquilino) {
+        try {
+          const pagos = await apiGet<Pago[]>('/api/pagos', token);
+          if (!Array.isArray(pagos)) throw new Error('Respuesta inválida al consultar los pagos.');
+          const hoy = new Date();
+          hoy.setHours(0, 0, 0, 0);
+          const finSemana = new Date(hoy);
+          finSemana.setDate(finSemana.getDate() + 7);
+
+          nuevas.push(...pagos.flatMap((pago) => {
+            if (!['PENDIENTE', 'ATRASADO'].includes(pago.estado)) return [];
+            const vencimiento = new Date(pago.fecha_vencimiento);
+            if (Number.isNaN(vencimiento.getTime())) return [];
+            vencimiento.setHours(0, 0, 0, 0);
+            const fechaVisible = vencimiento.toLocaleDateString();
+            const periodo = pago.mes_correspondiente === 'DEPOSITO'
+              ? 'Depósito'
+              : `Alquiler ${pago.mes_correspondiente}`;
+
+            if (pago.estado === 'ATRASADO' || vencimiento < hoy) {
+              return [{
+                id: `pago-vencido-${pago._id}`,
+                titulo: 'Tenés un pago vencido',
+                detalle: `${periodo} · venció el ${fechaVisible}`,
+                seccion: 'pagos',
+              }];
+            }
+            if (vencimiento >= hoy && vencimiento <= finSemana) {
+              return [{
+                id: `pago-proximo-${pago._id}`,
+                titulo: 'Pago próximo a vencer',
+                detalle: `${periodo} · vence el ${fechaVisible}`,
+                seccion: 'pagos',
+              }];
+            }
+            return [];
+          }));
+        } catch (error) {
+          errores.push(error instanceof Error ? error.message : 'No se pudieron consultar los pagos.');
+        }
+      }
+
+      if (activa) {
+        setNotificaciones(nuevas);
+        setErrorNotificaciones(errores.join(' '));
+      }
+    };
+
+    const actualizarNotificaciones = () => {
+      void cargarNotificaciones();
+    };
+
+    window.addEventListener('alquilar:notificaciones-actualizar', actualizarNotificaciones);
+    void cargarNotificaciones();
+    const intervalo = window.setInterval(() => void cargarNotificaciones(), 60_000);
+    return () => {
+      activa = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener('alquilar:notificaciones-actualizar', actualizarNotificaciones);
+    };
+  }, [roles.esAdministrador, roles.esInquilino, roles.esUsuarioBase, token]);
+
+  useEffect(() => {
+    if (!notificacionesAbiertas) return undefined;
+    const cerrarSiClickFuera = (event: globalThis.MouseEvent) => {
+      if (notificacionesRef.current && event.target instanceof Node && !notificacionesRef.current.contains(event.target)) {
+        setNotificacionesAbiertas(false);
+      }
+    };
+    const cerrarConEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setNotificacionesAbiertas(false);
+    };
+    document.addEventListener('mousedown', cerrarSiClickFuera);
+    document.addEventListener('keydown', cerrarConEscape);
+    return () => {
+      document.removeEventListener('mousedown', cerrarSiClickFuera);
+      document.removeEventListener('keydown', cerrarConEscape);
+    };
+  }, [notificacionesAbiertas]);
 
   useEffect(() => {
     if (!usuarioExpandido) return;
@@ -225,6 +363,11 @@ export default function DashboardLayout({
                     />
                   ))}
                 </div>
+                {group.label === 'Operación'
+                  && (roles.esUsuarioBase || roles.esInquilino)
+                  && !roles.esPropietario
+                  && !roles.esAdministrador
+                  && <SolicitudPropietario token={token} />}
               </div>
             );
           })}
@@ -313,9 +456,73 @@ export default function DashboardLayout({
             <span className="hidden sm:inline text-xs text-slate-300">Plataforma de gestión de alquileres</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center text-xs font-bold text-emerald-300">
-              {iniciales}
-            </div>
+            {(roles.esAdministrador || roles.esInquilino || roles.esUsuarioBase) && (
+              <div ref={notificacionesRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotificacionesAbiertas((abiertas) => !abiertas)}
+                  aria-label={`Notificaciones. ${notificaciones.length} avisos.`}
+                  aria-expanded={notificacionesAbiertas}
+                  aria-haspopup="dialog"
+                  title={`${notificaciones.length} notificaciones`}
+                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white transition-colors hover:bg-white/20"
+                >
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M10 21h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  </svg>
+                  {notificaciones.length > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {notificaciones.length > 9 ? '9+' : notificaciones.length}
+                    </span>
+                  )}
+                </button>
+                {notificacionesAbiertas && (
+                  <div
+                    role="dialog"
+                    aria-label="Notificaciones"
+                    className="absolute right-0 top-full z-30 mt-3 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-xl"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                      <h2 className="text-sm font-semibold text-[#14213D]">Notificaciones</h2>
+                      <span className="text-xs text-slate-500">{notificaciones.length} avisos</span>
+                    </div>
+                    {errorNotificaciones && (
+                      <p role="alert" className="border-b border-slate-100 p-4 text-sm text-red-600">{errorNotificaciones}</p>
+                    )}
+                    {notificaciones.length === 0 ? (
+                      <p className="p-4 text-sm text-slate-500">No hay notificaciones pendientes.</p>
+                    ) : (
+                      <ul className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                        {notificaciones.map((notificacion) => (
+                          <li key={notificacion.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNotificacionesAbiertas(false);
+                                if (notificacion.volverAIniciarSesion) {
+                                  logoutGlobal();
+                                  return;
+                                }
+                                if (notificacion.seccion) setSeccionActiva(notificacion.seccion);
+                              }}
+                              className="w-full px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                            >
+                              <span className="block text-sm font-semibold text-slate-800">
+                                {notificacion.titulo}
+                              </span>
+                              <span className="mt-1 block truncate text-xs text-slate-600">
+                                {notificacion.detalle}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 

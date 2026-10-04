@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Contrato = require('../models/contrato');
+const Pago = require('../models/pago');
 const Propiedad = require('../models/propiedad');
 const Usuario = require('../models/usuario');
 const {
@@ -18,6 +19,7 @@ const {
   validarObjectIdBody,
   responderErrorServidor,
 } = require('../utils/controllerHelpers');
+const { construirOperacionesCuotas } = require('../utils/cuotasContrato');
 
 // Requiere replica set (MongoDB Atlas cumple).
 const ejecutarTransaccion = async (callback) => {
@@ -90,7 +92,6 @@ const listarContratos = async (req, res) => {
     } else if (esPropietario(roles) && esInquilino(roles)) {
       const propiedades = await Propiedad.find({
         id_propietario: usuarioId,
-        estado: { $ne: 'INACTIVA' },
       }).select('_id');
       const ids = propiedades.map((p) => p._id);
       contratos = await Contrato.find(construirFiltroContratosMixto(usuarioId, ids))
@@ -100,7 +101,6 @@ const listarContratos = async (req, res) => {
     } else if (esPropietario(roles)) {
       const propiedades = await Propiedad.find({
         id_propietario: usuarioId,
-        estado: { $ne: 'INACTIVA' },
       }).select('_id');
       const ids = propiedades.map((p) => p._id);
       contratos = await Contrato.find({ id_propiedad: { $in: ids } })
@@ -209,6 +209,7 @@ const crearContrato = async (req, res) => {
       await ejecutarTransaccion(async (session) => {
         await contrato.save({ session });
         await propiedad.save({ session });
+        await Pago.bulkWrite(construirOperacionesCuotas(contrato), { session, ordered: false });
       });
     } else {
       await contrato.save();
@@ -253,6 +254,13 @@ const actualizarContrato = async (req, res) => {
     if (contrato.estado === 'FINALIZADO' || contrato.estado === 'CANCELADO') {
       return res.status(400).json({ mensaje: 'No se puede modificar un contrato cerrado.' });
     }
+    if (
+      contrato.estado === 'VIGENTE'
+      && req.body.monto_mensual !== undefined
+      && Number(req.body.monto_mensual) !== contrato.monto_mensual
+    ) {
+      return res.status(400).json({ mensaje: 'No se puede modificar el monto mensual de un contrato vigente.' });
+    }
 
     const estadoAnterior = contrato.estado;
     const nuevoEstado = req.body.estado;
@@ -277,6 +285,19 @@ const actualizarContrato = async (req, res) => {
         return res.status(400).json({
           mensaje: 'La propiedad no está disponible para un contrato vigente.',
         });
+      }
+      const contratoAActivar = {
+        ...contrato.toObject?.(),
+        _id: contrato._id,
+        fecha_inicio: req.body.fecha_inicio ?? contrato.fecha_inicio,
+        fecha_fin: req.body.fecha_fin ?? contrato.fecha_fin,
+        monto_mensual: req.body.monto_mensual ?? contrato.monto_mensual,
+        dia_vencimiento: req.body.dia_vencimiento ?? contrato.dia_vencimiento,
+      };
+      try {
+        construirOperacionesCuotas(contratoAActivar);
+      } catch (validationError) {
+        return res.status(400).json({ mensaje: validationError.message });
       }
       propiedad.estado = 'ALQUILADA';
       propiedadModificada = true;
@@ -306,6 +327,9 @@ const actualizarContrato = async (req, res) => {
       await ejecutarTransaccion(async (session) => {
         await contrato.save({ session });
         await propiedad.save({ session });
+        if (nuevoEstado === 'VIGENTE' && estadoAnterior !== 'VIGENTE') {
+          await Pago.bulkWrite(construirOperacionesCuotas(contrato), { session, ordered: false });
+        }
       });
     } else {
       await contrato.save();
