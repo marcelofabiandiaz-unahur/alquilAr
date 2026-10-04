@@ -1,14 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Card from '../ui/Card';
 import LoadingRow from '../ui/LoadingRow';
 import { formatMoneda } from '../../lib/estadoStyles';
-import {
-  obtenerHistorialMock,
-  obtenerPropiedadesDisponiblesMock,
-  obtenerResumenMock,
-} from '../../lib/operacionMock';
+import { apiGet } from '../../lib/apiClient';
 import Alert from '../ui/Alert';
-import type { DashboardProps, ResumenDashboard } from '../../types';
+import { btnSecondaryClass } from '../layout/dashboardStyles';
+import type { DashboardProps, Pago, Propiedad, Reclamo, Contrato, ResumenDashboard } from '../../types';
 
 const ACCESO_STYLES: Partial<Record<string, string>> = {
   propiedades: 'bg-emerald-50 text-emerald-600',
@@ -17,12 +14,24 @@ const ACCESO_STYLES: Partial<Record<string, string>> = {
   buscar: 'bg-amber-50 text-amber-600',
 };
 
-function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
+function MetricCard({
+  label,
+  value,
+  tone,
+  onClick,
+}: {
+  label: string;
+  value: string | number;
+  tone: string;
+  onClick: () => void;
+}) {
   return (
-    <Card className="p-5">
+    <button type="button" onClick={onClick} className="text-left">
+      <Card className="p-5 h-full hover:border-emerald-200 hover:shadow-md transition-all">
       <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{label}</p>
       <p className={`text-2xl font-bold mt-3 ${tone}`}>{value}</p>
-    </Card>
+      </Card>
+    </button>
   );
 }
 
@@ -33,26 +42,74 @@ interface AccesoRapido {
   icon: string;
 }
 
-export default function InicioPanel({ usuario, roles, setSeccionActiva }: DashboardProps) {
+export default function InicioPanel({ usuario, token, roles, setSeccionActiva }: DashboardProps) {
   const [resumen, setResumen] = useState<ResumenDashboard | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    Promise.all([
-      obtenerResumenMock(),
-      obtenerHistorialMock(),
-      obtenerPropiedadesDisponiblesMock(),
-    ]).then(([datosResumen, historial, disponibles]) => {
+  const tieneAccesoOperativo = roles.esPropietario || roles.esInquilino || roles.esAdministrador;
+  const tieneAccesoPropiedades = roles.esPropietario || roles.esAdministrador;
+  const tieneAccesoCobros = roles.esPropietario || roles.esAdministrador;
+  const tieneResumenOperativo = roles.esInquilino || roles.esPropietario || roles.esAdministrador;
+  const seccionPagos = tieneAccesoCobros ? 'cobros' : 'pagos';
+
+  const cargarResumen = useCallback(async () => {
+    setCargando(true);
+    setError('');
+    try {
+      const [disponibles, propiedades, pagos, reclamos, contratos] = await Promise.all([
+        apiGet<Propiedad[]>('/api/propiedades/disponibles', token),
+        tieneAccesoPropiedades
+          ? apiGet<Propiedad[]>('/api/propiedades', token)
+          : Promise.resolve([] as Propiedad[]),
+        tieneAccesoOperativo ? apiGet<Pago[]>('/api/pagos', token) : Promise.resolve([] as Pago[]),
+        tieneAccesoOperativo ? apiGet<Reclamo[]>('/api/reclamos', token) : Promise.resolve([] as Reclamo[]),
+        tieneAccesoOperativo ? apiGet<Contrato[]>('/api/contratos', token) : Promise.resolve([] as Contrato[]),
+      ]);
+
+      if (![disponibles, propiedades, pagos, reclamos, contratos].every(Array.isArray)) {
+        throw new Error('El backend devolvió una respuesta inesperada.');
+      }
+
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const limiteVencimiento = new Date(hoy);
+      limiteVencimiento.setDate(limiteVencimiento.getDate() + 30);
+
       setResumen({
-        ...datosResumen,
-        contratos: historial.length,
+        aCobrar: pagos
+          .filter((pago) => ['PENDIENTE', 'ATRASADO', 'INGRESADO'].includes(pago.estado))
+          .reduce((total, pago) => total + pago.monto_total, 0),
+        cobrado: pagos
+          .filter((pago) => pago.estado === 'PAGADO')
+          .reduce((total, pago) => total + pago.monto_total, 0),
+        cobrosParaValidar: pagos.filter((pago) => pago.estado === 'INGRESADO').length,
+        atrasados: pagos.filter((pago) => pago.estado === 'ATRASADO').length,
+        reclamosAbiertos: reclamos.filter(
+          (reclamo) => reclamo.estado !== 'RESUELTO' && reclamo.estado !== 'CANCELADO',
+        ).length,
+        contratosPorVencer: contratos.filter((contrato) => {
+          if (contrato.estado !== 'VIGENTE' || !contrato.fecha_fin) return false;
+          const fechaFin = new Date(`${contrato.fecha_fin.slice(0, 10)}T12:00:00`);
+          return fechaFin >= hoy && fechaFin <= limiteVencimiento;
+        }).length,
         propiedadesDisponibles: disponibles.length,
+        propiedadesAlquiladas: propiedades.filter((propiedad) => propiedad.estado === 'ALQUILADA').length,
+        contratos: contratos.length,
       });
-    }).catch((err: unknown) => {
+    } catch (err) {
+      setResumen(null);
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los indicadores.');
-    }).finally(() => setCargando(false));
-  }, []);
+    } finally {
+      setCargando(false);
+    }
+  }, [tieneAccesoOperativo, tieneAccesoPropiedades, token]);
+
+  useEffect(() => {
+    if (!tieneResumenOperativo) return undefined;
+    const timer = setTimeout(cargarResumen, 0);
+    return () => clearTimeout(timer);
+  }, [cargarResumen, tieneResumenOperativo]);
 
   const accesos: AccesoRapido[] = [];
 
@@ -63,10 +120,13 @@ export default function InicioPanel({ usuario, roles, setSeccionActiva }: Dashbo
   }
   if (roles.esInquilino && !roles.esPropietario) {
     accesos.push({ id: 'contratos', label: 'Mis Contratos', desc: 'Contratos activos', icon: '📜' });
-    accesos.push({ id: 'mis-alquileres', label: 'Historial', desc: 'Alquileres anteriores', icon: '🗂️' });
+    accesos.push({ id: 'historial', label: 'Historial', desc: 'Alquileres anteriores', icon: '🗂️' });
   }
   if (roles.esAdministrador) {
     accesos.push({ id: 'usuarios', label: 'Usuarios', desc: 'Roles y permisos', icon: '👥' });
+  }
+  if (tieneAccesoCobros) {
+    accesos.push({ id: 'cobros', label: 'Cobros', desc: 'Comprobantes para validar', icon: '💰' });
   }
   if (roles.esUsuarioBase) {
     accesos.push({ id: 'buscar', label: 'Buscar alquileres', desc: 'Propiedades disponibles', icon: '🔍' });
@@ -85,28 +145,58 @@ export default function InicioPanel({ usuario, roles, setSeccionActiva }: Dashbo
         </p>
       </Card>
 
-      <div>
-        <div className="flex items-end justify-between gap-4 mb-4">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Resumen operativo</h2>
-            <p className="text-sm text-slate-500 mt-1">Indicadores actualizados para la demostración del MVP.</p>
+      {tieneResumenOperativo && (
+        <div>
+          <div className="flex items-end justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Resumen operativo</h2>
+              <p className="text-sm text-slate-500 mt-1">Indicadores operativos de los registros visibles para tu cuenta.</p>
+            </div>
+            <span className="text-xs text-slate-400">Datos de tu cuenta actualizados desde el sistema</span>
           </div>
-          <span className="text-xs text-slate-400">Datos mock mientras se definen los endpoints</span>
+          {error && (
+            <div className="space-y-2">
+              <Alert theme="light">{error}</Alert>
+              <button type="button" className={btnSecondaryClass} onClick={() => void cargarResumen()}>
+                Reintentar
+              </button>
+            </div>
+          )}
+          {cargando ? (
+            <LoadingRow label="Cargando indicadores..." />
+          ) : resumen ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {tieneAccesoOperativo && (
+                <>
+                  {!roles.esInquilino && (
+                    <>
+                      <MetricCard label="A cobrar" value={formatMoneda(resumen.aCobrar)} tone="text-[#14213D]" onClick={() => setSeccionActiva(seccionPagos)} />
+                      <MetricCard label="Cobrado" value={formatMoneda(resumen.cobrado)} tone="text-emerald-600" onClick={() => setSeccionActiva(seccionPagos)} />
+                    </>
+                  )}
+                  <MetricCard label="Pagos atrasados" value={resumen.atrasados} tone="text-red-600" onClick={() => setSeccionActiva(seccionPagos)} />
+                  {tieneAccesoCobros && (
+                    <MetricCard
+                      label="Cobros para validar"
+                      value={resumen.cobrosParaValidar}
+                      tone="text-violet-600"
+                      onClick={() => setSeccionActiva('cobros')}
+                    />
+                  )}
+                  <MetricCard label="Reclamos abiertos" value={resumen.reclamosAbiertos} tone="text-amber-600" onClick={() => setSeccionActiva('reclamos')} />
+                  <MetricCard label="Contratos por vencer (30 días)" value={resumen.contratosPorVencer} tone="text-sky-600" onClick={() => setSeccionActiva('historial')} />
+                </>
+              )}
+              {!roles.esInquilino && (
+                <MetricCard label="Propiedades disponibles" value={resumen.propiedadesDisponibles} tone="text-emerald-600" onClick={() => setSeccionActiva('buscar')} />
+              )}
+              {tieneAccesoPropiedades && (
+                <MetricCard label="Propiedades alquiladas" value={resumen.propiedadesAlquiladas} tone="text-sky-600" onClick={() => setSeccionActiva('propiedades')} />
+              )}
+            </div>
+          ) : null}
         </div>
-        {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
-        {cargando ? (
-          <LoadingRow label="Cargando indicadores..." />
-        ) : resumen ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            <MetricCard label="A cobrar" value={formatMoneda(resumen.aCobrar)} tone="text-[#14213D]" />
-            <MetricCard label="Cobrado" value={formatMoneda(resumen.cobrado)} tone="text-emerald-600" />
-            <MetricCard label="Pagos atrasados" value={resumen.atrasados} tone="text-red-600" />
-            <MetricCard label="Reclamos abiertos" value={resumen.reclamosAbiertos} tone="text-amber-600" />
-            <MetricCard label="Contratos por vencer" value={resumen.contratosPorVencer} tone="text-sky-600" />
-            <MetricCard label="Propiedades disponibles" value={resumen.propiedadesDisponibles} tone="text-emerald-600" />
-          </div>
-        ) : null}
-      </div>
+      )}
 
       {accesos.length > 0 && (
         <div>
