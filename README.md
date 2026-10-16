@@ -41,7 +41,10 @@ package.json                  Scripts npm run dev (front + back)
 - Rutas montadas en `/api/usuarios`:
   - `POST /` — registro (siempre asigna `USUARIO`; roles superiores se asignan desde administración)
   - `POST /login` — login JWT
+  - `GET /me` y `PATCH /me` — consulta y actualización del perfil autenticado (solo teléfono, alias/CBU y CUIT/CUIL)
   - `GET /` — listado (solo `ADMINISTRADOR`, requiere `Authorization: Bearer`)
+  - `GET /solicitud-propietario` y `POST /solicitud-propietario` — consulta y envío autenticado de solicitud, con alias/CBU y CUIT/CUIL
+  - `PATCH /:id/solicitud-propietario/aprobar` — aprobación administrativa; al aprobar asigna `PROPIETARIO` y activa los datos bancarios enviados
 - Middleware: `verificarToken`, `verificarRol`.
 
 ### Operación (semana 4)
@@ -52,14 +55,33 @@ Las respuestas nuevas usan `{ success, data, message }`; la identidad del usuari
 - `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, `PATCH /api/pagos/:id/comprobante` y `PATCH /api/pagos/:id/confirmar`.
   El pago se relaciona con un contrato y período `YYYY-MM`; el importe y el vencimiento se derivan del contrato vigente.
   El inquilino consulta sus pagos y carga el comprobante; el propietario del contrato o un administrador registra y confirma pagos.
+  El inquilino puede cargar hasta 5 comprobantes PDF/JPG/PNG/WEBP (5 MB cada uno) con `POST /api/pagos/:id/comprobantes`, consultarlos autenticadamente con `GET /api/pagos/:id/comprobantes/:indice` y quitarlos con `DELETE /api/pagos/:id/comprobantes` antes de la confirmación.
+  Al activar un contrato se generan automáticamente la cuota de depósito (un mes de alquiler, `mes_correspondiente: DEPOSITO`) y las cuotas mensuales con `mes_correspondiente` en formato `YYYYMM`; el importe y los vencimientos se derivan del contrato vigente. Los upserts evitan duplicar cuotas y reconocen períodos mensuales legados en formato `YYYY-MM`.
+  El inquilino consulta sus pagos y carga el comprobante, que pasa a estado `INGRESADO`; el propietario del contrato o un administrador lo confirma desde Cobros y pasa a `PAGADO`. Los pagos aún no informados permanecen `PENDIENTE` o `ATRASADO` según su vencimiento.
 - `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`.
   Permite filtrar por `id_propiedad`, `desde`, `hasta` y `estado_pago`. Propietarios y administradores gestionan gastos;
   el inquilino puede consultar gastos de propiedades con su contrato vigente.
 - `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH /api/reclamos/:id/estado` y `DELETE /api/reclamos/:id`.
   El inquilino abre reclamos ligados a un contrato vigente; propietario y administrador consultan y gestionan reclamos
-  de sus propiedades.
+  de sus propiedades. Asunto y descripción se limitan a 120 y 4000 caracteres; las categorías permitidas incluyen
+  PLOMERIA, ELECTRICIDAD, GAS, ESTRUCTURAL, MANTENIMIENTO, SERVICIOS, SEGURIDAD y OTRO.
 
-## Desarrollo local
+### Catálogo y dashboard
+
+- `GET /api/propiedades/disponibles` es público y devuelve solo los campos de catálogo de propiedades disponibles.
+  Las demás rutas de `/api/propiedades` siguen requiriendo JWT y autorización.
+- `GET /api/dashboard/resumen` requiere JWT de administrador, propietario o inquilino. Los importes quedan limitados
+  a contratos visibles para la cuenta. Devuelve `periodo`, `totalEstimadoMes`, `totalPendienteMes`,
+  `totalCobradoMes` y `reclamosAbiertos`. El estimado mensual usa las cuotas del período calendario en `YYYYMM`
+  o el formato legado `YYYY-MM`; los cobros efectivos se calculan por `fecha_pago` del mes calendario.
+
+### Asistente IA
+
+- `POST /api/ai/chat` requiere `Authorization: Bearer` y recibe `mensajes` con roles `user` y `assistant`.
+- El backend usa Gemini (`gemini-3.8-flash`) con `GEMINI_API_KEY`, configurada solo en `backend/.env`.
+- El modelo dispone de exactamente dos herramientas controladas por el servidor: `consultarMisDatos` (contratos o reclamos dentro del alcance de la cuenta) y `clasificarYCrearReclamo` (categoría/prioridad propuestas por el modelo y validación/creación mediante las reglas del módulo de reclamos). Los datos de identidad y los permisos siempre provienen del JWT; la IA no puede indicar una cuenta alternativa.
+- Para el chat, Gemini recibe un historial de hasta 20 mensajes con un máximo de 4000 caracteres por mensaje. `GEMINI_API_KEY` es necesaria para ejecutar consultas al modelo.
+- La pantalla Asistente IA está disponible para inquilinos, propietarios y administradores. Los mensajes no se guardan en la base de datos.
 
 ### Requisitos
 
@@ -80,11 +102,16 @@ Variables de entorno necesarias (solo nombres):
 
 - `MONGODB_URI`
 - `JWT_SECRET`
+- `GEMINI_API_KEY` (para el asistente IA; secreto, solo backend)
 - `PORT` (opcional, default 3000)
 - `SEED_PASSWORD` (opcional, default `ClaveTest123` para el script seed)
+- `CLOUDINARY_CLOUD_NAME` (para subir, consultar y eliminar recibos de garante y limpiar fotos quitadas de propiedades; debe coincidir con `VITE_CLOUDINARY_CLOUD_NAME`)
+- `CLOUDINARY_API_KEY` (secreto; solo backend)
+- `CLOUDINARY_API_SECRET` (secreto; solo backend)
 
 `JWT_SECRET` es obligatoria y debe tener al menos 32 bytes; el backend no inicia si falta o es demasiado corta.
 Generá un valor aleatorio para `backend/.env` con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+Obtené las credenciales de Cloudinary desde su consola y configurá las tres variables en `backend/.env` y en el entorno del servicio backend. No copies `API_SECRET` al frontend ni uses variables `VITE_` para credenciales privadas. El backend sube y elimina recibos de garantes con autorización, y elimina fotos quitadas de propiedades al guardar la edición; otros comprobantes pueden seguir usando la carga unsigned desde el frontend.
 
 ### Seeds de usuarios, propiedades y contratos de prueba
 
@@ -124,12 +151,13 @@ Crear `frontend/.env` (no commitear). Pedir valores al equipo o configurar prese
 |---|---|
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloud name de la cuenta |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES` | Fotos de inmuebles → carpeta `alquilar/propiedades` |
-| `VITE_CLOUDINARY_UPLOAD_PRESET_GARANTE` | Recibo del garante → carpeta `alquilar/garantes` |
+| `VITE_CLOUDINARY_UPLOAD_PRESET_GARANTE` | Legacy; los recibos de garantes ahora se cargan autenticados desde el backend |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_GASTOS` | Comprobantes de gastos → carpeta `alquilar/gastos` |
 
 Compatibilidad: si falta `..._PROPIEDADES`, se usa el preset legacy `VITE_CLOUDINARY_UPLOAD_PRESET`.
 
-Tras editar `.env`, reiniciar Vite. El frontend sube archivos directo a Cloudinary y guarda solo la URL en MongoDB.
+Tras editar `.env`, reiniciar Vite. Las fotos de propiedades y comprobantes de gastos se suben directo a Cloudinary; los recibos de garantes se cargan desde el backend con autenticación y credenciales privadas.
+Los recibos PDF del garante se suben con `resource_type: image` (endpoint `image/upload`), sin convertir ni perder páginas; los PDF de otros comprobantes conservan el tipo de recurso `raw`. La consulta del recibo se autoriza por contrato y se sirve desde el backend mediante una descarga privada temporal; no requiere habilitar entrega pública de PDF en Cloudinary.
 
 ### Ambos a la vez
 
@@ -154,7 +182,8 @@ cd backend
 npm test
 ```
 
-`npm test` cubre middlewares y controladores de autenticación, propiedades, contratos, pagos, gastos y reclamos.
+`npm test` cubre middlewares, rutas y controladores de autenticación, dashboard, propiedades, contratos, pagos,
+gastos, reclamos, carga de archivos y herramientas del asistente.
 CI valida build del frontend; `npm run lint` también está disponible localmente.
 
 ## Ramas y módulos
@@ -165,18 +194,13 @@ CI valida build del frontend; `npm run lint` también está disponible localment
 | `develop` | Integración del equipo |
 | `feature/*` | Trabajo por módulo |
 
-| Módulo | Responsable | Dominio |
-|---|---|---|
-| 1 | Santiago | Autenticación, JWT, middleware |
-| 2 | Marcelo | Propiedades, contratos |
-| 3 | Rocío | Pagos, gastos, reclamos, IA |
 
 Flujo: `feature/modulo` → Pull Request a `develop` → (hito) merge a `main`.
 
 ## Demo (Render)
 
 - Frontend: https://alquilar-app.onrender.com/
-- Backend: https://alquilar-pmdp-bkyh.onrender.com/
+- Backend: https://alquilar-pmdp.onrender.com/
 
 Credenciales de prueba: solicitar al equipo (no publicar en el repo).
 
@@ -184,16 +208,5 @@ Credenciales de prueba: solicitar al equipo (no publicar en el repo).
 
 Plan de trabajo, Gantt, DER y entregables de cátedra están en OneDrive:
 
-`Proyecto Integrador/Docs` (no forman parte de este repositorio).
-
-## Copia local de trabajo
-
-Desarrollo local en esta carpeta: `C:\Dev\7x24 Ciudad`.
-
-## Estado del proyecto (referencia)
-
-- Auth modular cableado: `Usuario` con `roles[]`, JWT, middleware
-- Login, registro y listado admin en frontend
-- Propiedades, contratos, pagos y IA: en desarrollo (semanas 3–6)
 
 Repositorio: https://github.com/marcelofabiandiaz-unahur/alquilAr
