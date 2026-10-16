@@ -50,6 +50,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState<Propiedad | null>(null);
   const [form, setForm] = useState<PropiedadForm>(FORM_VACIO);
@@ -101,6 +102,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
     e.preventDefault();
     setGuardando(true);
     setError('');
+    setAviso('');
     try {
       const body: {
         direccion: string;
@@ -122,9 +124,15 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
         if (form.estado !== 'ALQUILADA' && form.estado !== 'INACTIVA') {
           body.estado = form.estado;
         }
-        await apiPut(`/api/propiedades/${editando._id}`, token, body);
+        const actualizada = await apiPut<Propiedad & { advertencias?: string[] }>(
+          `/api/propiedades/${editando._id}`,
+          token,
+          body,
+        );
+        setAviso(actualizada.advertencias?.join(' ') || '');
       } else {
         await apiPost('/api/propiedades', token, body);
+        setAviso('');
       }
       setModalAbierto(false);
       await cargar();
@@ -176,6 +184,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
       />
 
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
+      {aviso && <Alert type="info" theme="light" onClose={() => setAviso('')}>{aviso}</Alert>}
 
       {cargando ? (
         <LoadingRow label="Cargando propiedades..." />

@@ -7,6 +7,7 @@ import {
   esUrlPdf,
   validarArchivo,
 } from '../../lib/cloudinary';
+import { apiUpload } from '../../lib/apiClient';
 
 type TipoArchivo = 'propiedades' | 'garante' | 'gastos';
 
@@ -18,6 +19,8 @@ interface FileDropzoneProps {
   permitirPdf?: boolean;
   label?: string;
   hint?: string;
+  backendUpload?: { path: string; token: string };
+  eliminarArchivo?: (url: string) => Promise<void>;
 }
 
 export default function FileDropzone({
@@ -28,14 +31,17 @@ export default function FileDropzone({
   permitirPdf = true,
   label = 'Archivo',
   hint = 'JPG, PNG, WEBP o PDF · máx. 5 MB',
+  backendUpload,
+  eliminarArchivo,
 }: FileDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const [errorLocal, setErrorLocal] = useState('');
 
-  const configOk = estaConfigurado(tipo);
-  const deshabilitado = disabled || !configOk || subiendo || Boolean(value);
+  const configOk = backendUpload ? true : estaConfigurado(tipo);
+  const deshabilitado = disabled || !configOk || subiendo || eliminando || Boolean(value);
 
   const procesarArchivo = async (fileList: FileList | null) => {
     if (!configOk) {
@@ -55,12 +61,34 @@ export default function FileDropzone({
     setErrorLocal('');
     setSubiendo(true);
     try {
-      const url = await subirArchivo(file, tipo, { permitirPdf });
+      const resultado = backendUpload
+        ? await apiUpload<{ url: string }>(backendUpload.path, backendUpload.token, file)
+        : { url: await subirArchivo(file, tipo, { permitirPdf }) };
+      const url = resultado.url;
+      if (!url) throw new Error('El servidor no devolvió la URL del archivo.');
       onChange(url);
     } catch (err) {
       setErrorLocal(`${file.name}: ${err instanceof Error ? err.message : 'Error al subir el archivo.'}`);
     } finally {
       setSubiendo(false);
+    }
+  };
+
+  const quitarArchivo = async () => {
+    if (!value) return;
+    setErrorLocal('');
+    if (!eliminarArchivo) {
+      onChange('');
+      return;
+    }
+    setEliminando(true);
+    try {
+      await eliminarArchivo(value);
+      onChange('');
+    } catch (err) {
+      setErrorLocal(err instanceof Error ? err.message : 'No se pudo eliminar el archivo.');
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -111,15 +139,16 @@ export default function FileDropzone({
               Ver archivo
             </a>
           </div>
-          {!disabled && (
+          {!disabled && !eliminando && (
             <button
               type="button"
-              onClick={() => onChange('')}
+              onClick={() => void quitarArchivo()}
               className="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg shrink-0"
             >
               Quitar
             </button>
           )}
+          {eliminando && <span className="text-xs text-slate-500">Eliminando...</span>}
         </div>
       ) : (
         <div
