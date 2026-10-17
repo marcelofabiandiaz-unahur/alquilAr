@@ -13,7 +13,7 @@ const contratoSchema = new mongoose.Schema(
       required: true,
     },
     fecha_inicio: { type: Date, required: true },
-    fecha_fin: { type: Date },
+    fecha_fin: { type: Date, required: true },
     monto_mensual: { type: Number, required: true, min: 0 },
     dia_vencimiento: { type: Number, required: true, min: 1, max: 28 },
     estado: {

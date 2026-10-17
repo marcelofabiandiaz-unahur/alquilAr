@@ -91,12 +91,17 @@ const crearPropiedad = async (req, res) => {
 
     if (!validarFotos(req.body.fotos, res)) return;
 
+    const descripcion = typeof req.body.descripcion === 'string' ? req.body.descripcion.trim() : '';
+    if (!descripcion) {
+      return res.status(400).json({ mensaje: 'descripcion es obligatoria.' });
+    }
+
     const propiedad = new Propiedad({
       id_propietario: idPropietario,
       direccion: req.body.direccion,
       tipo: req.body.tipo,
       ambientes: req.body.ambientes,
-      descripcion: req.body.descripcion,
+      descripcion,
       estado: 'DISPONIBLE',
       valor_base: req.body.valor_base,
       fotos: req.body.fotos || [],

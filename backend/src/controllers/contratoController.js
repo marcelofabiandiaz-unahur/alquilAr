@@ -168,6 +168,10 @@ const crearContrato = async (req, res) => {
       return res.status(error.status).json({ mensaje: error.mensaje });
     }
 
+    if (!req.body.fecha_fin) {
+      return res.status(400).json({ mensaje: 'fecha_fin es obligatoria.' });
+    }
+
     let estado = req.body.estado || 'BORRADOR';
     let requiereRolInquilino = false;
 
