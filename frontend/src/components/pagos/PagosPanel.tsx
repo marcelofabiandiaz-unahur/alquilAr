@@ -19,7 +19,7 @@ interface DatosBancariosPropietario {
 }
 
 function obtenerComprobantes(pago: Pago): string[] {
-  return [...new Set([...(pago.comprobantes || []), ...(pago.comprobante_url ? [pago.comprobante_url] : [])])];
+  return pago.comprobantes ?? [];
 }
 
 function conceptoPago(pago: Pago): string {
@@ -124,7 +124,7 @@ export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin 
       const actualizado = await apiDelete<Pago & { advertencia?: string }>(
         `/api/pagos/${pago._id}/comprobantes`,
         token,
-        { comprobante_url: url },
+        { url },
       );
       setInfo(actualizado.advertencia || 'Comprobante quitado del pago.');
       setPagoEditandoComprobantes(actualizado);

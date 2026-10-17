@@ -17,7 +17,7 @@ interface CobrosPanelProps {
 }
 
 function obtenerComprobantes(pago: Pago): string[] {
-  return [...new Set([...(pago.comprobantes || []), ...(pago.comprobante_url ? [pago.comprobante_url] : [])])];
+  return pago.comprobantes ?? [];
 }
 
 function conceptoPago(pago: Pago): string {
