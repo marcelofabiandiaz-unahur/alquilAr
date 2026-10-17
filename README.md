@@ -208,7 +208,6 @@ Credenciales de prueba: solicitar al equipo (no publicar en el repo).
 
 ## Documentación
 
-- **Plan de trabajo:** Drive de la cátedra (Gantt, DER académico, entregables).
+- **Plan de trabajo:** Drive de la cátedra.
 - **Seguimiento:** https://github.com/users/marcelofabiandiaz-unahur/projects/1
-- **Resumen técnico en el repo:** [`docs/Resumen-Tecnico-Estado-Reparto-Trabajo.md`](docs/Resumen-Tecnico-Estado-Reparto-Trabajo.md)
 - **Repositorio:** https://github.com/marcelofabiandiaz-unahur/alquilAr
