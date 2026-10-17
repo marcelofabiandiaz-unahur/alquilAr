@@ -12,6 +12,26 @@ const serializarUsuario = (usuario) => {
   return respuesta;
 };
 
+const serializarSolicitudPropietario = (usuario) => {
+  const embed = usuario?.solicitud_propietario;
+  if (!embed) return null;
+
+  const embedObj = embed.toObject ? embed.toObject() : { ...embed };
+  const fecha_solicitud = embedObj.fecha_solicitud ?? embedObj.solicitada_en;
+
+  const cbuRaiz = typeof usuario.cbu_alias === 'string' ? usuario.cbu_alias.trim() : '';
+  const cuitRaiz = typeof usuario.cuit_cuil === 'string' ? usuario.cuit_cuil.trim() : '';
+  const cbuLegacy = typeof embedObj.cbu_alias === 'string' ? embedObj.cbu_alias.trim() : '';
+  const cuitLegacy = typeof embedObj.cuit_cuil === 'string' ? embedObj.cuit_cuil.trim() : '';
+
+  return {
+    estado: embedObj.estado,
+    fecha_solicitud,
+    cbu_alias: cbuRaiz || cbuLegacy || undefined,
+    cuit_cuil: cuitRaiz || cuitLegacy || undefined,
+  };
+};
+
 const registrarUsuario = async (req, res) => {
   try {
     const datos = { ...(req.body || {}), roles: ['USUARIO'] };
@@ -112,9 +132,9 @@ const listarUsuarios = async (req, res) => {
 
 const obtenerSolicitudPropietario = async (req, res) => {
   try {
-    const usuario = await Usuario.findById(req.usuario.id).select('solicitud_propietario');
+    const usuario = await Usuario.findById(req.usuario.id).select('solicitud_propietario cbu_alias cuit_cuil');
     if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
-    return res.json({ solicitud: usuario.solicitud_propietario || null });
+    return res.json({ solicitud: serializarSolicitudPropietario(usuario) });
   } catch (error) {
     return res.status(500).json({ mensaje: error.message });
   }
@@ -146,14 +166,14 @@ const solicitarRolPropietario = async (req, res) => {
       return res.status(409).json({ mensaje: 'Ya existe una solicitud de propietario pendiente.' });
     }
 
+    usuario.cbu_alias = cbu_alias.trim();
+    usuario.cuit_cuil = cuit_cuil.trim();
     usuario.solicitud_propietario = {
-      cbu_alias: cbu_alias.trim(),
-      cuit_cuil: cuit_cuil.trim(),
       estado: 'PENDIENTE',
-      solicitada_en: new Date(),
+      fecha_solicitud: new Date(),
     };
     await usuario.save();
-    return res.status(201).json({ solicitud: usuario.solicitud_propietario });
+    return res.status(201).json({ solicitud: serializarSolicitudPropietario(usuario) });
   } catch (error) {
     return res.status(400).json({ mensaje: 'No se pudo crear la solicitud.', error: error.message });
   }
@@ -168,8 +188,15 @@ const aprobarSolicitudPropietario = async (req, res) => {
     }
 
     if (!usuario.roles.includes('PROPIETARIO')) usuario.roles.push('PROPIETARIO');
-    usuario.cbu_alias = usuario.solicitud_propietario.cbu_alias;
-    usuario.cuit_cuil = usuario.solicitud_propietario.cuit_cuil;
+
+    const embed = usuario.solicitud_propietario;
+    if (!usuario.cbu_alias?.trim() && embed?.cbu_alias) {
+      usuario.cbu_alias = embed.cbu_alias;
+    }
+    if (!usuario.cuit_cuil?.trim() && embed?.cuit_cuil) {
+      usuario.cuit_cuil = embed.cuit_cuil;
+    }
+
     usuario.solicitud_propietario.estado = 'APROBADA';
     await usuario.save();
 

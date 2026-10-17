@@ -12,10 +12,10 @@ export interface Usuario {
   cbu_alias?: string;
   cuit_cuil?: string;
   solicitud_propietario?: {
-    cbu_alias: string;
-    cuit_cuil: string;
     estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
-    solicitada_en?: string;
+    fecha_solicitud?: string;
+    cbu_alias?: string;
+    cuit_cuil?: string;
   };
 }
 
@@ -54,7 +54,7 @@ export interface Propiedad {
   direccion: string;
   tipo: string;
   ambientes: number;
-  descripcion?: string;
+  descripcion: string;
   estado: string;
   valor_base: number;
   fotos: string[];
@@ -71,7 +71,7 @@ export interface Contrato {
   id_propiedad: string | PropiedadReferencia;
   id_inquilino: string | UsuarioReferencia;
   fecha_inicio: string;
-  fecha_fin?: string;
+  fecha_fin: string;
   monto_mensual: number;
   dia_vencimiento: number;
   estado: string;
@@ -86,7 +86,6 @@ export interface Pago {
   fecha_vencimiento: string;
   fecha_pago?: string;
   estado: string;
-  comprobante_url?: string;
   comprobantes?: string[];
 }
 
@@ -146,7 +145,7 @@ export interface ContratoForm {
   id_propiedad: string;
   email_inquilino: string;
   fecha_inicio: string;
-  fecha_fin?: string;
+  fecha_fin: string;
   monto_mensual: number;
   dia_vencimiento: number;
   estado: string;

@@ -291,6 +291,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
           <div>
             <label className={labelClass}>Descripción</label>
             <textarea
+              required
               className={`${inputClass} min-h-[80px]`}
               value={form.descripcion}
               onChange={(e) => setForm({ ...form, descripcion: e.target.value })}

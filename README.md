@@ -52,30 +52,18 @@ Plataforma web de gestión de alquileres con asistente de IA — Proyecto Integr
 
 ## Modelo de datos (DER)
 
-Entidades principales y relaciones (implementadas en `backend/src/models/`). El diagrama académico completo está en el Drive de la cátedra.
+Entidades principales y relaciones (implementadas en `backend/src/models/`).
 
-```mermaid
-erDiagram
-  USUARIO ||--o{ PROPIEDAD : posee
-  USUARIO ||--o{ CONTRATO : inquilino
-  PROPIEDAD ||--o{ GASTO : tiene
-  PROPIEDAD ||--o{ CONTRATO : alquila
-  CONTRATO ||--o{ PAGO : genera
-  CONTRATO ||--o{ RECLAMO : origina
-  PROPIEDAD ||--o{ RECLAMO : referencia
-  USUARIO ||--o{ RECLAMO : reporta
-```
+![Diagrama entidad-relación AlquilAR](docs/der-alquilar.png)
 
 | Entidad | Atributos clave (resumen) |
 |---|---|
 | **Usuario** | nombre, apellido, dni, email, password, roles[], estado, telefono, cbu_alias, cuit_cuil, solicitud_propietario |
 | **Propiedad** | id_propietario, direccion, tipo, ambientes, descripcion, estado, valor_base, fotos[] |
 | **Contrato** | id_propiedad, id_inquilino, fechas, monto_mensual, dia_vencimiento, estado, garante |
-| **Pago** | id_contrato, mes_correspondiente, montos, fechas, estado, comprobante_url, comprobantes[] |
+| **Pago** | id_contrato, mes_correspondiente, montos, fechas, estado, comprobantes[] |
 | **Gasto** | id_propiedad, fecha_emision, monto_total, tipo, estado_pago, proveedor, comprobantes[] |
 | **Reclamo** | id_contrato, id_propiedad, id_inquilino, asunto, descripcion, prioridad, categoria, estado, fechas |
-
-El DER del PI coincide en entidades y cardinalidades. El código agrega detalles de implementación: `solicitud_propietario` en usuarios, múltiples `comprobantes` en pagos, estados enumerados, `timestamps` de Mongoose y restricciones (por ejemplo, un solo contrato **VIGENTE** por propiedad; unicidad de cuota por contrato y período).
 
 ## Funcionalidades
 
