@@ -11,10 +11,11 @@ const {
 } = require('../controllers/propiedadController');
 const { verificarToken } = require('../middlewares/authMiddleware');
 
+router.get('/disponibles', listarPropiedadesDisponibles);
+
 router.use(verificarToken);
 
 router.get('/', listarPropiedades);
-router.get('/disponibles', listarPropiedadesDisponibles);
 router.post('/', crearPropiedad);
 router.get('/:id/contratos', listarContratosPorPropiedad);
 router.get('/:id', obtenerPropiedad);

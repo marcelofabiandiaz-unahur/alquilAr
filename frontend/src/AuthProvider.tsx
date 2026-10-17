@@ -1,44 +1,94 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AuthContext } from './authContext';
 import type { ReactNode } from 'react';
 import type { AuthUsuario } from './types';
+import { API_URL } from './config/api';
+import { mapearPerfilAAuthUsuario } from './lib/authSession';
 
-function leerSesion(): { token: string | null; usuario: AuthUsuario | null } {
-  const tokenGuardado = localStorage.getItem('token_arquilar');
-  const usuarioGuardado = localStorage.getItem('usuario_arquilar');
+function leerTokenGuardado(): string | null {
+  return localStorage.getItem('token_arquilar');
+}
 
-  if (!tokenGuardado || !usuarioGuardado) {
-    return { token: null, usuario: null };
-  }
+function persistirSesion(datosUsuario: AuthUsuario, tokenUsuario: string) {
+  localStorage.setItem('token_arquilar', tokenUsuario);
+  localStorage.setItem('usuario_arquilar', JSON.stringify(datosUsuario));
+}
 
-  try {
-    return { token: tokenGuardado, usuario: JSON.parse(usuarioGuardado) };
-  } catch {
-    localStorage.removeItem('token_arquilar');
-    localStorage.removeItem('usuario_arquilar');
-    return { token: null, usuario: null };
-  }
+function limpiarSesionStorage() {
+  localStorage.removeItem('token_arquilar');
+  localStorage.removeItem('usuario_arquilar');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const sesionInicial = leerSesion();
-  const [usuario, setUsuario] = useState<AuthUsuario | null>(sesionInicial.usuario);
-  const [token, setToken] = useState(sesionInicial.token);
-  const cargando = false;
+  const tokenInicial = leerTokenGuardado();
+  const [usuario, setUsuario] = useState<AuthUsuario | null>(null);
+  const [token, setToken] = useState<string | null>(tokenInicial);
+  const [cargando, setCargando] = useState(Boolean(tokenInicial));
 
-  const loginGlobal = (datosUsuario: AuthUsuario, tokenUsuario: string) => {
-    setToken(tokenUsuario);
-    setUsuario(datosUsuario);
-    localStorage.setItem('token_arquilar', tokenUsuario);
-    localStorage.setItem('usuario_arquilar', JSON.stringify(datosUsuario));
-  };
-
-  const logoutGlobal = () => {
+  const logoutGlobal = useCallback(() => {
     setToken(null);
     setUsuario(null);
-    localStorage.removeItem('token_arquilar');
-    localStorage.removeItem('usuario_arquilar');
-  };
+    limpiarSesionStorage();
+  }, []);
+
+  const loginGlobal = useCallback((datosUsuario: AuthUsuario, tokenUsuario: string) => {
+    setToken(tokenUsuario);
+    setUsuario(datosUsuario);
+    persistirSesion(datosUsuario, tokenUsuario);
+  }, []);
+
+  useEffect(() => {
+    const tokenGuardado = leerTokenGuardado();
+    if (!tokenGuardado) {
+      setCargando(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const validarSesion = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/usuarios/me`, {
+          headers: { Authorization: `Bearer ${tokenGuardado}` },
+        });
+
+        if (cancelled) return;
+
+        if (!res.ok) {
+          logoutGlobal();
+          setCargando(false);
+          return;
+        }
+
+        const perfil: unknown = await res.json();
+        const authUsuario = mapearPerfilAAuthUsuario(perfil);
+
+        if (!authUsuario) {
+          logoutGlobal();
+          setCargando(false);
+          return;
+        }
+
+        setToken(tokenGuardado);
+        setUsuario(authUsuario);
+        persistirSesion(authUsuario, tokenGuardado);
+      } catch {
+        if (!cancelled) {
+          logoutGlobal();
+        }
+      } finally {
+        if (!cancelled) {
+          setCargando(false);
+        }
+      }
+    };
+
+    void validarSesion();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logoutGlobal]);
 
   return (
     <AuthContext.Provider value={{ usuario, token, cargando, loginGlobal, logoutGlobal }}>
