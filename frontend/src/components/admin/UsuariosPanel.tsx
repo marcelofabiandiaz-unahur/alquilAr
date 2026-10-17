@@ -128,8 +128,8 @@ export default function UsuariosPanel({ token }: { token: string }) {
                 {usr.solicitud_propietario ? (
                   <div className="space-y-1 text-xs">
                     <p className="font-semibold">{usr.solicitud_propietario.estado}</p>
-                    <p>Alias/CBU: {usr.solicitud_propietario.cbu_alias}</p>
-                    <p>CUIT/CUIL: {usr.solicitud_propietario.cuit_cuil}</p>
+                    <p>Alias/CBU: {usr.cbu_alias ?? usr.solicitud_propietario.cbu_alias ?? '—'}</p>
+                    <p>CUIT/CUIL: {usr.cuit_cuil ?? usr.solicitud_propietario.cuit_cuil ?? '—'}</p>
                   </div>
                 ) : '—'}
               </td>
