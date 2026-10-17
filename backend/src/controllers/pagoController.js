@@ -20,16 +20,12 @@ const { construirOperacionesCuotas } = require('../utils/cuotasContrato');
 const responder = (res, status, data, message) =>
   res.status(status).json({ success: status < 400, data, message });
 
-const obtenerComprobantes = (pago) => [
-  ...new Set([
-    ...(Array.isArray(pago.comprobantes) ? pago.comprobantes : []),
-    ...(pago.comprobante_url ? [pago.comprobante_url] : []),
-  ]),
-];
+const obtenerComprobantes = (pago) => (
+  Array.isArray(pago.comprobantes) ? [...pago.comprobantes] : []
+);
 
 const actualizarEstadoPorComprobantes = (pago, comprobantes) => {
   pago.comprobantes = comprobantes;
-  pago.comprobante_url = '';
   pago.estado = comprobantes.length > 0
     ? 'INGRESADO'
     : pago.fecha_vencimiento < new Date() ? 'ATRASADO' : 'PENDIENTE';
@@ -86,10 +82,7 @@ const listarPagos = async (req, res) => {
       {
         ...filtro,
         estado: { $in: ['PENDIENTE', 'ATRASADO'] },
-        $or: [
-          { comprobante_url: { $exists: true, $ne: '' } },
-          { comprobantes: { $exists: true, $ne: [] } },
-        ],
+        comprobantes: { $exists: true, $ne: [] },
       },
       { $set: { estado: 'INGRESADO' } },
     );
@@ -179,30 +172,6 @@ const crearPago = async (req, res) => {
   }
 };
 
-const registrarComprobante = async (req, res) => {
-  try {
-    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
-    const { comprobante_url } = req.body || {};
-    if (!parsePagoAssetUrl(comprobante_url)) {
-      return responder(res, 400, null, 'El comprobante debe pertenecer a la carpeta segura de pagos.');
-    }
-    const pago = await Pago.findById(req.params.id);
-    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
-    const { contrato } = await buscarContratoGestionable(resolverId(pago.id_contrato), req.usuario);
-    const { id, roles } = obtenerIdentidad(req.usuario);
-    if (!contrato || !esInquilino(roles) || resolverId(contrato.id_inquilino) !== resolverId(id)) {
-      return responder(res, 403, null, 'Solo el inquilino del contrato puede cargar el comprobante.');
-    }
-    if (pago.estado === 'PAGADO') return responder(res, 409, null, 'No se puede cambiar el comprobante de un pago confirmado.');
-    const comprobantes = obtenerComprobantes(pago);
-    actualizarEstadoPorComprobantes(pago, [...new Set([...comprobantes, comprobante_url])]);
-    await pago.save();
-    return responder(res, 200, pago, 'Comprobante registrado.');
-  } catch (error) {
-    return responder(res, 500, null, error.message);
-  }
-};
-
 const subirComprobantes = async (req, res) => {
   try {
     if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
@@ -284,10 +253,11 @@ const subirComprobantes = async (req, res) => {
 const eliminarComprobante = async (req, res) => {
   try {
     if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
-    const { comprobante_url } = req.body || {};
-    if (typeof comprobante_url !== 'string' || !comprobante_url) {
-      return responder(res, 400, null, 'comprobante_url es obligatorio.');
+    const { url } = req.body || {};
+    if (typeof url !== 'string' || !url.trim()) {
+      return responder(res, 400, null, 'url es obligatorio.');
     }
+    const comprobanteUrl = url.trim();
 
     const pago = await Pago.findById(req.params.id);
     if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
@@ -301,11 +271,11 @@ const eliminarComprobante = async (req, res) => {
     }
 
     const actuales = obtenerComprobantes(pago);
-    if (!actuales.includes(comprobante_url)) {
+    if (!actuales.includes(comprobanteUrl)) {
       return responder(res, 404, null, 'El comprobante no está asociado a este pago.');
     }
 
-    const asset = parsePagoAssetUrl(comprobante_url);
+    const asset = parsePagoAssetUrl(comprobanteUrl);
     if (asset) {
       const cloudinary = cloudinaryConfig.getCloudinary();
       const resultado = await cloudinary.uploader.destroy(asset.publicId, {
@@ -318,7 +288,7 @@ const eliminarComprobante = async (req, res) => {
       }
     }
 
-    const restantes = actuales.filter((url) => url !== comprobante_url);
+    const restantes = actuales.filter((item) => item !== comprobanteUrl);
     actualizarEstadoPorComprobantes(pago, restantes);
     await pago.save();
     const pagoActualizado = typeof pago.toObject === 'function' ? pago.toObject() : pago;
@@ -469,7 +439,6 @@ module.exports = {
   obtenerPago,
   crearPago,
   actualizarPago,
-  registrarComprobante,
   subirComprobantes,
   eliminarComprobante,
   verComprobante,
