@@ -24,6 +24,14 @@ function authHeaders(token: string, extra: Record<string, string> = {}): Headers
   };
 }
 
+export function apiGetPublic<T>(path: string): Promise<T> {
+  return fetch(`${API_URL}${path}`)
+    .catch(() => {
+      throw new Error('No se pudo conectar con el servidor. Verificá que el backend esté corriendo en el puerto 3000.');
+    })
+    .then((res) => parseResponse<T>(res));
+}
+
 export function apiGet<T>(path: string, token: string): Promise<T> {
   return fetch(`${API_URL}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
