@@ -163,7 +163,7 @@ describe('propiedadController', () => {
     assert.equal(res.statusCode, 403);
   });
 
-  it('listarPropiedadesDisponibles devuelve solo propiedades disponibles para usuarios autenticados', async () => {
+  it('listarPropiedadesDisponibles devuelve solo propiedades con estado DISPONIBLE', async () => {
     const disponibles = [{ _id: propiedadId, direccion: 'Calle 123', estado: 'DISPONIBLE' }];
     Propiedad.find = (filtro) => {
       assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
