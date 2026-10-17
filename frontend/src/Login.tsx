@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from './authContext';
@@ -10,7 +10,13 @@ import { labelClass, inputClass, btnPrimaryClass, linkClass } from './components
 
 export default function Login() {
   const navigate = useNavigate();
-  const { loginGlobal } = useAuthContext();
+  const { loginGlobal, token, usuario, cargando: cargandoSesion } = useAuthContext();
+
+  useEffect(() => {
+    if (!cargandoSesion && token && usuario) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [cargandoSesion, token, usuario, navigate]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -108,9 +114,14 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center pt-2">
+        <p className="text-center pt-2 space-y-2">
           <button type="button" onClick={() => navigate('/registro')} className={linkClass}>
             ¿No tenés cuenta? Registrate aquí
+          </button>
+        </p>
+        <p className="text-center">
+          <button type="button" onClick={() => navigate('/catalogo')} className={linkClass}>
+            Continuar sin registrarse
           </button>
         </p>
       </div>
