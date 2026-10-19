@@ -11,7 +11,6 @@ const ACCESO_STYLES: Partial<Record<string, string>> = {
   propiedades: 'bg-emerald-50 text-emerald-600',
   contratos: 'bg-sky-50 text-sky-600',
   usuarios: 'bg-violet-50 text-violet-600',
-  buscar: 'bg-amber-50 text-amber-600',
 };
 
 function MetricCard({
@@ -57,8 +56,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
     setCargando(true);
     setError('');
     try {
-      const [disponibles, propiedades, pagos, reclamos, contratos] = await Promise.all([
-        apiGet<Propiedad[]>('/api/propiedades/disponibles', token),
+      const [propiedades, pagos, reclamos, contratos] = await Promise.all([
         tieneAccesoPropiedades
           ? apiGet<Propiedad[]>('/api/propiedades', token)
           : Promise.resolve([] as Propiedad[]),
@@ -67,7 +65,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
         tieneAccesoOperativo ? apiGet<Contrato[]>('/api/contratos', token) : Promise.resolve([] as Contrato[]),
       ]);
 
-      if (![disponibles, propiedades, pagos, reclamos, contratos].every(Array.isArray)) {
+      if (![propiedades, pagos, reclamos, contratos].every(Array.isArray)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
       }
 
@@ -93,7 +91,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
           const fechaFin = new Date(`${contrato.fecha_fin.slice(0, 10)}T12:00:00`);
           return fechaFin >= hoy && fechaFin <= limiteVencimiento;
         }).length,
-        propiedadesDisponibles: disponibles.length,
+        propiedadesDisponibles: propiedades.filter((propiedad) => propiedad.estado === 'DISPONIBLE').length,
         propiedadesAlquiladas: propiedades.filter((propiedad) => propiedad.estado === 'ALQUILADA').length,
         contratos: contratos.length,
       });
@@ -128,10 +126,6 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
   if (tieneAccesoCobros) {
     accesos.push({ id: 'cobros', label: 'Cobros', desc: 'Comprobantes para validar', icon: '💰' });
   }
-  if (roles.esUsuarioBase) {
-    accesos.push({ id: 'buscar', label: 'Buscar alquileres', desc: 'Propiedades disponibles', icon: '🔍' });
-  }
-
   return (
     <div className="space-y-8">
       <Card className="p-6 lg:p-8">
@@ -187,11 +181,11 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   <MetricCard label="Contratos por vencer (30 días)" value={resumen.contratosPorVencer} tone="text-sky-600" onClick={() => setSeccionActiva('historial')} />
                 </>
               )}
-              {!roles.esInquilino && (
-                <MetricCard label="Propiedades disponibles" value={resumen.propiedadesDisponibles} tone="text-emerald-600" onClick={() => setSeccionActiva('buscar')} />
-              )}
               {tieneAccesoPropiedades && (
+                <>
+                <MetricCard label="Propiedades disponibles" value={resumen.propiedadesDisponibles} tone="text-emerald-600" onClick={() => setSeccionActiva('propiedades')} />
                 <MetricCard label="Propiedades alquiladas" value={resumen.propiedadesAlquiladas} tone="text-sky-600" onClick={() => setSeccionActiva('propiedades')} />
+                </>
               )}
             </div>
           ) : null}
