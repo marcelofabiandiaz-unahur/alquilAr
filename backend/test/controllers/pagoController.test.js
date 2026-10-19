@@ -3,11 +3,14 @@ const assert = require('node:assert/strict');
 const Pago = require('../../src/models/pago');
 const Contrato = require('../../src/models/contrato');
 const Propiedad = require('../../src/models/propiedad');
+const cloudinaryConfig = require('../../src/config/cloudinary');
 const {
   crearPago,
   listarPagos,
   obtenerPago,
-  registrarComprobante,
+  subirComprobantes,
+  eliminarComprobante,
+  verComprobante,
   marcarComoPagado,
   actualizarPago,
   eliminarPago,
@@ -23,23 +26,33 @@ describe('pagoController', () => {
       pagoFind: Pago.find,
       pagoFindById: Pago.findById,
       pagoUpdateMany: Pago.updateMany,
+      pagoBulkWrite: Pago.bulkWrite,
       pagoSave: Pago.prototype.save,
       contratoFind: Contrato.find,
       contratoFindById: Contrato.findById,
       propiedadFind: Propiedad.find,
       propiedadFindById: Propiedad.findById,
+      getCloudinary: cloudinaryConfig.getCloudinary,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      fetch: global.fetch,
     };
+    process.env.CLOUDINARY_CLOUD_NAME = 'demo-cloud';
   });
 
   afterEach(() => {
     Pago.find = original.pagoFind;
     Pago.findById = original.pagoFindById;
     Pago.updateMany = original.pagoUpdateMany;
+    Pago.bulkWrite = original.pagoBulkWrite;
     Pago.prototype.save = original.pagoSave;
     Contrato.find = original.contratoFind;
     Contrato.findById = original.contratoFindById;
     Propiedad.find = original.propiedadFind;
     Propiedad.findById = original.propiedadFindById;
+    cloudinaryConfig.getCloudinary = original.getCloudinary;
+    global.fetch = original.fetch;
+    if (original.cloudName === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
+    else process.env.CLOUDINARY_CLOUD_NAME = original.cloudName;
   });
 
   it('crea un pago desde el contrato y deriva importe y vencimiento del DER', async () => {
@@ -62,6 +75,7 @@ describe('pagoController', () => {
 
     assert.equal(res.statusCode, 201);
     assert.equal(res.body.data.monto_total, 250000);
+    assert.equal(res.body.data.mes_correspondiente, '202611');
     assert.equal(res.body.data.fecha_vencimiento.getDate(), 10);
   });
 
@@ -77,10 +91,19 @@ describe('pagoController', () => {
   it('limita la consulta de pagos a contratos del inquilino', async () => {
     Contrato.find = async () => [{ _id: contratoId, id_inquilino: inquilinoId }];
     Pago.updateMany = async () => ({ modifiedCount: 0 });
+    Pago.bulkWrite = async () => ({ upsertedCount: 0 });
+    let ordenamiento;
+    let poblacion;
     Pago.find = () => ({
-      populate: () => ({
-        sort: async () => [{ _id: 'pago', id_contrato: contratoId }],
-      }),
+      populate: (configuracion) => {
+        poblacion = configuracion;
+        return {
+        sort: async (sort) => {
+          ordenamiento = sort;
+          return [{ _id: 'pago', id_contrato: contratoId }];
+        },
+        };
+      },
     });
     const res = mockRes();
 
@@ -88,27 +111,195 @@ describe('pagoController', () => {
 
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.data.length, 1);
+    assert.deepEqual(ordenamiento, { fecha_vencimiento: 1 });
+    assert.deepEqual(poblacion.populate.populate, {
+      path: 'id_propietario',
+      select: 'cbu_alias cuit_cuil',
+    });
   });
 
-  it('permite que el inquilino del contrato cargue un comprobante', async () => {
+  it('migra comprobantes ya cargados al estado INGRESADO al listar', async () => {
+    Contrato.find = async () => [{ _id: contratoId }];
+    Pago.bulkWrite = async () => ({ upsertedCount: 0 });
+    const filtrosActualizacion = [];
+    Pago.updateMany = async (filtro, actualizacion) => {
+      filtrosActualizacion.push({ filtro, actualizacion });
+      return { modifiedCount: 0 };
+    };
+    Pago.find = () => ({
+      populate: () => ({
+        sort: async () => [],
+      }),
+    });
+    const res = mockRes();
+
+    await listarPagos({ usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] }, query: {} }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(filtrosActualizacion[0].filtro.estado, { $in: ['PENDIENTE', 'ATRASADO'] });
+    assert.deepEqual(filtrosActualizacion[0].filtro.comprobantes, { $exists: true, $ne: [] });
+    assert.deepEqual(filtrosActualizacion[0].actualizacion, { $set: { estado: 'INGRESADO' } });
+  });
+
+  it('permite al inquilino cargar varios comprobantes juntos y deja el pago editable en INGRESADO', async () => {
     const pago = {
+      _id: '111111111111111111111111',
       id_contrato: contratoId,
+      fecha_vencimiento: new Date(Date.now() + 86400000),
       estado: 'PENDIENTE',
+      comprobantes: [],
       save: async () => {},
     };
     Pago.findById = async () => pago;
     Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
     Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    let uploaded = 0;
+    cloudinaryConfig.getCloudinary = () => ({
+      uploader: {
+        upload_stream(options, callback) {
+          assert.equal(options.folder, 'alquilar/pagos');
+          return {
+            end(buffer) {
+              assert.equal(buffer.toString(), '%PDF-1.7');
+              uploaded += 1;
+              callback(null, {
+                secure_url: `https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo-${uploaded}.pdf`,
+                public_id: `alquilar/pagos/recibo-${uploaded}`,
+              });
+            },
+          };
+        },
+      },
+    });
     const res = mockRes();
 
-    await registrarComprobante({
-      params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://res.cloudinary.com/demo/recibo.pdf' },
+    await subirComprobantes({
+      params: { id: pago._id },
+      files: [
+        { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') },
+        { mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') },
+      ],
       usuario: { id: inquilinoId, roles: ['INQUILINO'] },
     }, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(pago.comprobante_url, 'https://res.cloudinary.com/demo/recibo.pdf');
+    assert.equal(pago.estado, 'INGRESADO');
+    assert.equal(pago.comprobantes.length, 2);
+  });
+
+  it('impide subir comprobantes a un pago confirmado', async () => {
+    Pago.findById = async () => ({ id_contrato: contratoId, estado: 'PAGADO' });
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    cloudinaryConfig.getCloudinary = () => assert.fail('No debe subir un pago confirmado.');
+    const res = mockRes();
+
+    await subirComprobantes({
+      params: { id: '111111111111111111111111' },
+      files: [{ mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') }],
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 409);
+  });
+
+  it('elimina un comprobante propio antes de la confirmación y recalcula el estado', async () => {
+    const url = 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.jpg';
+    const pago = {
+      _id: '111111111111111111111111',
+      id_contrato: contratoId,
+      fecha_vencimiento: new Date(Date.now() + 86400000),
+      estado: 'INGRESADO',
+      comprobantes: [url],
+      save: async () => {},
+    };
+    Pago.findById = async () => pago;
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    let publicIdBorrado = '';
+    cloudinaryConfig.getCloudinary = () => ({
+      uploader: {
+        destroy: async (publicId) => {
+          publicIdBorrado = publicId;
+          return { result: 'ok' };
+        },
+      },
+    });
+    const res = mockRes();
+
+    await eliminarComprobante({
+      params: { id: pago._id },
+      body: { url },
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(publicIdBorrado, 'alquilar/pagos/recibo');
+    assert.deepEqual(pago.comprobantes, []);
+    assert.equal(pago.estado, 'PENDIENTE');
+  });
+
+  it('sirve el comprobante con descarga privada solo a quien tiene acceso al contrato', async () => {
+    const url = 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.pdf';
+    Pago.findById = async () => ({
+      id_contrato: contratoId,
+      comprobantes: [url],
+    });
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    let privateDownloadOptions;
+    cloudinaryConfig.getCloudinary = () => ({
+      utils: {
+        private_download_url(publicId, format, options) {
+          assert.equal(publicId, 'alquilar/pagos/recibo');
+          assert.equal(format, 'pdf');
+          privateDownloadOptions = options;
+          return 'https://api.cloudinary.com/private-download';
+        },
+      },
+    });
+    global.fetch = async () => ({
+      ok: true,
+      arrayBuffer: async () => Buffer.from('%PDF-1.7'),
+    });
+    const res = mockRes();
+    res.set = function set(headers) {
+      this.headers = headers;
+      return this;
+    };
+    res.send = function send(body) {
+      this.body = body;
+      return this;
+    };
+
+    await verComprobante({
+      params: { id: '111111111111111111111111', indice: '0' },
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers['Content-Type'], 'application/pdf');
+    assert.equal(res.headers['Cache-Control'], 'private, no-store');
+    assert.equal(res.body.toString(), '%PDF-1.7');
+    assert.equal(privateDownloadOptions.attachment, false);
+  });
+
+  it('no firma comprobantes almacenados fuera de la carpeta de pagos', async () => {
+    Pago.findById = async () => ({
+      id_contrato: contratoId,
+      comprobantes: ['https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/garantes/privado.pdf'],
+    });
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    cloudinaryConfig.getCloudinary = () => assert.fail('No debe firmar archivos que no sean comprobantes de pago.');
+    const res = mockRes();
+
+    await verComprobante({
+      params: { id: '111111111111111111111111', indice: '0' },
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 404);
   });
 
   it('impide a otro propietario confirmar el pago', async () => {
@@ -185,34 +376,34 @@ describe('pagoController', () => {
     assert.equal(res.statusCode, 409);
   });
 
-  it('rechaza comprobantes que no sean URLs HTTPS y pagos inexistentes', async () => {
+  it('rechaza eliminar comprobante sin url o en pago inexistente', async () => {
     const invalido = mockRes();
-    await registrarComprobante({
+    await eliminarComprobante({
       params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'http://example.com/recibo.pdf' },
+      body: {},
       usuario: { id: inquilinoId, roles: ['INQUILINO'] },
     }, invalido);
     assert.equal(invalido.statusCode, 400);
 
     Pago.findById = async () => null;
     const inexistente = mockRes();
-    await registrarComprobante({
+    await eliminarComprobante({
       params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://example.com/recibo.pdf' },
+      body: { url: 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.pdf' },
       usuario: { id: inquilinoId, roles: ['INQUILINO'] },
     }, inexistente);
     assert.equal(inexistente.statusCode, 404);
   });
 
-  it('no permite reemplazar el comprobante de un pago confirmado', async () => {
+  it('no permite modificar comprobantes de un pago confirmado', async () => {
     Pago.findById = async () => ({ id_contrato: contratoId, estado: 'PAGADO' });
     Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
     Propiedad.findById = async () => ({ id_propietario: usuarioId });
     const res = mockRes();
 
-    await registrarComprobante({
+    await subirComprobantes({
       params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://example.com/recibo.pdf' },
+      files: [{ mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') }],
       usuario: { id: inquilinoId, roles: ['INQUILINO'] },
     }, res);
 
@@ -258,7 +449,13 @@ describe('pagoController', () => {
   });
 
   it('confirma y elimina pagos gestionables', async () => {
-    const pago = { id_contrato: contratoId, estado: 'PENDIENTE', save: async () => {}, deleteOne: async () => {} };
+    const pago = {
+      id_contrato: contratoId,
+      estado: 'INGRESADO',
+      comprobantes: ['https://example.com/recibo.pdf'],
+      save: async () => {},
+      deleteOne: async () => {},
+    };
     Pago.findById = async () => pago;
     Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
     Propiedad.findById = async () => ({ id_propietario: usuarioId });
@@ -272,12 +469,27 @@ describe('pagoController', () => {
     assert.equal(pago.estado, 'PAGADO');
     assert.ok(pago.fecha_pago instanceof Date);
 
-    pago.estado = 'PENDIENTE';
+    pago.estado = 'INGRESADO';
     const eliminar = mockRes();
     await eliminarPago({
       params: { id: '111111111111111111111111' },
       usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
     }, eliminar);
     assert.equal(eliminar.statusCode, 200);
+  });
+
+  it('no confirma un pago sin comprobante ingresado', async () => {
+    Pago.findById = async () => ({ id_contrato: contratoId, estado: 'PENDIENTE', save: async () => {} });
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    const res = mockRes();
+
+    await marcarComoPagado({
+      params: { id: '111111111111111111111111' },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.message, /Solo se pueden confirmar pagos ingresados/);
   });
 });

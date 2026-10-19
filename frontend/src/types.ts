@@ -9,6 +9,14 @@ export interface Usuario {
   email: string;
   roles: Role[];
   dni?: string;
+  cbu_alias?: string;
+  cuit_cuil?: string;
+  solicitud_propietario?: {
+    estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
+    fecha_solicitud?: string;
+    cbu_alias?: string;
+    cuit_cuil?: string;
+  };
 }
 
 export interface UsuarioReferencia {
@@ -26,6 +34,10 @@ export interface PropiedadReferencia {
   tipo?: string;
   ambientes?: number;
   estado?: string;
+  id_propietario?: string | Usuario | {
+    cbu_alias?: string;
+    cuit_cuil?: string;
+  };
 }
 
 export interface AuthUsuario {
@@ -42,7 +54,7 @@ export interface Propiedad {
   direccion: string;
   tipo: string;
   ambientes: number;
-  descripcion?: string;
+  descripcion: string;
   estado: string;
   valor_base: number;
   fotos: string[];
@@ -59,7 +71,7 @@ export interface Contrato {
   id_propiedad: string | PropiedadReferencia;
   id_inquilino: string | UsuarioReferencia;
   fecha_inicio: string;
-  fecha_fin?: string;
+  fecha_fin: string;
   monto_mensual: number;
   dia_vencimiento: number;
   estado: string;
@@ -74,7 +86,7 @@ export interface Pago {
   fecha_vencimiento: string;
   fecha_pago?: string;
   estado: string;
-  comprobante_url?: string;
+  comprobantes?: string[];
 }
 
 export interface Gasto {
@@ -120,10 +132,12 @@ export interface RolesDashboard {
 export interface ResumenDashboard {
   aCobrar: number;
   cobrado: number;
+  cobrosParaValidar: number;
   atrasados: number;
   reclamosAbiertos: number;
   contratosPorVencer: number;
   propiedadesDisponibles: number;
+  propiedadesAlquiladas: number;
   contratos: number;
 }
 
@@ -131,7 +145,7 @@ export interface ContratoForm {
   id_propiedad: string;
   email_inquilino: string;
   fecha_inicio: string;
-  fecha_fin?: string;
+  fecha_fin: string;
   monto_mensual: number;
   dia_vencimiento: number;
   estado: string;
@@ -140,6 +154,7 @@ export interface ContratoForm {
 
 export interface DashboardProps {
   usuario: AuthUsuario;
+  token: string;
   roles: RolesDashboard;
   setSeccionActiva: Dispatch<SetStateAction<string>>;
 }

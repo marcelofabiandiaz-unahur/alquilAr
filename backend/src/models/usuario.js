@@ -20,6 +20,13 @@ const usuarioSchema = new mongoose.Schema(
     telefono: { type: String },
     cbu_alias: { type: String },
     cuit_cuil: { type: String },
+    solicitud_propietario: {
+      estado: {
+        type: String,
+        enum: ["PENDIENTE", "APROBADA", "RECHAZADA"],
+      },
+      fecha_solicitud: { type: Date },
+    },
     estado: {
       type: String,
       enum: ["ACTIVO", "INACTIVO", "PENDIENTE"],
