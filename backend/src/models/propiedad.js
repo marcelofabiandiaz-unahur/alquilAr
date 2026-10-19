@@ -10,7 +10,7 @@ const propiedadSchema = new mongoose.Schema(
     direccion: { type: String, required: true },
     tipo: { type: String, required: true },
     ambientes: { type: Number, required: true, min: 1 },
-    descripcion: { type: String },
+    descripcion: { type: String, required: true, trim: true },
     estado: {
       type: String,
       enum: ['DISPONIBLE', 'ALQUILADA', 'EN_MANTENIMIENTO', 'INACTIVA'],

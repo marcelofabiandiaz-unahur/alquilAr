@@ -12,6 +12,26 @@ const serializarUsuario = (usuario) => {
   return respuesta;
 };
 
+const serializarSolicitudPropietario = (usuario) => {
+  const embed = usuario?.solicitud_propietario;
+  if (!embed) return null;
+
+  const embedObj = embed.toObject ? embed.toObject() : { ...embed };
+  const fecha_solicitud = embedObj.fecha_solicitud ?? embedObj.solicitada_en;
+
+  const cbuRaiz = typeof usuario.cbu_alias === 'string' ? usuario.cbu_alias.trim() : '';
+  const cuitRaiz = typeof usuario.cuit_cuil === 'string' ? usuario.cuit_cuil.trim() : '';
+  const cbuLegacy = typeof embedObj.cbu_alias === 'string' ? embedObj.cbu_alias.trim() : '';
+  const cuitLegacy = typeof embedObj.cuit_cuil === 'string' ? embedObj.cuit_cuil.trim() : '';
+
+  return {
+    estado: embedObj.estado,
+    fecha_solicitud,
+    cbu_alias: cbuRaiz || cbuLegacy || undefined,
+    cuit_cuil: cuitRaiz || cuitLegacy || undefined,
+  };
+};
+
 const registrarUsuario = async (req, res) => {
   try {
     const datos = { ...(req.body || {}), roles: ['USUARIO'] };
@@ -110,6 +130,84 @@ const listarUsuarios = async (req, res) => {
   }
 };
 
+const obtenerSolicitudPropietario = async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.usuario.id).select('solicitud_propietario cbu_alias cuit_cuil');
+    if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    return res.json({ solicitud: serializarSolicitudPropietario(usuario) });
+  } catch (error) {
+    return res.status(500).json({ mensaje: error.message });
+  }
+};
+
+const solicitarRolPropietario = async (req, res) => {
+  try {
+    const { cbu_alias, cuit_cuil } = req.body || {};
+    if (typeof cbu_alias !== 'string' || !cbu_alias.trim() || cbu_alias.trim().length > 50) {
+      return res.status(400).json({ mensaje: 'El alias/CBU es obligatorio y no puede superar 50 caracteres.' });
+    }
+    if (typeof cuit_cuil !== 'string' || !/^[\d-]+$/.test(cuit_cuil.trim())
+      || cuit_cuil.replace(/\D/g, '').length !== 11) {
+      return res.status(400).json({ mensaje: 'El CUIT/CUIL debe contener 11 dígitos.' });
+    }
+
+    const usuario = await Usuario.findById(req.usuario.id);
+    if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    if (
+      usuario.roles.includes('ADMINISTRADOR')
+      || (!usuario.roles.includes('USUARIO') && !usuario.roles.includes('INQUILINO'))
+    ) {
+      return res.status(403).json({ mensaje: 'Esta cuenta no puede solicitar el rol Propietario.' });
+    }
+    if (usuario.roles.includes('PROPIETARIO')) {
+      return res.status(409).json({ mensaje: 'El usuario ya tiene el rol Propietario.' });
+    }
+    if (usuario.solicitud_propietario?.estado === 'PENDIENTE') {
+      return res.status(409).json({ mensaje: 'Ya existe una solicitud de propietario pendiente.' });
+    }
+
+    usuario.cbu_alias = cbu_alias.trim();
+    usuario.cuit_cuil = cuit_cuil.trim();
+    usuario.solicitud_propietario = {
+      estado: 'PENDIENTE',
+      fecha_solicitud: new Date(),
+    };
+    await usuario.save();
+    return res.status(201).json({ solicitud: serializarSolicitudPropietario(usuario) });
+  } catch (error) {
+    return res.status(400).json({ mensaje: 'No se pudo crear la solicitud.', error: error.message });
+  }
+};
+
+const aprobarSolicitudPropietario = async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.params.id);
+    if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    if (usuario.solicitud_propietario?.estado !== 'PENDIENTE') {
+      return res.status(409).json({ mensaje: 'El usuario no tiene una solicitud pendiente.' });
+    }
+
+    if (!usuario.roles.includes('PROPIETARIO')) usuario.roles.push('PROPIETARIO');
+
+    const embed = usuario.solicitud_propietario;
+    if (!usuario.cbu_alias?.trim() && embed?.cbu_alias) {
+      usuario.cbu_alias = embed.cbu_alias;
+    }
+    if (!usuario.cuit_cuil?.trim() && embed?.cuit_cuil) {
+      usuario.cuit_cuil = embed.cuit_cuil;
+    }
+
+    usuario.solicitud_propietario.estado = 'APROBADA';
+    await usuario.save();
+
+    const respuesta = usuario.toObject();
+    delete respuesta.password;
+    return res.json(respuesta);
+  } catch (error) {
+    return res.status(400).json({ mensaje: 'No se pudo aprobar la solicitud.', error: error.message });
+  }
+};
+
 const agregarRolesUsuario = async (req, res) => {
   try {
     const { agregar } = req.body;
@@ -145,4 +243,7 @@ module.exports = {
   actualizarMiPerfil,
   listarUsuarios,
   agregarRolesUsuario,
+  obtenerSolicitudPropietario,
+  solicitarRolPropietario,
+  aprobarSolicitudPropietario,
 };
