@@ -46,17 +46,6 @@ const listarPropiedades = async (req, res) => {
   }
 };
 
-const listarPropiedadesDisponibles = async (_req, res) => {
-  try {
-    const propiedades = await Propiedad.find({ estado: 'DISPONIBLE' })
-      .select('_id direccion tipo ambientes descripcion valor_base fotos estado')
-      .sort({ createdAt: -1 });
-    res.json(propiedades);
-  } catch (error) {
-    responderErrorServidor(res, error);
-  }
-};
-
 const obtenerPropiedad = async (req, res) => {
   if (!validarIdParam(req, res)) return;
 
@@ -271,7 +260,6 @@ const listarContratosPorPropiedad = async (req, res) => {
 
 module.exports = {
   listarPropiedades,
-  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,

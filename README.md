@@ -41,9 +41,8 @@ Plataforma web de gestión de alquileres con asistente de IA — Proyecto Integr
 │   ├── index.html
 │   ├── public/                  # logo (favicon), assets estáticos
 │   └── src/
-│       ├── App.tsx              # rutas: /, /registro, /catalogo, /dashboard
+│       ├── App.tsx              # rutas: /, /registro, /dashboard
 │       ├── AuthProvider.tsx     # sesión; validación con GET /api/usuarios/me
-│       ├── Catalogo.tsx         # vitrina pública de alquileres
 │       ├── Dashboard.tsx
 │       ├── config/api.ts
 │       └── components/          # asistente, pagos, propiedades, contratos, …
@@ -81,15 +80,15 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 - Middleware: `verificarToken`, `verificarRol`.
 - Frontend: al recargar la app, si hay token en `localStorage` se valida con `GET /me`; si falla, se limpia la sesión.
 
-### Propiedades, contratos y catálogo público
+### Propiedades y contratos
 
 - CRUD de propiedades y contratos con permisos por rol; cuotas de pago al activar contratos; historial y garantes.
-- `GET /api/propiedades/disponibles` — **público** (sin JWT): listado de propiedades en estado `DISPONIBLE`.
-- SPA `/catalogo` — búsqueda y filtros sin login; acceso desde login con **Continuar sin registrarse**. El resto de rutas de propiedades requiere JWT.
+- `GET /api/propiedades` — listado con JWT: **propietario** ve sus inmuebles; **administrador** ve todos. Usuarios e inquilinos sin rol de gestión reciben 403.
+- No hay catálogo público ni ingreso anónimo: login o registro obligatorio para usar la app.
 
 ### Pagos, gastos y reclamos
 
-Los endpoints requieren `Authorization: Bearer <token>` salvo el listado público de disponibles. La identidad se obtiene del JWT.
+Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene del JWT.
 
 - **Pagos:** `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, comprobantes (`POST/GET/DELETE …/comprobantes`), `PATCH …/confirmar`. Cuotas automáticas al activar contrato (depósito `DEPOSITO` + mensuales `YYYYMM`). Estados `PENDIENTE`, `ATRASADO`, `INGRESADO`, `PAGADO`.
 - **Gastos:** `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`, filtros por propiedad, fechas y `estado_pago`.

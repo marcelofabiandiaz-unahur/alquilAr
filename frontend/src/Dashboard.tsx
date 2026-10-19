@@ -4,7 +4,6 @@ import { useAuthContext } from './authContext';
 import DashboardLayout from './components/layout/DashboardLayout';
 import InicioPanel, { PlaceholderSection } from './components/dashboard/InicioPanel';
 import PropiedadesPanel from './components/propiedades/PropiedadesPanel';
-import DisponibilidadPanel from './components/propiedades/DisponibilidadPanel';
 import ContratosPanel from './components/contratos/ContratosPanel';
 import HistorialPanel from './components/contratos/HistorialPanel';
 import GastosPanel from './components/gastos/GastosPanel';
@@ -93,8 +92,6 @@ export default function Dashboard() {
         return <HistorialPanel token={token} roles={roles} />;
       case 'usuarios':
         return <UsuariosPanel token={token} />;
-      case 'buscar':
-        return <DisponibilidadPanel token={token} />;
       case 'configuracion':
         return (
           <PlaceholderSection
