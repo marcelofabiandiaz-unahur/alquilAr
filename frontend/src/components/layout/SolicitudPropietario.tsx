@@ -5,10 +5,10 @@ import Modal from '../ui/Modal';
 import { btnPrimaryClass, inputClass, labelClass } from './dashboardStyles';
 
 interface SolicitudPropietario {
-  cbu_alias?: string;
-  cuit_cuil?: string;
+  cbu_alias: string;
+  cuit_cuil: string;
   estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
-  fecha_solicitud?: string;
+  solicitada_en?: string;
 }
 
 export default function SolicitudPropietario({ token }: { token: string }) {

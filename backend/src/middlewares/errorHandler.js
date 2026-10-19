@@ -3,7 +3,10 @@ const errorHandler = (err, req, res, next) => {
     return next(err);
   }
 
-  const statusCode = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+  const statusError = Number.isInteger(err.statusCode) ? err.statusCode : err.status;
+  const statusCode = Number.isInteger(statusError) && statusError >= 400 && statusError <= 599
+    ? statusError
+    : 500;
   if (statusCode >= 500) {
     console.error(err);
   }

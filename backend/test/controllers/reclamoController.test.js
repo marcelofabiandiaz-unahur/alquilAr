@@ -192,6 +192,44 @@ describe('reclamoController', () => {
     assert.equal(sinRol.statusCode, 403);
   });
 
+  it('valida límites de texto y categorías admitidas para reclamos', async () => {
+    const asuntoVacio = mockRes();
+    await crearReclamo({
+      body: {
+        id_contrato: contratoId,
+        asunto: '   ',
+        descripcion: 'Detalle',
+        categoria: 'MANTENIMIENTO',
+      },
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, asuntoVacio);
+    assert.equal(asuntoVacio.statusCode, 400);
+
+    const descripcionLarga = mockRes();
+    await crearReclamo({
+      body: {
+        id_contrato: contratoId,
+        asunto: 'Fuga',
+        descripcion: 'x'.repeat(4001),
+        categoria: 'MANTENIMIENTO',
+      },
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, descripcionLarga);
+    assert.equal(descripcionLarga.statusCode, 400);
+
+    const categoriaInvalida = mockRes();
+    await crearReclamo({
+      body: {
+        id_contrato: contratoId,
+        asunto: 'Fuga',
+        descripcion: 'Detalle',
+        categoria: 'INVENTADA',
+      },
+      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
+    }, categoriaInvalida);
+    assert.equal(categoriaInvalida.statusCode, 400);
+  });
+
   it('rechaza reclamos de contratos que no están vigentes', async () => {
     Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId, estado: 'FINALIZADO' });
     Propiedad.findById = async () => ({ id_propietario: usuarioId });
