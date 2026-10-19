@@ -58,9 +58,9 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 
 | Entidad | Atributos clave (resumen) |
 |---|---|
-| **Usuario** | nombre, apellido, dni, email, password, roles[], estado, telefono, `cbu_alias`, `cuit_cuil` (raíz); `solicitud_propietario` (`estado`, `fecha_solicitud`) |
-| **Propiedad** | id_propietario, direccion, tipo, ambientes, **descripcion** (obligatoria), estado, valor_base, fotos[] |
-| **Contrato** | id_propiedad, id_inquilino, fechas (**fecha_fin** obligatoria), monto_mensual, dia_vencimiento, estado, garante |
+| **Usuario** | nombre, apellido, dni, email, password, roles[], estado, telefono, cbu_alias, cuit_cuil, solicitud_propietario |
+| **Propiedad** | id_propietario, direccion, tipo, ambientes, descripcion, estado, valor_base, fotos[] |
+| **Contrato** | id_propiedad, id_inquilino, fechas, monto_mensual, dia_vencimiento, estado, garante |
 | **Pago** | id_contrato, mes_correspondiente, montos, fechas, estado, comprobantes[] |
 | **Gasto** | id_propiedad, fecha_emision, monto_total, tipo, estado_pago, proveedor, comprobantes[] |
 | **Reclamo** | id_contrato, id_propiedad, id_inquilino, asunto, descripcion, prioridad, categoria, estado, fechas |
@@ -100,7 +100,7 @@ Los endpoints requieren `Authorization: Bearer <token>` salvo el listado públic
 - `POST /api/ai/chat` — requiere JWT; body `{ mensajes }` con roles `user` y `assistant`.
 - Modelo: `gemini-3.8-flash` (`GEMINI_API_KEY` solo en backend).
 - Límites: hasta **20** mensajes por request y **4000** caracteres por mensaje; el último mensaje debe ser del usuario.
-- Herramientas (`aiToolsRegistry.js`): **consultarDatosAlquiler** (contratos y pagos visibles según rol, solo JWT); listar contratos vigentes del inquilino (atajo); listar reclamos visibles; crear reclamo (validación en controladores existentes; identidad solo desde JWT).
+- Herramientas (`aiToolsRegistry.js`): listar contratos vigentes del inquilino, listar reclamos visibles, crear reclamo (validación en controladores existentes; identidad solo desde JWT).
 - UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
