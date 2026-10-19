@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiGet, apiGetPublic } from '../../lib/apiClient';
+import { apiGet } from '../../lib/apiClient';
 import { formatMoneda } from '../../lib/estadoStyles';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
@@ -10,12 +10,7 @@ import PropertyPhotoCarousel from './PropertyPhotoCarousel';
 import { btnSecondaryClass, inputClass } from '../layout/dashboardStyles';
 import type { Propiedad } from '../../types';
 
-interface DisponibilidadPanelProps {
-  token?: string | null;
-}
-
-export default function DisponibilidadPanel({ token }: DisponibilidadPanelProps) {
-  const modoPublico = !token;
+export default function DisponibilidadPanel({ token }: { token: string }) {
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [ubicacion, setUbicacion] = useState('');
@@ -30,9 +25,7 @@ export default function DisponibilidadPanel({ token }: DisponibilidadPanelProps)
     setCargando(true);
     setError('');
     try {
-      const datos = modoPublico
-        ? await apiGetPublic<Propiedad[]>('/api/propiedades/disponibles')
-        : await apiGet<Propiedad[]>('/api/propiedades/disponibles', token);
+      const datos = await apiGet<Propiedad[]>('/api/propiedades/disponibles', token);
       if (!Array.isArray(datos)) throw new Error('El backend devolvió una respuesta inesperada.');
       setPropiedades(datos);
     } catch (err) {
@@ -41,7 +34,7 @@ export default function DisponibilidadPanel({ token }: DisponibilidadPanelProps)
     } finally {
       setCargando(false);
     }
-  }, [modoPublico, token]);
+  }, [token]);
 
   useEffect(() => {
     const timer = setTimeout(cargar, 0);
@@ -78,14 +71,7 @@ export default function DisponibilidadPanel({ token }: DisponibilidadPanelProps)
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Buscar alquileres"
-        subtitle={
-          modoPublico
-            ? 'Explorá propiedades disponibles. Para alquilar o gestionar, iniciá sesión o registrate.'
-            : 'Encontrá propiedades disponibles para iniciar una consulta'
-        }
-      />
+      <PageHeader title="Buscar alquileres" subtitle="Encontrá propiedades disponibles para iniciar una consulta" />
       <Card className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         <input
           className={inputClass}

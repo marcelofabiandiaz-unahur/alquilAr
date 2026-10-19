@@ -11,6 +11,16 @@ const {
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 
+const CATEGORIAS_RECLAMO = [
+  'PLOMERIA',
+  'ELECTRICIDAD',
+  'GAS',
+  'ESTRUCTURAL',
+  'MANTENIMIENTO',
+  'SERVICIOS',
+  'SEGURIDAD',
+  'OTRO',
+];
 const responder = (res, status, data, message) =>
   res.status(status).json({ success: status < 400, data, message });
 
@@ -59,6 +69,22 @@ const crearReclamo = async (req, res) => {
     const { id_contrato, asunto, descripcion, prioridad, categoria } = req.body || {};
     if (!id_contrato || !asunto || !descripcion || !categoria) {
       return responder(res, 400, null, 'id_contrato, asunto, descripcion y categoria son obligatorios.');
+    }
+    if (
+      typeof asunto !== 'string'
+      || !asunto.trim()
+      || asunto.trim().length > 120
+      || typeof descripcion !== 'string'
+      || !descripcion.trim()
+      || descripcion.trim().length > 4000
+    ) {
+      return responder(res, 400, null, 'El asunto debe tener hasta 120 caracteres y la descripción hasta 4000.');
+    }
+    if (!CATEGORIAS_RECLAMO.includes(categoria)) {
+      return responder(res, 400, null, 'La categoría del reclamo no es válida.');
+    }
+    if (prioridad !== undefined && !['BAJA', 'MEDIA', 'ALTA', 'URGENTE'].includes(prioridad)) {
+      return responder(res, 400, null, 'La prioridad del reclamo no es válida.');
     }
     if (!esObjectIdValido(id_contrato)) return responder(res, 400, null, 'id_contrato inválido.');
     const { id, roles } = obtenerIdentidad(req.usuario);

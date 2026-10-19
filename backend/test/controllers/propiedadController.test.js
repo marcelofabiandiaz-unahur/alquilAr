@@ -74,7 +74,6 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
-        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         estado: 'ALQUILADA',
       },
@@ -164,7 +163,7 @@ describe('propiedadController', () => {
     assert.equal(res.statusCode, 403);
   });
 
-  it('listarPropiedadesDisponibles devuelve solo propiedades con estado DISPONIBLE', async () => {
+  it('listarPropiedadesDisponibles devuelve solo propiedades disponibles sin exigir autenticación', async () => {
     const disponibles = [{ _id: propiedadId, direccion: 'Calle 123', estado: 'DISPONIBLE' }];
     Propiedad.find = (filtro) => {
       assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
@@ -176,7 +175,7 @@ describe('propiedadController', () => {
       };
     };
 
-    const req = { usuario: { id: usuarioId, roles: ['USUARIO'] } };
+    const req = {};
     const res = mockRes();
 
     await listarPropiedadesDisponibles(req, res);
@@ -191,7 +190,6 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
-        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         fotos: Array.from({ length: 6 }, (_, i) => `https://example.com/${i}.jpg`),
       },
@@ -218,7 +216,6 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
-        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         fotos,
       },

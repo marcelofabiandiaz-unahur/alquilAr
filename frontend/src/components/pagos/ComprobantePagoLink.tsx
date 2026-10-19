@@ -52,12 +52,7 @@ export default function ComprobantePagoLink({
       {error && <span className="mt-1 text-xs text-red-600">{error}</span>}
       <Modal open={Boolean(urlTemporal)} title="Comprobante de pago" onClose={cerrar} wide>
         {urlTemporal && tipoContenido === 'application/pdf' && (
-          /* Se agrega '#toolbar=0&navpanes=0' al final del src para limpiar la interfaz del PDF */
-          <iframe 
-            title="Comprobante de pago" 
-            src={`${urlTemporal}#toolbar=0&navpanes=0`} 
-            className="h-[70vh] w-full rounded-lg border border-slate-200" 
-          />
+          <iframe title="Comprobante de pago" src={urlTemporal} className="h-[70vh] w-full rounded-lg border border-slate-200" />
         )}
         {urlTemporal && tipoContenido.startsWith('image/') && (
           <img src={urlTemporal} alt="Comprobante de pago" className="mx-auto max-h-[70vh] max-w-full object-contain" />

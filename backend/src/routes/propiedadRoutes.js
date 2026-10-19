@@ -12,7 +12,6 @@ const {
 const { verificarToken } = require('../middlewares/authMiddleware');
 
 router.get('/disponibles', listarPropiedadesDisponibles);
-
 router.use(verificarToken);
 
 router.get('/', listarPropiedades);

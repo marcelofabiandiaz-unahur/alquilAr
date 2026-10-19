@@ -26,7 +26,7 @@ const reclamoSchema = new mongoose.Schema(
     },
     categoria: {
       type: String,
-      enum: ['PLOMERIA', 'ELECTRICIDAD', 'GAS', 'ESTRUCTURAL', 'MANTENIMIENTO', 'OTRO'],
+      enum: ['PLOMERIA', 'ELECTRICIDAD', 'GAS', 'ESTRUCTURAL', 'MANTENIMIENTO', 'SERVICIOS', 'SEGURIDAD', 'OTRO'],
       default: 'OTRO',
       required: true,
       trim: true,

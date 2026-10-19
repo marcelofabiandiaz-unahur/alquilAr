@@ -21,11 +21,13 @@ const usuarioSchema = new mongoose.Schema(
     cbu_alias: { type: String },
     cuit_cuil: { type: String },
     solicitud_propietario: {
+      cbu_alias: { type: String, trim: true },
+      cuit_cuil: { type: String, trim: true },
       estado: {
         type: String,
         enum: ["PENDIENTE", "APROBADA", "RECHAZADA"],
       },
-      fecha_solicitud: { type: Date },
+      solicitada_en: { type: Date },
     },
     estado: {
       type: String,

@@ -17,7 +17,10 @@ test('procesarChat devuelve la respuesta final si Gemini no solicita herramienta
   assert.deepEqual(resultado, { role: 'assistant', content: 'Hola.' });
   assert.equal(solicitud.config.systemInstruction, 'Instrucciones privadas');
   assert.deepEqual(solicitud.contents, [{ role: 'user', parts: [{ text: 'Hola' }] }]);
-  assert.equal(solicitud.config.tools.length, 1);
+  assert.equal(
+    solicitud.config.tools.flatMap((grupo) => grupo.functionDeclarations).length,
+    2,
+  );
 });
 
 test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de función', async () => {
@@ -25,11 +28,11 @@ test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de func
   const llamadasTool = [];
   const respuestas = [
     {
-      functionCalls: [{ name: 'listarMisReclamos', args: {} }],
+      functionCalls: [{ name: 'consultarMisDatos', args: { tipo: 'RECLAMOS' } }],
       candidates: [{
         content: {
           role: 'model',
-          parts: [{ functionCall: { name: 'listarMisReclamos', args: {} } }],
+          parts: [{ functionCall: { name: 'consultarMisDatos', args: { tipo: 'RECLAMOS' } } }],
         },
       }],
     },
@@ -51,17 +54,19 @@ test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de func
   });
 
   assert.deepEqual(resultado, { role: 'assistant', content: 'Tenés un reclamo abierto.' });
-  assert.deepEqual(llamadasTool, [['listarMisReclamos', {}, { id: 'inquilino-1', roles: ['INQUILINO'] }]]);
+  assert.deepEqual(llamadasTool, [
+    ['consultarMisDatos', { tipo: 'RECLAMOS' }, { id: 'inquilino-1', roles: ['INQUILINO'] }],
+  ]);
   assert.deepEqual(solicitudes[1].contents.slice(-2), [
     {
       role: 'model',
-      parts: [{ functionCall: { name: 'listarMisReclamos', args: {} } }],
+      parts: [{ functionCall: { name: 'consultarMisDatos', args: { tipo: 'RECLAMOS' } } }],
     },
     {
       role: 'user',
       parts: [{
         functionResponse: {
-          name: 'listarMisReclamos',
+          name: 'consultarMisDatos',
           response: { result: { success: true, data: [{ asunto: 'Pérdida de agua' }] } },
         },
       }],
@@ -76,8 +81,8 @@ test('procesarChat limita el número de rondas de herramientas', async () => {
       generateContent: async () => {
         llamadas += 1;
         return {
-          functionCalls: [{ name: 'listarMisReclamos', args: {} }],
-          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'listarMisReclamos', args: {} } }] } }],
+          functionCalls: [{ name: 'consultarMisDatos', args: { tipo: 'RECLAMOS' } }],
+          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'consultarMisDatos', args: { tipo: 'RECLAMOS' } } }] } }],
         };
       },
       executeTool: async () => [],

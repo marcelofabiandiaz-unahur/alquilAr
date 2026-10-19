@@ -23,8 +23,8 @@ interface ContratoFormState {
   email_inquilino: string;
   fecha_inicio: string;
   fecha_fin: string;
-  monto_mensual: string;
   dia_vencimiento: string;
+  monto_mensual: string;
   garante_nombre: string;
   garante_telefono: string;
   garante_recibo: string;
@@ -39,10 +39,10 @@ const FORM_VACIO: ContratoFormState = {
   dia_vencimiento: '10',
   garante_nombre: '',
   garante_telefono: '',
-  garante_recibo: '',
+  garante_recibo:'',
 };
 
-function nombreInquilino(contrato: Contrato): string {
+function obtenerNombreInquilino(contrato: any) {
   const inq = contrato.id_inquilino;
   if (!inq) return '—';
   if (typeof inq === 'object') {
@@ -361,7 +361,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
           <td className="p-4">{direccionPropiedad(c)}</td>
           {esPropietario && (
             <td className="p-4 text-slate-600">
-              <div>{nombreInquilino(c)}</div>
+              <div>{obtenerNombreInquilino(c)}</div>
               <div className="text-xs text-slate-500">
                 {typeof c.id_inquilino === 'object' ? c.id_inquilino.email : ''}
               </div>
@@ -580,7 +580,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
                   <div>
                     <dt className="text-slate-400">Nombre</dt>
-                    <dd className="mt-1 font-medium text-slate-800">{nombreInquilino(contratoSeleccionado)}</dd>
+                    <dd className="mt-1 font-medium text-slate-800">{obtenerNombreInquilino(contratoSeleccionado)}</dd>
                   </div>
                   <div>
                     <dt className="text-slate-400">Email</dt>
