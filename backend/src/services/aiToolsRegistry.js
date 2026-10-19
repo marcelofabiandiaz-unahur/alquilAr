@@ -1,9 +1,26 @@
 const Contrato = require('../models/contrato');
 const reclamoController = require('../controllers/reclamoController');
+const { consultarDatosAlquiler } = require('./aiConsultaDatosService');
 
 const toolsEsquemas = [
   {
     functionDeclarations: [
+      {
+        name: 'consultarDatosAlquiler',
+        description:
+          'Consulta contratos y/o pagos visibles para el usuario autenticado. '
+          + 'La identidad se obtiene solo del token de sesión; no consulta datos de otras cuentas.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            alcance: {
+              type: 'STRING',
+              enum: ['CONTRATOS', 'PAGOS', 'AMBOS'],
+              description: 'Qué información devolver. Por defecto AMBOS.',
+            },
+          },
+        },
+      },
       {
         name: 'listarMisContratosVigentes',
         description: 'Lista los contratos vigentes del usuario autenticado para identificar sobre cuál necesita ayuda.',
@@ -68,6 +85,9 @@ const ejecutarToolSegura = async (name, args = {}, usuarioAutenticado) => {
   const roles = Array.isArray(usuario.roles) ? usuario.roles : [];
 
   switch (name) {
+    case 'consultarDatosAlquiler':
+      if (!userId) throw new Error('Se requiere una sesión autenticada.');
+      return consultarDatosAlquiler(usuario, args);
     case 'listarMisContratosVigentes': {
       if (!userId || !roles.includes('INQUILINO')) {
         throw new Error('Solo un inquilino autenticado puede consultar sus contratos vigentes.');
