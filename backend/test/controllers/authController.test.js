@@ -201,7 +201,11 @@ describe('authController', () => {
 
     assert.equal(res.statusCode, 201);
     assert.equal(usuario.solicitud_propietario.estado, 'PENDIENTE');
-    assert.equal(usuario.solicitud_propietario.cbu_alias, 'mi.alias');
+    assert.ok(usuario.solicitud_propietario.fecha_solicitud);
+    assert.equal(usuario.solicitud_propietario.cbu_alias, undefined);
+    assert.equal(usuario.cbu_alias, 'mi.alias');
+    assert.equal(usuario.cuit_cuil, '20-12345678-9');
+    assert.equal(res.body.solicitud.cbu_alias, 'mi.alias');
     assert.deepEqual(usuario.roles, ['USUARIO', 'INQUILINO']);
   });
 
@@ -249,7 +253,38 @@ describe('authController', () => {
     assert.equal(res.statusCode, 409);
   });
 
-  it('aprobarSolicitudPropietario asigna rol y activa los datos bancarios', async () => {
+  it('aprobarSolicitudPropietario asigna rol cuando CBU ya está en la raíz', async () => {
+    const usuario = {
+      roles: ['USUARIO'],
+      solicitud_propietario: {
+        estado: 'PENDIENTE',
+        fecha_solicitud: new Date(),
+      },
+      cbu_alias: 'mi.alias',
+      cuit_cuil: '20123456789',
+      save: async () => {},
+      toObject() {
+        return {
+          roles: this.roles,
+          cbu_alias: this.cbu_alias,
+          cuit_cuil: this.cuit_cuil,
+          solicitud_propietario: this.solicitud_propietario,
+        };
+      },
+    };
+    Usuario.findById = async () => usuario;
+    const res = mockRes();
+
+    await aprobarSolicitudPropietario({ params: { id: usuarioId } }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(usuario.roles.includes('PROPIETARIO'));
+    assert.equal(usuario.cbu_alias, 'mi.alias');
+    assert.equal(usuario.cuit_cuil, '20123456789');
+    assert.equal(usuario.solicitud_propietario.estado, 'APROBADA');
+  });
+
+  it('aprobarSolicitudPropietario copia CBU legacy del embebido si la raíz está vacía', async () => {
     const usuario = {
       roles: ['USUARIO'],
       solicitud_propietario: {
@@ -275,18 +310,19 @@ describe('authController', () => {
     await aprobarSolicitudPropietario({ params: { id: usuarioId } }, res);
 
     assert.equal(res.statusCode, 200);
-    assert.ok(usuario.roles.includes('PROPIETARIO'));
     assert.equal(usuario.cbu_alias, 'mi.alias');
     assert.equal(usuario.cuit_cuil, '20123456789');
-    assert.equal(usuario.solicitud_propietario.estado, 'APROBADA');
   });
 
-  it('obtenerSolicitudPropietario devuelve únicamente la solicitud de la cuenta autenticada', async () => {
-    const solicitud = { estado: 'PENDIENTE' };
+  it('obtenerSolicitudPropietario devuelve solicitud serializada de la cuenta autenticada', async () => {
     Usuario.findById = () => ({
       select: async (campos) => {
-        assert.equal(campos, 'solicitud_propietario');
-        return { solicitud_propietario: solicitud };
+        assert.equal(campos, 'solicitud_propietario cbu_alias cuit_cuil');
+        return {
+          solicitud_propietario: { estado: 'PENDIENTE', fecha_solicitud: new Date('2026-01-15') },
+          cbu_alias: 'mi.alias',
+          cuit_cuil: '20123456789',
+        };
       },
     });
     const res = mockRes();
@@ -294,7 +330,9 @@ describe('authController', () => {
     await obtenerSolicitudPropietario({ usuario: { id: usuarioId } }, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(res.body.solicitud, solicitud);
+    assert.equal(res.body.solicitud.estado, 'PENDIENTE');
+    assert.equal(res.body.solicitud.cbu_alias, 'mi.alias');
+    assert.equal(res.body.solicitud.cuit_cuil, '20123456789');
   });
 
   it('agregarRolesUsuario responde 404 si usuario no existe', async () => {

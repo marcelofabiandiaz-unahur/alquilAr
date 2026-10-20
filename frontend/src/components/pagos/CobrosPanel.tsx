@@ -14,10 +14,11 @@ import type { Pago } from '../../types';
 
 interface CobrosPanelProps {
   token: string;
+  embedded?: boolean;
 }
 
 function obtenerComprobantes(pago: Pago): string[] {
-  return [...new Set([...(pago.comprobantes || []), ...(pago.comprobante_url ? [pago.comprobante_url] : [])])];
+  return pago.comprobantes ?? [];
 }
 
 function conceptoPago(pago: Pago): string {
@@ -32,7 +33,7 @@ function periodoVisible(pago: Pago): string {
   return pago.mes_correspondiente;
 }
 
-export default function CobrosPanel({ token }: CobrosPanelProps) {
+export default function CobrosPanel({ token, embedded = false }: CobrosPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [cargando, setCargando] = useState(true);
   const [accionId, setAccionId] = useState('');
@@ -79,7 +80,9 @@ export default function CobrosPanel({ token }: CobrosPanelProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Cobros" subtitle="Revisá los comprobantes enviados y confirmá los pagos recibidos" />
+      {!embedded && (
+        <PageHeader title="Cobros" subtitle="Revisá los comprobantes enviados y confirmá los pagos recibidos" />
+      )}
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
 

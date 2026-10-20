@@ -46,17 +46,6 @@ const listarPropiedades = async (req, res) => {
   }
 };
 
-const listarPropiedadesDisponibles = async (_req, res) => {
-  try {
-    const propiedades = await Propiedad.find({ estado: 'DISPONIBLE' })
-      .select('_id direccion tipo ambientes descripcion valor_base fotos estado')
-      .sort({ createdAt: -1 });
-    res.json(propiedades);
-  } catch (error) {
-    responderErrorServidor(res, error);
-  }
-};
-
 const obtenerPropiedad = async (req, res) => {
   if (!validarIdParam(req, res)) return;
 
@@ -91,12 +80,17 @@ const crearPropiedad = async (req, res) => {
 
     if (!validarFotos(req.body.fotos, res)) return;
 
+    const descripcion = typeof req.body.descripcion === 'string' ? req.body.descripcion.trim() : '';
+    if (!descripcion) {
+      return res.status(400).json({ mensaje: 'descripcion es obligatoria.' });
+    }
+
     const propiedad = new Propiedad({
       id_propietario: idPropietario,
       direccion: req.body.direccion,
       tipo: req.body.tipo,
       ambientes: req.body.ambientes,
-      descripcion: req.body.descripcion,
+      descripcion,
       estado: 'DISPONIBLE',
       valor_base: req.body.valor_base,
       fotos: req.body.fotos || [],
@@ -266,7 +260,6 @@ const listarContratosPorPropiedad = async (req, res) => {
 
 module.exports = {
   listarPropiedades,
-  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,

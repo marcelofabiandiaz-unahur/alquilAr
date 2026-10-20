@@ -5,7 +5,6 @@ const {
   obtenerPago,
   crearPago,
   actualizarPago,
-  registrarComprobante,
   subirComprobantes,
   eliminarComprobante,
   verComprobante,
@@ -47,7 +46,6 @@ router.get('/inquilino', listarPagos);
 router.post('/', crearPago);
 router.get('/:id', obtenerPago);
 router.put('/:id', actualizarPago);
-router.patch('/:id/comprobante', registrarComprobante);
 router.post('/:id/comprobantes', verificarRol(['INQUILINO']), manejarComprobantes, subirComprobantes);
 router.delete('/:id/comprobantes', verificarRol(['INQUILINO']), eliminarComprobante);
 router.get('/:id/comprobantes/:indice', verComprobante);

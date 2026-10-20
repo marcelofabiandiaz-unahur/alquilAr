@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './Login';
 import Registro from './Registro';
-import Dashboard from './Dashboard'; // 👈 Importamos la nueva pantalla
+import Dashboard from './Dashboard';
 
 function App() {
   return (
@@ -9,7 +9,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
-        <Route path="/dashboard" element={<Dashboard />} /> {/* 👈 Registramos la ruta /dashboard */}
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
   );

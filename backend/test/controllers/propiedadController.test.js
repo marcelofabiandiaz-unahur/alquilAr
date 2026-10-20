@@ -5,7 +5,6 @@ const Contrato = require('../../src/models/contrato');
 const cloudinaryConfig = require('../../src/config/cloudinary');
 const {
   listarPropiedades,
-  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,
@@ -74,6 +73,7 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
+        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         estado: 'ALQUILADA',
       },
@@ -163,33 +163,13 @@ describe('propiedadController', () => {
     assert.equal(res.statusCode, 403);
   });
 
-  it('listarPropiedadesDisponibles devuelve solo propiedades disponibles para usuarios autenticados', async () => {
-    const disponibles = [{ _id: propiedadId, direccion: 'Calle 123', estado: 'DISPONIBLE' }];
-    Propiedad.find = (filtro) => {
-      assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
-      return {
-        select: (campos) => {
-          assert.equal(campos, '_id direccion tipo ambientes descripcion valor_base fotos estado');
-          return { sort: async () => disponibles };
-        },
-      };
-    };
-
-    const req = { usuario: { id: usuarioId, roles: ['USUARIO'] } };
-    const res = mockRes();
-
-    await listarPropiedadesDisponibles(req, res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, disponibles);
-  });
-
   it('crearPropiedad rechaza mas de 5 fotos', async () => {
     const req = {
       body: {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
+        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         fotos: Array.from({ length: 6 }, (_, i) => `https://example.com/${i}.jpg`),
       },
@@ -216,6 +196,7 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
+        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         fotos,
       },
