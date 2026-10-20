@@ -3,7 +3,7 @@ import logoAlquilar from '../../assets/logo-alquilar.jpg';
 const FEATURES = [
   'Propiedades y contratos centralizados',
   'Roles: propietario, inquilino y administrador',
-  'Pagos y reclamos (próximamente)',
+  'Pagos y reclamos',
 ];
 
 const TAGS = ['Propiedades', 'Contratos', 'Pagos'];
