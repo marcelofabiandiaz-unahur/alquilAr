@@ -23,6 +23,7 @@ Plataforma web de gestión de alquileres con asistente de IA — Proyecto Integr
 ## Estructura del repositorio
 
 ```text
+<<<<<<< HEAD
 backend/
   index.js                    Bootstrap Express + MongoDB
   src/
@@ -33,6 +34,30 @@ backend/
   scripts/seed-usuarios.js      Usuarios de prueba (opcional)
 frontend/                     SPA React
 package.json                  Scripts npm run dev (front + back)
+=======
+.
+├── backend/
+│   ├── index.js                 # Express, GET /health, montaje de rutas API
+│   ├── src/
+│   │   ├── controllers/         # auth, propiedad, contrato, pago, gasto, reclamo, ai, …
+│   │   ├── models/              # usuario, propiedad, contrato, pago, gasto, reclamo
+│   │   ├── routes/
+│   │   ├── middlewares/
+│   │   ├── services/            # aiService, aiToolsRegistry
+│   │   └── utils/
+│   ├── scripts/                 # seed-usuarios, seed-propiedades, …
+│   └── test/
+├── frontend/
+│   ├── index.html
+│   ├── public/                  # logo (favicon), assets estáticos
+│   └── src/
+│       ├── App.tsx              # rutas: /, /registro, /dashboard
+│       ├── AuthProvider.tsx     # sesión; validación con GET /api/usuarios/me
+│       ├── Dashboard.tsx
+│       ├── config/api.ts
+│       └── components/          # asistente, pagos, propiedades, contratos, …
+└── package.json                 # npm run dev (frontend + backend)
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
 ```
 
 ### Auth (modulo 1)
@@ -47,10 +72,18 @@ package.json                  Scripts npm run dev (front + back)
   - `PATCH /:id/solicitud-propietario/aprobar` — aprobación administrativa; al aprobar asigna `PROPIETARIO` y activa los datos bancarios enviados
 - Middleware: `verificarToken`, `verificarRol`.
 
+<<<<<<< HEAD
 ### Operación (semana 4)
 
 Los endpoints de pagos, gastos y reclamos requieren `Authorization: Bearer <token>`.
 Las respuestas nuevas usan `{ success, data, message }`; la identidad del usuario se obtiene del JWT.
+=======
+### Propiedades y contratos
+
+- CRUD de propiedades y contratos con permisos por rol; cuotas de pago al activar contratos; historial y garantes.
+- `GET /api/propiedades` — listado con JWT: **propietario** ve sus inmuebles; **administrador** ve todos. Usuarios e inquilinos sin rol de gestión reciben 403.
+- No hay catálogo público ni ingreso anónimo: login o registro obligatorio para usar la app.
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
 
 - `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, `PATCH /api/pagos/:id/comprobante` y `PATCH /api/pagos/:id/confirmar`.
   El pago se relaciona con un contrato y período `YYYY-MM`; el importe y el vencimiento se derivan del contrato vigente.
@@ -66,7 +99,11 @@ Las respuestas nuevas usan `{ success, data, message }`; la identidad del usuari
   de sus propiedades. Asunto y descripción se limitan a 120 y 4000 caracteres; las categorías permitidas incluyen
   PLOMERIA, ELECTRICIDAD, GAS, ESTRUCTURAL, MANTENIMIENTO, SERVICIOS, SEGURIDAD y OTRO.
 
+<<<<<<< HEAD
 ### Catálogo y dashboard
+=======
+Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene del JWT.
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
 
 - `GET /api/propiedades/disponibles` es público y devuelve solo los campos de catálogo de propiedades disponibles.
   Las demás rutas de `/api/propiedades` siguen requiriendo JWT y autorización.

@@ -140,6 +140,12 @@ export interface ResumenDashboard {
   propiedadesDisponibles: number;
   propiedadesAlquiladas: number;
   contratos: number;
+  /** KPIs vista administrador (Real Estate Pro) */
+  totalPropiedades?: number;
+  propietariosActivos?: number;
+  ingresoMesActual?: number;
+  ingresoMesAnterior?: number;
+  tasaOcupacion?: number;
 }
 
 export interface ContratoForm {

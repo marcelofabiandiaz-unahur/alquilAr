@@ -172,8 +172,8 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Mis Propiedades"
-        subtitle="Administrá tus inmuebles y su estado operativo"
+        title={esAdmin && !esPropietario ? 'Propiedades' : 'Mis propiedades'}
+        subtitle="Unidades registradas y su estado operativo"
         action={
           (esPropietario || esAdmin) && (
             <button type="button" onClick={abrirNueva} className={btnPrimaryClass}>
@@ -213,7 +213,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
                 </div>
                 <StatBadge estado={prop.estado} />
               </div>
-              <p className="text-emerald-600 font-semibold">{formatMoneda(prop.valor_base)}</p>
+              <p className="text-violet-600 font-semibold">{formatMoneda(prop.valor_base)}</p>
               {prop.descripcion && (
                 <p className="text-slate-500 text-xs line-clamp-2">{prop.descripcion}</p>
               )}

@@ -1,5 +1,6 @@
 const contratoController = require('../controllers/contratoController');
 const reclamoController = require('../controllers/reclamoController');
+const { consultarDatosAlquiler } = require('./aiConsultaDatosService');
 
 const CATEGORIAS_RECLAMO = [
   'PLOMERIA',
@@ -17,8 +18,39 @@ const toolsEsquemas = [
   {
     functionDeclarations: [
       {
+<<<<<<< HEAD
         name: 'consultarMisDatos',
         description: 'Consulta contratos y reclamos que pertenecen o son visibles para el usuario autenticado.',
+=======
+        name: 'consultarDatosAlquiler',
+        description:
+          'Consulta contratos y/o pagos visibles para el usuario autenticado. '
+          + 'La identidad se obtiene solo del token de sesión; no consulta datos de otras cuentas.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            alcance: {
+              type: 'STRING',
+              enum: ['CONTRATOS', 'PAGOS', 'AMBOS'],
+              description: 'Qué información devolver. Por defecto AMBOS.',
+            },
+          },
+        },
+      },
+      {
+        name: 'listarMisContratosVigentes',
+        description: 'Lista los contratos vigentes del usuario autenticado para identificar sobre cuál necesita ayuda.',
+        parameters: { type: 'OBJECT', properties: {} },
+      },
+      {
+        name: 'listarMisReclamos',
+        description: 'Consulta los reclamos que el usuario autenticado está autorizado a ver.',
+        parameters: { type: 'OBJECT', properties: {} },
+      },
+      {
+        name: 'crearNuevoReclamo',
+        description: 'Crea un reclamo para un contrato vigente del usuario autenticado.',
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -106,9 +138,18 @@ const ejecutarToolSegura = async (name, args = {}, usuarioAutenticado) => {
   const roles = Array.isArray(usuario.roles) ? usuario.roles : [];
 
   switch (name) {
+<<<<<<< HEAD
     case 'consultarMisDatos': {
       if (!userId || !roles.some((rol) => ['INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'].includes(rol))) {
         throw new Error('Se requiere una cuenta autenticada con acceso a contratos o reclamos.');
+=======
+    case 'consultarDatosAlquiler':
+      if (!userId) throw new Error('Se requiere una sesión autenticada.');
+      return consultarDatosAlquiler(usuario, args);
+    case 'listarMisContratosVigentes': {
+      if (!userId || !roles.includes('INQUILINO')) {
+        throw new Error('Solo un inquilino autenticado puede consultar sus contratos vigentes.');
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
       }
       const req = { usuario, query: {}, params: {}, body: {} };
       if (args.tipo === 'CONTRATOS') {
