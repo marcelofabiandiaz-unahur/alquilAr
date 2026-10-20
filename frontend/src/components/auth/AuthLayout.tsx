@@ -9,12 +9,12 @@ interface AuthLayoutProps {
 
 export default function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen grid md:grid-cols-2">
+    <div className="min-h-screen grid md:grid-cols-2 font-sans">
       <div className="hidden md:flex w-full">
         <AuthBrandPanel />
       </div>
 
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-slate-50">
         <div className="md:hidden">
           <AuthBrandPanel compact />
         </div>
@@ -24,10 +24,10 @@ export default function AuthLayout({ children, title, subtitle }: AuthLayoutProp
             {(title || subtitle) && (
               <div className="mb-8">
                 {title && (
-                  <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+                  <h2 className="text-2xl font-bold text-[#14213D] tracking-tight">{title}</h2>
                 )}
                 {subtitle && (
-                  <p className="text-slate-500 text-sm mt-2">{subtitle}</p>
+                  <p className="text-slate-500 text-sm mt-2 leading-relaxed">{subtitle}</p>
                 )}
               </div>
             )}
