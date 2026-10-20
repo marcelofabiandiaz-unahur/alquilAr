@@ -10,10 +10,6 @@ const {
 } = require('../controllers/propiedadController');
 const { verificarToken } = require('../middlewares/authMiddleware');
 
-<<<<<<< HEAD
-router.get('/disponibles', listarPropiedadesDisponibles);
-=======
->>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
 router.use(verificarToken);
 
 router.get('/', listarPropiedades);
