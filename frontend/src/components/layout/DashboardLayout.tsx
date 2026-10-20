@@ -27,7 +27,6 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Operación',
     items: [
-      { id: 'buscar', label: 'Buscar alquileres', show: (r) => r.esUsuarioBase },
       { id: 'propiedades', label: 'Mis propiedades', show: (r) => r.esPropietario },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },

@@ -5,7 +5,6 @@ const Contrato = require('../../src/models/contrato');
 const cloudinaryConfig = require('../../src/config/cloudinary');
 const {
   listarPropiedades,
-  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,
@@ -162,27 +161,6 @@ describe('propiedadController', () => {
     await listarPropiedades(req, res);
 
     assert.equal(res.statusCode, 403);
-  });
-
-  it('listarPropiedadesDisponibles devuelve solo propiedades con estado DISPONIBLE', async () => {
-    const disponibles = [{ _id: propiedadId, direccion: 'Calle 123', estado: 'DISPONIBLE' }];
-    Propiedad.find = (filtro) => {
-      assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
-      return {
-        select: (campos) => {
-          assert.equal(campos, '_id direccion tipo ambientes descripcion valor_base fotos estado');
-          return { sort: async () => disponibles };
-        },
-      };
-    };
-
-    const req = { usuario: { id: usuarioId, roles: ['USUARIO'] } };
-    const res = mockRes();
-
-    await listarPropiedadesDisponibles(req, res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, disponibles);
   });
 
   it('crearPropiedad rechaza mas de 5 fotos', async () => {
