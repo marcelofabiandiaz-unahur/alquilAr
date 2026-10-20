@@ -1,9 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+<<<<<<< HEAD
 const contratoController = require('../../../src/controllers/contratoController');
+=======
+const Contrato = require('../../../src/models/contrato');
+const Propiedad = require('../../../src/models/propiedad');
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
 const reclamoController = require('../../../src/controllers/reclamoController');
+const pagoController = require('../../../src/controllers/pagoController');
 const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
 
+<<<<<<< HEAD
 test('el modelo recibe exactamente las dos herramientas definidas por el MVP', () => {
   const declaraciones = toolsEsquemas.flatMap((grupo) => grupo.functionDeclarations);
   assert.deepEqual(declaraciones.map((tool) => tool.name), [
@@ -11,11 +18,27 @@ test('el modelo recibe exactamente las dos herramientas definidas por el MVP', (
     'clasificarYCrearReclamo',
   ]);
   const crear = declaraciones.find((tool) => tool.name === 'clasificarYCrearReclamo');
+=======
+test('el registro declara consulta de datos, contratos, reclamos y creación de reclamos', () => {
+  const nombres = toolsEsquemas[0].functionDeclarations.map((tool) => tool.name);
+  assert.deepEqual(nombres, [
+    'consultarDatosAlquiler',
+    'listarMisContratosVigentes',
+    'listarMisReclamos',
+    'crearNuevoReclamo',
+  ]);
+  const consulta = toolsEsquemas[0].functionDeclarations.find((tool) => tool.name === 'consultarDatosAlquiler');
+  assert.ok(consulta.parameters.properties.alcance);
+  assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_usuario'));
+  assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_inquilino'));
+  const crear = toolsEsquemas[0].functionDeclarations.find((tool) => tool.name === 'crearNuevoReclamo');
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
   assert.deepEqual(crear.parameters.required, ['id_contrato', 'asunto', 'descripcion', 'categoria']);
   assert.ok(crear.parameters.properties.categoria.enum.includes('SERVICIOS'));
   assert.ok(!Object.hasOwn(crear.parameters.properties, 'usuarioId'));
 });
 
+<<<<<<< HEAD
 test('consultarMisDatos reutiliza los controladores y filtra los datos sensibles', async () => {
   const original = contratoController.listarContratos;
   try {
@@ -49,6 +72,101 @@ test('consultarMisDatos reutiliza los controladores y filtra los datos sensibles
 });
 
 test('consultarMisDatos devuelve los reclamos autorizados del usuario', async () => {
+=======
+test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {
+  const originalPagos = pagoController.listarPagos;
+  const originalContratos = Contrato.find;
+  try {
+    pagoController.listarPagos = async (req, res) => {
+      assert.equal(req.usuario.id, 'inquilino-1');
+      assert.deepEqual(req.query, {});
+      res.status(200).json({
+        success: true,
+        data: [{
+          _id: 'pago-1',
+          id_contrato: 'contrato-1',
+          mes_correspondiente: '202610',
+          monto_total: 1000,
+          estado: 'PENDIENTE',
+          fecha_vencimiento: '2026-10-10',
+          tipo: 'MENSUAL',
+        }],
+      });
+    };
+    Contrato.find = (filter) => {
+      assert.deepEqual(filter, { id_inquilino: 'inquilino-1' });
+      return {
+        populate() { return this; },
+        select() { return this; },
+        sort: async () => [],
+      };
+    };
+    const result = await ejecutarToolSegura('consultarDatosAlquiler', {
+      alcance: 'PAGOS',
+      id_usuario: 'otro-usuario',
+    }, { id: 'inquilino-1', roles: ['INQUILINO'] });
+    assert.ok(!Object.hasOwn(result, 'contratos'));
+    assert.equal(result.pagos.length, 1);
+    assert.equal(result.pagos[0].id, 'pago-1');
+  } finally {
+    pagoController.listarPagos = originalPagos;
+    Contrato.find = originalContratos;
+  }
+});
+
+test('consultarDatosAlquiler filtra contratos del propietario autenticado', async () => {
+  const originalPropiedad = Propiedad.find;
+  const originalContratos = Contrato.find;
+  const originalPagos = pagoController.listarPagos;
+  try {
+    Propiedad.find = (filter) => {
+      assert.deepEqual(filter, { id_propietario: 'prop-1' });
+      return {
+        select: async () => [{ _id: 'propiedad-a' }],
+      };
+    };
+    Contrato.find = (filter) => {
+      assert.deepEqual(filter, { id_propiedad: { $in: ['propiedad-a'] } });
+      const chain = {
+        populate() { return chain; },
+        select() { return chain; },
+        sort: async () => [{
+          _id: 'contrato-prop',
+          estado: 'VIGENTE',
+          id_propiedad: { direccion: 'Av. Siempre Viva 742' },
+          fecha_inicio: '2026-01-01',
+          fecha_fin: '2026-12-31',
+          monto_mensual: 50000,
+          dia_vencimiento: 5,
+        }],
+      };
+      return chain;
+    };
+    pagoController.listarPagos = async (req, res) => {
+      res.status(200).json({ success: true, data: [] });
+    };
+    const result = await ejecutarToolSegura('consultarDatosAlquiler', {
+      alcance: 'CONTRATOS',
+      id_inquilino: 'otro',
+    }, { id: 'prop-1', roles: ['PROPIETARIO'] });
+    assert.ok(!Object.hasOwn(result, 'pagos'));
+    assert.equal(result.contratos[0].propiedad, 'Av. Siempre Viva 742');
+  } finally {
+    Propiedad.find = originalPropiedad;
+    Contrato.find = originalContratos;
+    pagoController.listarPagos = originalPagos;
+  }
+});
+
+test('consultarDatosAlquiler rechaza usuarios sin permiso operativo', async () => {
+  await assert.rejects(
+    ejecutarToolSegura('consultarDatosAlquiler', {}, { id: 'usuario-1', roles: ['USUARIO'] }),
+    /permiso para consultar contratos/i,
+  );
+});
+
+test('listarMisReclamos reutiliza el controlador con la identidad verificada', async () => {
+>>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
   const original = reclamoController.listarReclamos;
   try {
     reclamoController.listarReclamos = async (req, res) => {

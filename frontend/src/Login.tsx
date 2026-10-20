@@ -114,14 +114,9 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center pt-2 space-y-2">
+        <p className="text-center pt-2">
           <button type="button" onClick={() => navigate('/registro')} className={linkClass}>
             ¿No tenés cuenta? Registrate aquí
-          </button>
-        </p>
-        <p className="text-center">
-          <button type="button" onClick={() => navigate('/catalogo')} className={linkClass}>
-            Continuar sin registrarse
           </button>
         </p>
       </div>
