@@ -42,6 +42,7 @@ interface GastosPanelProps {
   esPropietario: boolean;
   esInquilino: boolean;
   esAdmin: boolean;
+  embedded?: boolean;
 }
 
 function propiedadDeGasto(gasto: Gasto): PropiedadReferencia | null {
@@ -186,7 +187,13 @@ function DateRangePicker({
   );
 }
 
-export default function GastosPanel({ token, esPropietario, esInquilino, esAdmin }: GastosPanelProps) {
+export default function GastosPanel({
+  token,
+  esPropietario,
+  esInquilino,
+  esAdmin,
+  embedded = false,
+}: GastosPanelProps) {
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
@@ -325,13 +332,21 @@ export default function GastosPanel({ token, esPropietario, esInquilino, esAdmin
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Gastos"
-        subtitle="Consultá los gastos asociados a tus propiedades y sus comprobantes"
-        action={puedeGestionar ? (
-          <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>+ Nuevo gasto</button>
-        ) : null}
-      />
+      {embedded ? (
+        puedeGestionar ? (
+          <div className="flex justify-end">
+            <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>+ Nuevo gasto</button>
+          </div>
+        ) : null
+      ) : (
+        <PageHeader
+          title="Gastos"
+          subtitle="Consultá los gastos asociados a tus propiedades y sus comprobantes"
+          action={puedeGestionar ? (
+            <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>+ Nuevo gasto</button>
+          ) : null}
+        />
+      )}
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
       <Card className="p-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">

@@ -6,11 +6,12 @@ import InicioPanel, { PlaceholderSection } from './components/dashboard/InicioPa
 import PropiedadesPanel from './components/propiedades/PropiedadesPanel';
 import ContratosPanel from './components/contratos/ContratosPanel';
 import HistorialPanel from './components/contratos/HistorialPanel';
-import GastosPanel from './components/gastos/GastosPanel';
+import FinanzasPanel from './components/finanzas/FinanzasPanel';
 import PagosPanel from './components/pagos/PagosPanel';
-import CobrosPanel from './components/pagos/CobrosPanel';
 import ReclamosPanel from './components/reclamos/ReclamosPanel';
 import UsuariosPanel from './components/admin/UsuariosPanel';
+import PropietariosPanel from './components/admin/PropietariosPanel';
+import ReportesPanel from './components/reportes/ReportesPanel';
 import AsistentePanel from './components/asistente/AsistentePanel';
 
 export default function Dashboard() {
@@ -59,13 +60,27 @@ export default function Dashboard() {
             esInquilino={roles.esInquilino}
           />
         );
-      case 'gastos':
+      case 'finanzas':
         return (
-          <GastosPanel
+          <FinanzasPanel
             token={token}
             esPropietario={roles.esPropietario}
             esInquilino={roles.esInquilino}
             esAdmin={roles.esAdministrador}
+          />
+        );
+      case 'reportes':
+        return (
+          <ReportesPanel
+            token={token}
+            onIrAFinanzas={() => setSeccionActiva('finanzas')}
+          />
+        );
+      case 'propietarios':
+        return (
+          <PropietariosPanel
+            token={token}
+            onIrAUsuarios={() => setSeccionActiva('usuarios')}
           />
         );
       case 'pagos':
@@ -77,8 +92,6 @@ export default function Dashboard() {
             esAdmin={roles.esAdministrador}
           />
         );
-      case 'cobros':
-        return <CobrosPanel token={token} />;
       case 'reclamos':
         return (
           <ReclamosPanel
@@ -101,6 +114,17 @@ export default function Dashboard() {
         );
       case 'asistente':
         return <AsistentePanel token={token} />;
+      case 'cobros':
+      case 'gastos':
+        return (
+          <FinanzasPanel
+            token={token}
+            esPropietario={roles.esPropietario}
+            esInquilino={roles.esInquilino}
+            esAdmin={roles.esAdministrador}
+            tabInicial={seccionActiva === 'gastos' ? 'gastos' : 'cobros'}
+          />
+        );
       default:
         return null;
     }
