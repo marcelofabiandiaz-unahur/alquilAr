@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import logoAlquilar from '../../assets/logo-alquilar.jpg';
+import logoAlquilar from '../../assets/logo-alquilar.png';
 import { apiGet } from '../../lib/apiClient';
 import type { AuthUsuario, Pago, RolesDashboard, Usuario } from '../../types';
 import SolicitudPropietario from './SolicitudPropietario';
+import { brandClasses } from '../../theme/alquilar';
+import { navIconFor } from './dashboardNavIcons';
 
 interface Notificacion {
   id: string;
@@ -27,11 +29,11 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Operación',
     items: [
-      { id: 'propiedades', label: 'Mis propiedades', show: (r) => r.esPropietario },
+      { id: 'propiedades', label: 'Propiedades', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
-      { id: 'cobros', label: 'Cobros', show: (r) => r.esPropietario || r.esAdministrador },
-      { id: 'gastos', label: 'Gastos', show: (r) => r.esPropietario || r.esAdministrador },
+      { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario || r.esAdministrador },
+      { id: 'reportes', label: 'Reportes', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
       { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario },
     ],
@@ -39,6 +41,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Administración',
     items: [
+      { id: 'propietarios', label: 'Propietarios', show: (r) => r.esAdministrador },
       { id: 'usuarios', label: 'Usuarios', show: (r) => r.esAdministrador },
       { id: 'configuracion', label: 'Configuración', show: (r) => r.esAdministrador },
     ],
@@ -145,13 +148,12 @@ function NavButton({
     <button
       type="button"
       onClick={() => onClick(id)}
-      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-        active
-          ? 'bg-emerald-50 text-[#14213D] font-semibold border border-emerald-100'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+      className={`w-full flex items-center gap-3 text-left px-3.5 py-2.5 rounded-xl text-sm transition-all ${
+        active ? brandClasses.navActive : brandClasses.navInactive
       }`}
     >
-      {label}
+      <span className={active ? 'text-white' : 'text-violet-600'}>{navIconFor(id)}</span>
+      <span>{label}</span>
     </button>
   );
 }
@@ -332,32 +334,43 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-900 font-sans overflow-hidden">
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
-        <div className="px-5 py-5 border-b border-slate-100">
-          <div className="inline-block bg-white px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
-            <img src={logoAlquilar} alt="AlquilAR" className="block h-9 object-contain" />
+    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+      <aside className="w-[17.5rem] bg-gradient-to-b from-violet-50 via-fuchsia-50/30 to-violet-50/80 border-r border-violet-100 flex flex-col shrink-0">
+        <div className="px-4 py-5 border-b border-violet-100/80">
+          <div className="flex items-center gap-3">
+            <img
+              src={logoAlquilar}
+              alt=""
+              className="h-11 w-11 object-contain shrink-0"
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <p className="font-bold text-violet-950 text-base leading-tight">AlquilAR</p>
+              <p className="text-[11px] text-slate-500 leading-snug">Gestión de alquileres</p>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-2 font-medium">Gestión de alquileres</p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
           {NAV_GROUPS.map((group) => {
             const items = group.items.filter((item) => !item.show || item.show(roles));
             if (items.length === 0) return null;
 
             return (
               <div key={group.label}>
-                <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <p className="px-3.5 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400/90">
                   {group.label}
                 </p>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {items.map((item) => (
                     <NavButton
                       key={item.id}
                       id={item.id}
                       label={item.label}
-                      active={seccionActiva === item.id}
+                      active={
+                        seccionActiva === item.id
+                        || (item.id === 'finanzas' && (seccionActiva === 'cobros' || seccionActiva === 'gastos'))
+                      }
                       onClick={setSeccionActiva}
                     />
                   ))}
@@ -372,7 +385,7 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        <div ref={panelRef} className="relative p-4 border-t border-slate-100">
+        <div ref={panelRef} className="relative p-4 border-t border-violet-100/80">
           <div
             role="menu"
             aria-hidden={!usuarioExpandido}
@@ -419,15 +432,15 @@ export default function DashboardLayout({
           <button
             type="button"
             onClick={() => setUsuarioExpandido((prev) => !prev)}
-            className={`w-full flex items-center gap-3 p-3 rounded-xl border bg-slate-50 hover:bg-slate-100/80 transition-all duration-200 text-left ${
+            className={`w-full flex items-center gap-3 p-3 rounded-2xl border bg-white/90 hover:bg-white transition-all duration-200 text-left shadow-sm ${
               usuarioExpandido
-                ? 'border-emerald-200 ring-1 ring-emerald-100 shadow-sm'
+                ? 'border-violet-200 ring-1 ring-violet-100 shadow-sm'
                 : 'border-slate-100'
             }`}
             aria-expanded={usuarioExpandido}
             aria-haspopup="menu"
           >
-            <div className="w-10 h-10 rounded-full bg-[#14213D] flex items-center justify-center text-xs font-bold text-emerald-300 shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#14213D] flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
               {iniciales}
             </div>
             <div className="min-w-0 flex-1">
@@ -448,11 +461,12 @@ export default function DashboardLayout({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 bg-[#14213D] text-white flex items-center justify-between px-6 shrink-0 shadow-md">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide">AlquilAR</span>
-            <span className="hidden sm:inline text-slate-500">|</span>
-            <span className="hidden sm:inline text-xs text-slate-300">Plataforma de gestión de alquileres</span>
+        <header className="h-14 bg-white border-b border-slate-200/80 flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" aria-hidden />
+            <span className="text-sm font-medium text-slate-600 truncate">Sistema operativo</span>
+            <span className="hidden md:inline text-slate-300">|</span>
+            <span className="hidden md:inline text-xs text-slate-400 truncate">Panel de gestión</span>
           </div>
           <div className="flex items-center gap-3">
             {(roles.esAdministrador || roles.esInquilino || roles.esUsuarioBase) && (
@@ -464,7 +478,7 @@ export default function DashboardLayout({
                   aria-expanded={notificacionesAbiertas}
                   aria-haspopup="dialog"
                   title={`${notificaciones.length} notificaciones`}
-                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white transition-colors hover:bg-white/20"
+                  className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-violet-50 hover:text-violet-700"
                 >
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -525,7 +539,7 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50">{children}</main>
       </div>
     </div>
   );
