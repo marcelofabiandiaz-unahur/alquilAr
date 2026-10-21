@@ -169,7 +169,6 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
-        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         fotos: Array.from({ length: 6 }, (_, i) => `https://example.com/${i}.jpg`),
       },
