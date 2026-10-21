@@ -1,24 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-<<<<<<< HEAD
-const contratoController = require('../../../src/controllers/contratoController');
-=======
 const Contrato = require('../../../src/models/contrato');
 const Propiedad = require('../../../src/models/propiedad');
->>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
 const reclamoController = require('../../../src/controllers/reclamoController');
 const pagoController = require('../../../src/controllers/pagoController');
 const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
 
-<<<<<<< HEAD
-test('el modelo recibe exactamente las dos herramientas definidas por el MVP', () => {
-  const declaraciones = toolsEsquemas.flatMap((grupo) => grupo.functionDeclarations);
-  assert.deepEqual(declaraciones.map((tool) => tool.name), [
-    'consultarMisDatos',
-    'clasificarYCrearReclamo',
-  ]);
-  const crear = declaraciones.find((tool) => tool.name === 'clasificarYCrearReclamo');
-=======
 test('el registro declara consulta de datos, contratos, reclamos y creación de reclamos', () => {
   const nombres = toolsEsquemas[0].functionDeclarations.map((tool) => tool.name);
   assert.deepEqual(nombres, [
@@ -32,47 +19,10 @@ test('el registro declara consulta de datos, contratos, reclamos y creación de 
   assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_usuario'));
   assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_inquilino'));
   const crear = toolsEsquemas[0].functionDeclarations.find((tool) => tool.name === 'crearNuevoReclamo');
->>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
   assert.deepEqual(crear.parameters.required, ['id_contrato', 'asunto', 'descripcion', 'categoria']);
-  assert.ok(crear.parameters.properties.categoria.enum.includes('SERVICIOS'));
-  assert.ok(!Object.hasOwn(crear.parameters.properties, 'usuarioId'));
+  assert.ok(!Object.hasOwn(crear.parameters.properties, 'propiedadId'));
 });
 
-<<<<<<< HEAD
-test('consultarMisDatos reutiliza los controladores y filtra los datos sensibles', async () => {
-  const original = contratoController.listarContratos;
-  try {
-    contratoController.listarContratos = async (req, res) => {
-      assert.equal(req.usuario.id, 'propietario-1');
-      assert.deepEqual(req.usuario.roles, ['PROPIETARIO']);
-      res.json([{
-        _id: 'contrato-1',
-        estado: 'VIGENTE',
-        id_propiedad: { direccion: 'Calle 123' },
-        id_inquilino: { nombre: 'Nombre privado', dni: '12345678' },
-        monto_mensual: 200000,
-      }]);
-    };
-    const result = await ejecutarToolSegura('consultarMisDatos', { tipo: 'CONTRATOS' }, {
-      id: 'propietario-1',
-      roles: ['PROPIETARIO'],
-    });
-    assert.deepEqual(result, [{
-      id: 'contrato-1',
-      estado: 'VIGENTE',
-      propiedad: 'Calle 123',
-      fecha_inicio: undefined,
-      fecha_fin: undefined,
-      monto_mensual: 200000,
-    }]);
-    assert.equal(JSON.stringify(result).includes('12345678'), false);
-  } finally {
-    contratoController.listarContratos = original;
-  }
-});
-
-test('consultarMisDatos devuelve los reclamos autorizados del usuario', async () => {
-=======
 test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {
   const originalPagos = pagoController.listarPagos;
   const originalContratos = Contrato.find;
@@ -166,36 +116,24 @@ test('consultarDatosAlquiler rechaza usuarios sin permiso operativo', async () =
 });
 
 test('listarMisReclamos reutiliza el controlador con la identidad verificada', async () => {
->>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
   const original = reclamoController.listarReclamos;
   try {
     reclamoController.listarReclamos = async (req, res) => {
-      assert.equal(req.usuario.id, 'inquilino-1');
-      res.status(200).json({
-        success: true,
-        data: [{ _id: 'reclamo-1', asunto: 'Pérdida', id_inquilino: 'dato-privado' }],
-      });
+      assert.equal(req.usuario.id, 'usuario-1');
+      assert.deepEqual(req.usuario.roles, ['INQUILINO']);
+      res.status(200).json({ success: true, data: [{ asunto: 'Consulta' }] });
     };
-    const result = await ejecutarToolSegura('consultarMisDatos', { tipo: 'RECLAMOS' }, {
-      id: 'inquilino-1',
+    const result = await ejecutarToolSegura('listarMisReclamos', {}, {
+      id: 'usuario-1',
       roles: ['INQUILINO'],
     });
-    assert.deepEqual(result, [{
-      id: 'reclamo-1',
-      asunto: 'Pérdida',
-      descripcion: undefined,
-      categoria: undefined,
-      prioridad: undefined,
-      estado: undefined,
-      fecha_creacion: undefined,
-    }]);
-    assert.equal(JSON.stringify(result).includes('dato-privado'), false);
+    assert.deepEqual(result.data, [{ asunto: 'Consulta' }]);
   } finally {
     reclamoController.listarReclamos = original;
   }
 });
 
-test('clasificarYCrearReclamo pasa la clasificación al controlador y usa la identidad autenticada', async () => {
+test('crearNuevoReclamo pasa el contrato y campos compatibles con la API de reclamos', async () => {
   const original = reclamoController.crearReclamo;
   try {
     reclamoController.crearReclamo = async (req, res) => {
@@ -207,58 +145,66 @@ test('clasificarYCrearReclamo pasa la clasificación al controlador y usa la ide
         categoria: 'PLOMERIA',
         prioridad: 'ALTA',
       });
-      res.status(201).json({
-        success: true,
-        data: { _id: 'reclamo-1', asunto: 'Pérdida de agua', categoria: 'PLOMERIA', estado: 'PENDIENTE' },
-        message: 'Reclamo registrado.',
-      });
+      res.status(201).json({ success: true, data: { _id: 'reclamo-1' } });
     };
-    const result = await ejecutarToolSegura('clasificarYCrearReclamo', {
+    const result = await ejecutarToolSegura('crearNuevoReclamo', {
       id_contrato: 'contrato-1',
       asunto: 'Pérdida de agua',
       descripcion: 'Pierde agua bajo la pileta.',
       categoria: 'PLOMERIA',
       prioridad: 'ALTA',
     }, { id: 'inquilino-1', roles: ['INQUILINO'] });
-    assert.equal(result.success, true);
-    assert.equal(result.data.id, 'reclamo-1');
-    assert.equal(result.message, 'Reclamo registrado.');
+    assert.equal(result.data._id, 'reclamo-1');
   } finally {
     reclamoController.crearReclamo = original;
   }
 });
 
-test('rechaza tipos de consulta, roles y argumentos no permitidos', async () => {
-  await assert.rejects(
-    ejecutarToolSegura('consultarMisDatos', { tipo: 'USUARIOS' }, {
-      id: 'usuario-1',
-      roles: ['USUARIO'],
-    }),
-    /requiere una cuenta autenticada/i,
-  );
-  await assert.rejects(
-    ejecutarToolSegura('consultarMisDatos', { tipo: 'PAGOS' }, {
+test('listarMisContratosVigentes consulta solo contratos vigentes del inquilino autenticado', async () => {
+  const original = Contrato.find;
+  try {
+    Contrato.find = (filter) => {
+      assert.deepEqual(filter, { id_inquilino: 'inquilino-1', estado: 'VIGENTE' });
+      return {
+        select(fields) {
+          assert.equal(fields, '_id id_propiedad fecha_inicio fecha_fin');
+          return {
+            populate: async (field, projection) => {
+              assert.equal(field, 'id_propiedad');
+              assert.equal(projection, 'direccion');
+              return [{
+                _id: 'contrato-1',
+                id_propiedad: { direccion: 'Calle 123' },
+                fecha_inicio: '2026-01-01',
+                fecha_fin: '2026-12-31',
+              }];
+            },
+          };
+        },
+      };
+    };
+    const result = await ejecutarToolSegura('listarMisContratosVigentes', {}, {
       id: 'inquilino-1',
       roles: ['INQUILINO'],
-    }),
-    /tipo de consulta no está autorizado/i,
-  );
+    });
+    assert.deepEqual(result, [{
+      id: 'contrato-1',
+      propiedad: 'Calle 123',
+      fecha_inicio: '2026-01-01',
+      fecha_fin: '2026-12-31',
+    }]);
+  } finally {
+    Contrato.find = original;
+  }
+});
+
+test('las herramientas fallan explícitamente ante permisos o nombres no autorizados', async () => {
   await assert.rejects(
-    ejecutarToolSegura('clasificarYCrearReclamo', {}, { id: 'usuario-1', roles: ['USUARIO'] }),
+    ejecutarToolSegura('listarMisContratosVigentes', {}, { id: 'usuario-1', roles: ['USUARIO'] }),
     /solo un inquilino/i,
   );
   await assert.rejects(
-    ejecutarToolSegura('clasificarYCrearReclamo', { usuarioId: 'ajeno' }, {
-      id: 'inquilino-1',
-      roles: ['INQUILINO'],
-    }),
-    /campos no autorizados/i,
-  );
-  await assert.rejects(
-    ejecutarToolSegura('borrarTodosLosReclamos', {}, {
-      id: 'usuario-1',
-      roles: ['ADMINISTRADOR'],
-    }),
+    ejecutarToolSegura('borrarTodosLosReclamos', {}, { id: 'usuario-1', roles: ['ADMINISTRADOR'] }),
     /no está autorizada/i,
   );
 });

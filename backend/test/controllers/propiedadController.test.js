@@ -73,6 +73,7 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
+        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         estado: 'ALQUILADA',
       },
@@ -162,30 +163,6 @@ describe('propiedadController', () => {
     assert.equal(res.statusCode, 403);
   });
 
-<<<<<<< HEAD
-  it('listarPropiedadesDisponibles devuelve solo propiedades disponibles sin exigir autenticación', async () => {
-    const disponibles = [{ _id: propiedadId, direccion: 'Calle 123', estado: 'DISPONIBLE' }];
-    Propiedad.find = (filtro) => {
-      assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
-      return {
-        select: (campos) => {
-          assert.equal(campos, '_id direccion tipo ambientes descripcion valor_base fotos estado');
-          return { sort: async () => disponibles };
-        },
-      };
-    };
-
-    const req = {};
-    const res = mockRes();
-
-    await listarPropiedadesDisponibles(req, res);
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, disponibles);
-  });
-
-=======
->>>>>>> 8284b23b38864f8821ddb08932ca7993b9abcfe7
   it('crearPropiedad rechaza mas de 5 fotos', async () => {
     const req = {
       body: {
@@ -218,6 +195,7 @@ describe('propiedadController', () => {
         direccion: 'Test 1',
         tipo: 'Depto',
         ambientes: 2,
+        descripcion: 'Descripción de prueba',
         valor_base: 100000,
         fotos,
       },
