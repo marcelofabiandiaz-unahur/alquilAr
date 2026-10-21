@@ -43,6 +43,7 @@ app.use('/api/pagos', pagoRoutes);
 app.use('/api/gastos', gastoRoutes);
 app.use('/api/reclamos', reclamoRoutes);
 app.use('/api/ai', require('./src/routes/aiRoutes'));
+app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));
 
 app.use(notFoundHandler);
 app.use(errorHandler);
