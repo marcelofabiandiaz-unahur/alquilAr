@@ -99,8 +99,11 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
 - `POST /api/ai/chat` — requiere JWT; body `{ mensajes }` con roles `user` y `assistant`.
 - Modelo: `gemini-3.8-flash` (`GEMINI_API_KEY` solo en backend).
 - Límites: hasta **20** mensajes por request y **4000** caracteres por mensaje; el último mensaje debe ser del usuario.
-- Herramientas (`aiToolsRegistry.js`): listar contratos vigentes del inquilino, listar reclamos visibles, crear reclamo (validación en controladores existentes; identidad solo desde JWT).
-- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. El historial **no** se persiste en MongoDB.
+- Herramientas (`aiToolsRegistry.js`): exactamente dos.
+  - `consultarDatosAlquiler`: consulta contratos y pagos visibles según el rol.
+  - `gestionarReclamos`: lista contratos vigentes del inquilino, lista reclamos visibles, clasifica una incidencia (categoría y prioridad propuestas por el servidor) y crea el reclamo con validación en los controladores existentes.
+- Seguridad: la identidad y los permisos se resuelven solo con el JWT; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados.
+- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **20** mensajes y limita cada mensaje a **4000** caracteres. Si la API falla, muestra el error sin confirmar ninguna acción y permite reintentar el mensaje. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 

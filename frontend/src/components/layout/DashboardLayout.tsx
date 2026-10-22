@@ -5,7 +5,7 @@ import { apiGet } from '../../lib/apiClient';
 import type { AuthUsuario, Pago, RolesDashboard, Usuario } from '../../types';
 import SolicitudPropietario from './SolicitudPropietario';
 import { brandClasses } from '../../theme/alquilar';
-import { navIconFor } from './dashboardNavIcons';
+import { NavIcon } from './dashboardNavIcons';
 
 interface Notificacion {
   id: string;
@@ -152,7 +152,7 @@ function NavButton({
         active ? brandClasses.navActive : brandClasses.navInactive
       }`}
     >
-      <span className={active ? 'text-white' : 'text-violet-600'}>{navIconFor(id)}</span>
+      <span className={active ? 'text-white' : 'text-violet-600'}><NavIcon id={id} /></span>
       <span>{label}</span>
     </button>
   );
