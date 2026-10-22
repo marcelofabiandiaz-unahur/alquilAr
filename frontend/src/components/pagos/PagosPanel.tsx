@@ -245,7 +245,7 @@ export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin 
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
       {cargando ? (
         <LoadingRow label="Cargando pagos..." />
-      ) : pagos.length === 0 ? (
+      ) : pagos.length === 0 && !error ? (
         <EmptyState title="Sin pagos" description="Todavía no hay pagos asociados a tus contratos." />
       ) : (
         <div className="space-y-6">

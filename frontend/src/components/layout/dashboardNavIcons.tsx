@@ -82,6 +82,6 @@ const ICONS: Record<string, ReactNode> = {
   ),
 };
 
-export function navIconFor(id: string): ReactNode {
-  return ICONS[id] ?? ICONS.inicio;
+export function NavIcon({ id }: { id: string }) {
+  return <>{ICONS[id] ?? ICONS.inicio}</>;
 }

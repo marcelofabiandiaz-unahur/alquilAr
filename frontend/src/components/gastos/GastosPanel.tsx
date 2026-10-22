@@ -389,7 +389,7 @@ export default function GastosPanel({
       </Card>
       {cargando ? (
         <LoadingRow label="Cargando gastos..." />
-      ) : gastosFiltrados.length === 0 ? (
+      ) : gastosFiltrados.length === 0 && !error ? (
         <EmptyState title="Sin gastos" description="No hay gastos para los filtros seleccionados." />
       ) : (
         <DataTable

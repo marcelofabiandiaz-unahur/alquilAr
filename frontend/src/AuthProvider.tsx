@@ -40,7 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const tokenGuardado = leerTokenGuardado();
     if (!tokenGuardado) {
-      setCargando(false);
       return;
     }
 
