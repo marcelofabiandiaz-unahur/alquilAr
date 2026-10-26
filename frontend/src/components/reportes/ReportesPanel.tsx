@@ -101,9 +101,9 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <MetricCard label="Total cobrado" value={formatMoneda(resumen.cobrado)} icon="✓" variant="emerald" />
-            <MetricCard label="Pendiente de cobro" value={formatMoneda(resumen.pendiente)} icon="⏳" variant="violet" />
-            <MetricCard label="Gastos" value={formatMoneda(resumen.totalGastos)} icon="🧾" variant="amber" />
+            <MetricCard label="Total cobrado" value={formatMoneda(resumen.cobrado)} icon="check" variant="emerald" />
+            <MetricCard label="Pendiente de cobro" value={formatMoneda(resumen.pendiente)} icon="pendiente" variant="violet" />
+            <MetricCard label="Gastos" value={formatMoneda(resumen.totalGastos)} icon="comprobante" variant="amber" />
           </div>
 
           <Card className="overflow-hidden">
@@ -124,7 +124,7 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
                 <tbody>
                   {porMes.map(([mes, datos]) => (
                     <tr key={mes} className="border-b border-slate-50 last:border-0">
-                      <td className="px-5 py-3 font-medium text-[#14213D]">{mes}</td>
+                      <td className="px-5 py-3 font-medium text-[var(--brand-navy)]">{mes}</td>
                       <td className="px-5 py-3 text-emerald-700">{formatMoneda(datos.cobrado)}</td>
                       <td className="px-5 py-3 text-slate-700">{formatMoneda(datos.gastos)}</td>
                     </tr>

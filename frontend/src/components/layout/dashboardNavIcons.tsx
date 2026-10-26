@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 
 const iconClass = 'h-[18px] w-[18px] shrink-0';
 
-function Svg({ children }: { children: ReactNode }) {
+function Svg({ children, className = iconClass }: { children: ReactNode; className?: string }) {
   return (
-    <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
       {children}
     </svg>
   );
@@ -75,6 +75,59 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" strokeLinecap="round" />
     </Svg>
   ),
+  efectivo: (
+    <Svg>
+      <path d="M12 3v18M7 8h6a3 3 0 010 6H7a3 3 0 000 6h10" strokeLinecap="round" />
+    </Svg>
+  ),
+  tendencia: (
+    <Svg>
+      <path d="M4 18l6-6 4 3 6-8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 7h6v6" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  ),
+  comprobante: (
+    <Svg>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" strokeLinejoin="round" />
+      <path d="M9 8h6M9 12h6M9 16h3" strokeLinecap="round" />
+    </Svg>
+  ),
+  calendario: (
+    <Svg>
+      <rect x="4" y="5" width="16" height="15" rx="2" />
+      <path d="M8 3v4m8-4v4M4 10h16" strokeLinecap="round" />
+    </Svg>
+  ),
+  megafono: (
+    <Svg>
+      <path d="M4 13V9a1 1 0 011-1h3l9-4v16l-9-4H5a1 1 0 01-1-1v-2z" strokeLinejoin="round" />
+      <path d="M8 16l1.5 4H13" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M20 9a4 4 0 010 4" strokeLinecap="round" />
+    </Svg>
+  ),
+  llave: (
+    <Svg>
+      <circle cx="8" cy="8" r="4" />
+      <path d="M11 11l9 9m-4-4 2-2m-5-1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  ),
+  check: (
+    <Svg>
+      <path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  ),
+  alerta: (
+    <Svg>
+      <path d="M12 3 2.8 19h18.4L12 3z" strokeLinejoin="round" />
+      <path d="M12 9v4m0 3h.01" strokeLinecap="round" />
+    </Svg>
+  ),
+  pendiente: (
+    <Svg>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  ),
   asistente: (
     <Svg>
       <path d="M12 3l2.5 6.5L21 11l-5 4.5L17 22l-5-3-5 3 1-6.5L3 11l6.5-1.5L12 3z" strokeLinejoin="round" />
@@ -82,6 +135,8 @@ const ICONS: Record<string, ReactNode> = {
   ),
 };
 
-export function navIconFor(id: string): ReactNode {
-  return ICONS[id] ?? ICONS.inicio;
+export function NavIcon({ id, className }: { id: string; className?: string }) {
+  const icon = ICONS[id] ?? ICONS.inicio;
+  if (!className) return icon;
+  return <span className={className} aria-hidden>{icon}</span>;
 }

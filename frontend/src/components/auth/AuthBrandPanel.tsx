@@ -1,76 +1,58 @@
 import logoAlquilar from '../../assets/logo-alquilar.png';
 
-const FEATURES = [
+const BENEFICIOS = [
   'Propiedades y contratos centralizados',
-  'Roles: propietario, inquilino y administrador',
   'Pagos y reclamos',
+  'Gestión de contratos y alquileres',
+  'Seguimiento de pagos y comprobantes',
+  'Asistente IA para consultas sobre contratos y pagos',
+  'Consulta de contratos vigentes y creación de reclamos',
 ];
 
-const TAGS = ['Propiedades', 'Contratos', 'Pagos'];
-
-export default function AuthBrandPanel({ compact = false }) {
+export default function AuthBrandPanel({ compact = false }: { compact?: boolean }) {
   return (
-    <div
-      className={`relative flex w-full flex-col justify-between bg-[#14213D] text-white overflow-hidden ${
-        compact ? 'p-6' : 'p-10 lg:p-14'
+    <section
+      aria-label="AlquilAR, plataforma de gestión de alquileres"
+      className={`relative flex min-w-0 w-full flex-col justify-between overflow-hidden bg-[#f8fafc] text-[#14213d] ${
+        compact ? 'min-h-48 gap-8 px-6 py-7' : 'min-h-screen px-10 py-10 lg:px-14 lg:py-12'
       }`}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-900/25 via-transparent to-slate-950/80 pointer-events-none" />
-
-      <div className="relative z-10 space-y-8">
-        <div className="inline-block bg-white px-3 py-2.5 rounded-xl shadow-lg">
-          <img
-            src={logoAlquilar}
-            alt="AlquilAR"
-            className={`block object-contain max-w-[220px] w-full ${compact ? 'h-12' : 'h-16 lg:h-[4.5rem]'}`}
-          />
-        </div>
-
-        {!compact && (
-          <>
-            <span className="block w-fit text-[10px] font-bold uppercase tracking-widest text-violet-300/95 border border-violet-400/40 rounded-full px-3 py-1">
-              Plataforma de gestión de alquileres
-            </span>
-
-            <div className="space-y-4">
-              <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight">
-                De la propiedad al contrato, en un solo lugar.
-              </h1>
-              <p className="text-slate-300 text-sm lg:text-base max-w-md leading-relaxed">
-                Gestioná alquileres con roles claros, contratos trazables y una experiencia pensada para propietarios e inquilinos.
-              </p>
-            </div>
-
-            <ul className="space-y-4">
-              {FEATURES.map((text) => (
-                <li key={text} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500/25 text-violet-300 text-xs font-bold">
-                    ✓
-                  </span>
-                  <span className="text-sm text-slate-200">{text}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        {compact && (
-          <p className="text-slate-300 text-sm">Gestión digital de alquileres</p>
-        )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-100/70 via-transparent to-teal-50/90" />
+      <div className="relative z-10">
+        <img
+          src={logoAlquilar}
+          alt="AlquilAR"
+          className={`block w-auto object-contain ${compact ? 'h-12' : 'h-16 lg:h-[4.5rem]'}`}
+        />
       </div>
 
-      {!compact && (
-        <div className="relative z-10 flex flex-wrap gap-2 pt-8">
-          {TAGS.map((tag) => (
-            <span
-              key={tag}
-              className="text-xs font-medium text-slate-300 border border-slate-600/60 rounded-full px-3 py-1"
-            >
-              {tag}
+      <div className={`relative z-10 min-w-0 ${compact ? 'w-full space-y-3' : 'max-w-2xl space-y-6'}`}>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-800">
+          Plataforma de gestión de alquileres
+        </p>
+        <h1 className={`font-bold leading-tight tracking-tight ${compact ? 'text-2xl' : 'text-4xl lg:text-5xl'}`}>
+          Gestioná propiedades, contratos, pagos y reclamos desde una sola plataforma.
+        </h1>
+        <p className={`max-w-xl leading-relaxed text-slate-700 ${compact ? 'text-xs' : 'text-base lg:text-lg'}`}>
+          AlquilAR, una empresa argentina que simplifica la gestión de alquileres
+        </p>
+      </div>
+
+      <div
+        className={`auth-marquee relative z-10 min-w-0 w-full overflow-hidden py-3 ${
+          compact ? 'max-w-full' : 'max-w-2xl'
+        }`}
+        aria-label="Beneficios y funciones de AlquilAR"
+      >
+        <div className="auth-marquee__track" aria-hidden="true">
+          {[...BENEFICIOS, ...BENEFICIOS].map((beneficio, index) => (
+            <span key={`${beneficio}-${index}`} className="auth-marquee__item">
+              {beneficio}
+              <span className="mx-5 text-teal-700" aria-hidden="true">·</span>
             </span>
           ))}
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
