@@ -119,8 +119,10 @@ export interface AuthContextValue {
   usuario: AuthUsuario | null;
   token: string | null;
   cargando: boolean;
+  errorSesion: string;
   loginGlobal: (usuario: AuthUsuario, token: string) => void;
   logoutGlobal: () => void;
+  limpiarErrorSesion: () => void;
 }
 
 export interface RolesDashboard {

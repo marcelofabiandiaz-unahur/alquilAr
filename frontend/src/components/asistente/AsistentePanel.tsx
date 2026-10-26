@@ -13,7 +13,7 @@ interface RespuestaChat {
   resultado: MensajeChat;
 }
 
-export default function AsistentePanel({ token }: { token: string }) {
+export default function AsistentePanel({ token, compact = false }: { token: string; compact?: boolean }) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [texto, setTexto] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -55,13 +55,18 @@ export default function AsistentePanel({ token }: { token: string }) {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] min-h-[480px] max-w-4xl flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-[#14213D]">Asistente IA</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Consultá tus reclamos o pedime ayuda para registrar uno nuevo.
-        </p>
-      </div>
+    <div className={compact
+      ? 'flex h-full min-h-0 flex-col'
+      : 'mx-auto flex h-[calc(100vh-8rem)] min-h-[480px] max-w-4xl flex-col gap-4'}
+    >
+      {!compact && (
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--brand-navy)]">Asistente IA</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Consultá tus reclamos o pedime ayuda para registrar uno nuevo.
+          </p>
+        </div>
+      )}
 
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite">
@@ -85,7 +90,7 @@ export default function AsistentePanel({ token }: { token: string }) {
               <div
                 className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   mensaje.role === 'user'
-                    ? 'rounded-br-md bg-[#14213D] text-white'
+                    ? 'rounded-br-md bg-[var(--brand-navy)] text-white'
                     : 'rounded-bl-md bg-slate-100 text-slate-800'
                 }`}
               >
@@ -110,7 +115,7 @@ export default function AsistentePanel({ token }: { token: string }) {
             <label className="sr-only" htmlFor="mensaje-asistente">Escribí tu consulta</label>
             <textarea
               id="mensaje-asistente"
-              className="max-h-36 min-h-12 flex-1 resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
+              className="max-h-36 min-h-12 flex-1 resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
               placeholder="Escribí tu consulta…"
               value={texto}
               maxLength={4000}
@@ -121,7 +126,7 @@ export default function AsistentePanel({ token }: { token: string }) {
             />
             <button
               type="submit"
-              className="flex h-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-12 shrink-0 items-center justify-center rounded-xl bg-teal-600 px-5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={cargando || !texto.trim()}
             >
               {cargando ? 'Enviando…' : 'Enviar'}

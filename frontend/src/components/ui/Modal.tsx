@@ -23,7 +23,7 @@ export default function Modal({ open, title, onClose, children, wide = false }: 
         className={`relative bg-white border border-slate-200 rounded-xl shadow-xl w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto`}
       >
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-[#14213D]">{title}</h2>
+          <h2 className="text-lg font-bold text-[var(--brand-navy)]">{title}</h2>
           <button
             type="button"
             onClick={onClose}

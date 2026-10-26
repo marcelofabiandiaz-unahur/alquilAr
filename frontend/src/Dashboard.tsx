@@ -13,6 +13,7 @@ import UsuariosPanel from './components/admin/UsuariosPanel';
 import PropietariosPanel from './components/admin/PropietariosPanel';
 import ReportesPanel from './components/reportes/ReportesPanel';
 import AsistentePanel from './components/asistente/AsistentePanel';
+import PerfilPanel from './components/profile/PerfilPanel';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -108,12 +109,14 @@ export default function Dashboard() {
       case 'configuracion':
         return (
           <PlaceholderSection
-            title="⚙️ Configuración"
+            title="Configuración"
             description="Parámetros globales del sistema."
           />
         );
       case 'asistente':
         return <AsistentePanel token={token} />;
+      case 'perfil':
+        return <PerfilPanel token={token} />;
       case 'cobros':
       case 'gastos':
         return (

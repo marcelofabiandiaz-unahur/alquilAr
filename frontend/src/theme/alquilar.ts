@@ -1,9 +1,11 @@
-/** Tokens de marca AlquilAR — violeta primario, navy para títulos */
-export const BRAND_NAVY = '#14213D';
+/** Tokens de marca AlquilAR: violeta para acciones principales y verde agua para acciones secundarias. */
+export const BRAND_NAVY = 'var(--brand-navy)';
 
 export const brandClasses = {
   primaryBtn:
     'bg-violet-600 hover:bg-violet-700 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40',
+  secondaryBtn:
+    'bg-teal-600 hover:bg-teal-700 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40',
   primaryRing: 'focus:ring-violet-500/30 focus:border-violet-500',
   link: 'text-violet-600 hover:text-violet-700',
   navActive: 'bg-violet-700 text-white font-semibold shadow-md shadow-violet-200/60',

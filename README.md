@@ -78,7 +78,9 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
   - `PATCH /:id/solicitud-propietario/aprobar` — aprobación administrativa (asigna `PROPIETARIO`)
   - `PATCH /:id/roles` — agregar roles (admin)
 - Middleware: `verificarToken`, `verificarRol`.
-- Frontend: al recargar la app, si hay token en `localStorage` se valida con `GET /me`; si falla, se limpia la sesión.
+- Frontend: al recargar la app, si hay token en `localStorage` se valida con `GET /me`; un `401`/`403` limpia la sesión y un error transitorio conserva el token y muestra un aviso.
+- Perfil: vista dedicada dentro del panel; permite editar teléfono, alias/CBU y CUIT/CUIL mediante `PATCH /api/usuarios/me`.
+- Los errores autenticados HTTP 401/403 cierran la sesión y eliminan el token local; los errores de conexión no eliminan credenciales.
 
 ### Propiedades y contratos
 
@@ -99,8 +101,8 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
 - `POST /api/ai/chat` — requiere JWT; body `{ mensajes }` con roles `user` y `assistant`.
 - Modelo: `gemini-3.8-flash` (`GEMINI_API_KEY` solo en backend).
 - Límites: hasta **20** mensajes por request y **4000** caracteres por mensaje; el último mensaje debe ser del usuario.
-- Herramientas (`aiToolsRegistry.js`): listar contratos vigentes del inquilino, listar reclamos visibles, crear reclamo (validación en controladores existentes; identidad solo desde JWT).
-- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. El historial **no** se persiste en MongoDB.
+- Herramientas (`aiToolsRegistry.js`): exactamente dos herramientas, `consultarDatosAlquiler` (contratos/pagos propios) y `gestionarReclamos` (consultar contratos vigentes, listar reclamos y crear reclamos con categoría/prioridad). La identidad y los permisos se obtienen del JWT, no de los argumentos del modelo.
+- UI: chat flotante verde agua para inquilinos, propietarios y administradores. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 
@@ -154,6 +156,8 @@ npm run dev
 ```
 
 En desarrollo el front usa `http://localhost:3000` como API (`frontend/src/config/api.ts`).
+
+El tema claro/oscuro puede cambiarse desde el botón del encabezado; la selección se conserva en `localStorage` (`alquilar_theme`) y, si todavía no existe, se toma de la preferencia del sistema. La paleta del tema usa violeta para acciones principales y verde agua para acciones secundarias y el chat.
 
 ### Variables (`frontend/.env`)
 

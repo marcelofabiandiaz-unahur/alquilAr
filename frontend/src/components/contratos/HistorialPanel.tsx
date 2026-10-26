@@ -211,7 +211,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
             <Card className="h-full p-5 transition hover:border-emerald-300 hover:shadow-md">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-[#14213D]">{obtenerDireccion(contrato)}</h3>
+                  <h3 className="font-bold text-[var(--brand-navy)]">{obtenerDireccion(contrato)}</h3>
                   {obtenerDetallePropiedad(contrato) && (
                     <p className="mt-1 text-sm text-slate-500">{obtenerDetallePropiedad(contrato)}</p>
                   )}
@@ -255,14 +255,14 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
         <>
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#14213D]">Alquileres vigentes</h2>
+              <h2 className="text-lg font-bold text-[var(--brand-navy)]">Alquileres vigentes</h2>
               <span className="text-sm text-slate-500">{vigentes.length}</span>
             </div>
             {renderListaContratos(vigentes, 'No hay alquileres vigentes.')}
           </section>
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#14213D]">Alquileres finalizados</h2>
+              <h2 className="text-lg font-bold text-[var(--brand-navy)]">Alquileres finalizados</h2>
               <span className="text-sm text-slate-500">{finalizados.length}</span>
             </div>
             {renderListaContratos(finalizados, 'No hay alquileres finalizados.')}
@@ -287,7 +287,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
             <header className="flex items-start justify-between border-b border-slate-200 px-5 py-4 sm:px-7">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Detalle del alquiler</p>
-                <h2 id="detalle-alquiler-titulo" className="mt-1 text-xl font-bold text-[#14213D]">
+                <h2 id="detalle-alquiler-titulo" className="mt-1 text-xl font-bold text-[var(--brand-navy)]">
                   {obtenerDireccion(contratoSeleccionado)}
                 </h2>
                 {roles.esPropietario && inquilinoLabel(contratoSeleccionado) && (
@@ -307,7 +307,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
             <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-7">
               <section className="space-y-4 rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-semibold text-[#14213D]">Duración del contrato</h3>
+                  <h3 className="font-semibold text-[var(--brand-navy)]">Duración del contrato</h3>
                   <StatBadge estado={contratoSeleccionado.estado} />
                 </div>
                 <dl className="grid grid-cols-2 gap-4 text-sm">
@@ -392,7 +392,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
                           <li key={reclamo._id} className="rounded-xl border border-slate-200 p-4">
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div>
-                                <h3 className="font-semibold text-[#14213D]">{reclamo.asunto}</h3>
+                                <h3 className="font-semibold text-[var(--brand-navy)]">{reclamo.asunto}</h3>
                                 <p className="mt-1 text-sm text-slate-600">{reclamo.descripcion}</p>
                               </div>
                               <StatBadge estado={reclamo.estado} />

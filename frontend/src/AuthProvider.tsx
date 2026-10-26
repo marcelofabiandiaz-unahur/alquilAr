@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { AuthUsuario } from './types';
 import { API_URL } from './config/api';
 import { mapearPerfilAAuthUsuario } from './lib/authSession';
+import { SESION_NO_AUTORIZADA_EVENTO } from './lib/apiClient';
 
 function leerTokenGuardado(): string | null {
   return localStorage.getItem('token_arquilar');
@@ -24,23 +25,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<AuthUsuario | null>(null);
   const [token, setToken] = useState<string | null>(tokenInicial);
   const [cargando, setCargando] = useState(Boolean(tokenInicial));
+  const [errorSesion, setErrorSesion] = useState('');
 
   const logoutGlobal = useCallback(() => {
     setToken(null);
     setUsuario(null);
+    setErrorSesion('');
     limpiarSesionStorage();
   }, []);
 
   const loginGlobal = useCallback((datosUsuario: AuthUsuario, tokenUsuario: string) => {
     setToken(tokenUsuario);
     setUsuario(datosUsuario);
+    setErrorSesion('');
     persistirSesion(datosUsuario, tokenUsuario);
   }, []);
+
+  const limpiarErrorSesion = useCallback(() => setErrorSesion(''), []);
+
+  useEffect(() => {
+    const manejarSesionNoAutorizada = () => {
+      logoutGlobal();
+      setErrorSesion('Tu sesión venció o ya no tenés permisos. Iniciá sesión nuevamente.');
+    };
+
+    window.addEventListener(SESION_NO_AUTORIZADA_EVENTO, manejarSesionNoAutorizada);
+    return () => window.removeEventListener(SESION_NO_AUTORIZADA_EVENTO, manejarSesionNoAutorizada);
+  }, [logoutGlobal]);
 
   useEffect(() => {
     const tokenGuardado = leerTokenGuardado();
     if (!tokenGuardado) {
-      setCargando(false);
       return;
     }
 
@@ -54,10 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (cancelled) return;
 
-        if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
           logoutGlobal();
-          setCargando(false);
+          setErrorSesion('Tu sesión venció o ya no tenés permisos. Iniciá sesión nuevamente.');
           return;
+        }
+        if (!res.ok) {
+          throw new Error(`No se pudo validar la sesión (error ${res.status}).`);
         }
 
         const perfil: unknown = await res.json();
@@ -65,16 +83,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!authUsuario) {
           logoutGlobal();
-          setCargando(false);
+          setErrorSesion('No se pudo validar tu perfil. Iniciá sesión nuevamente.');
           return;
         }
 
         setToken(tokenGuardado);
         setUsuario(authUsuario);
         persistirSesion(authUsuario, tokenGuardado);
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          logoutGlobal();
+          setErrorSesion(
+            error instanceof Error
+              ? error.message
+              : 'No se pudo validar la sesión. Verificá la conexión con el servidor.',
+          );
         }
       } finally {
         if (!cancelled) {
@@ -91,7 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logoutGlobal]);
 
   return (
-    <AuthContext.Provider value={{ usuario, token, cargando, loginGlobal, logoutGlobal }}>
+    <AuthContext.Provider
+      value={{ usuario, token, cargando, errorSesion, loginGlobal, logoutGlobal, limpiarErrorSesion }}
+    >
       {children}
     </AuthContext.Provider>
   );

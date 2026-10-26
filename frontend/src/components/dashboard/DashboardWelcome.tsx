@@ -14,14 +14,6 @@ export default function DashboardWelcome({
   onVerPropiedades,
   mostrarAcciones = true,
 }: DashboardWelcomeProps) {
-  const rolPrincipal = usuario.roles.includes('ADMINISTRADOR')
-    ? 'Administrador'
-    : usuario.roles.includes('PROPIETARIO')
-      ? 'Propietario'
-      : usuario.roles.includes('INQUILINO')
-        ? 'Inquilino'
-        : 'Usuario';
-
   return (
     <section className="mb-8">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
@@ -32,17 +24,6 @@ export default function DashboardWelcome({
           <p className="text-slate-600 text-base max-w-xl">
             Esto es lo que está pasando con tus alquileres y contratos hoy.
           </p>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2 text-sm text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="text-base" aria-hidden>🕐</span>
-              Datos al cargar el panel
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-              Sistema operativo
-            </span>
-            <span className="text-violet-600 font-medium">{rolPrincipal}</span>
-          </div>
         </div>
 
         {mostrarAcciones && (onVerFinanzas || onVerPropiedades) && (

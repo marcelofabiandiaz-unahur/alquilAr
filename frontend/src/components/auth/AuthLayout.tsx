@@ -9,25 +9,25 @@ interface AuthLayoutProps {
 
 export default function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen grid md:grid-cols-2 font-sans">
-      <div className="hidden md:flex w-full">
+    <div className="grid min-h-screen min-w-0 font-sans md:grid-cols-2">
+      <div className="hidden min-w-0 w-full md:flex">
         <AuthBrandPanel />
       </div>
 
-      <div className="flex flex-col min-h-screen bg-slate-50">
-        <div className="md:hidden">
+      <div className="flex min-w-0 flex-col bg-[#1b1345] text-white">
+        <div className="min-w-0 md:hidden">
           <AuthBrandPanel compact />
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-6 py-10 lg:px-16">
+        <div className="flex flex-1 items-center justify-center px-6 py-8 sm:px-10 lg:px-16">
           <div className="w-full max-w-md">
             {(title || subtitle) && (
               <div className="mb-8">
                 {title && (
-                  <h2 className="text-2xl font-bold text-[#14213D] tracking-tight">{title}</h2>
+                  <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
                 )}
                 {subtitle && (
-                  <p className="text-slate-500 text-sm mt-2 leading-relaxed">{subtitle}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-300">{subtitle}</p>
                 )}
               </div>
             )}

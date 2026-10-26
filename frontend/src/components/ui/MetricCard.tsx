@@ -1,4 +1,5 @@
 import { brandClasses } from '../../theme/alquilar';
+import { NavIcon } from '../layout/dashboardNavIcons';
 
 export type MetricVariant = 'violet' | 'blue' | 'emerald' | 'amber' | 'rose' | 'sky';
 
@@ -56,17 +57,17 @@ export default function MetricCard({
 
   const inner = (
     <div
-      className={`rounded-2xl border p-5 h-full shadow-sm shadow-slate-200/50 transition-all ${styles.shell} ${
+      className={`metric-card rounded-2xl border p-5 h-full shadow-sm shadow-slate-200/50 transition-all ${styles.shell} ${
         interactive ? `${brandClasses.cardHover} hover:shadow-md cursor-pointer` : ''
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-4">
         {icon && (
           <span
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ${styles.iconBox}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm ${styles.iconBox}`}
             aria-hidden
           >
-            {icon}
+            <NavIcon id={icon} />
           </span>
         )}
         {trend ? (
@@ -83,7 +84,7 @@ export default function MetricCard({
         ) : null}
       </div>
       <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="text-2xl lg:text-3xl font-bold text-[#14213D] mt-1 tracking-tight">{value}</p>
+      <p className="text-2xl lg:text-3xl font-bold text-[var(--brand-navy)] mt-1 tracking-tight">{value}</p>
     </div>
   );
 

@@ -6,11 +6,22 @@ import type { AuthUsuario } from './types';
 import { API_URL } from './config/api';
 import AuthLayout from './components/auth/AuthLayout';
 import Alert from './components/ui/Alert';
-import { labelClass, inputClass, btnPrimaryClass, linkClass } from './components/auth/authStyles';
+import { btnPrimaryClass, linkClass } from './components/auth/authStyles';
+import AuthField from './components/auth/AuthField';
+import PasswordField from './components/auth/PasswordField';
+
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Login() {
   const navigate = useNavigate();
-  const { loginGlobal, token, usuario, cargando: cargandoSesion } = useAuthContext();
+  const {
+    loginGlobal,
+    token,
+    usuario,
+    cargando: cargandoSesion,
+    errorSesion,
+    limpiarErrorSesion,
+  } = useAuthContext();
 
   useEffect(() => {
     if (!cargandoSesion && token && usuario) {
@@ -21,12 +32,26 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
+  const [erroresCampos, setErroresCampos] = useState({ email: '', password: '' });
   const [cargando, setCargando] = useState(false);
 
   const manejarLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setMensaje('');
+    limpiarErrorSesion();
+
+    const errores = {
+      email: !email.trim()
+        ? 'Ingresá tu correo electrónico.'
+        : !EMAIL_VALIDO.test(email.trim())
+          ? 'Ingresá un correo electrónico válido.'
+          : '',
+      password: !password ? 'Ingresá tu contraseña.' : '',
+    };
+    setErroresCampos(errores);
+    if (errores.email || errores.password) return;
+
     setCargando(true);
 
     try {
@@ -43,12 +68,19 @@ export default function Login() {
       };
 
       if (!respuesta.ok) {
-        throw new Error(datos.mensaje || 'Error al iniciar sesión');
+        if (respuesta.status === 401) {
+          setErroresCampos((actuales) => ({
+            ...actuales,
+            password: 'El correo o la contraseña no son correctos.',
+          }));
+        } else {
+          throw new Error(datos.mensaje || 'No se pudo iniciar sesión.');
+        }
+        return;
       }
 
       loginGlobal(datos.usuario, datos.token);
-      setMensaje(`¡Bienvenido/a, ${datos.usuario.nombre}! Inicio de sesión correcto.`);
-
+    
       setTimeout(() => {
         navigate('/dashboard');
       }, 1000);
@@ -65,6 +97,11 @@ export default function Login() {
       subtitle="Ingresá con tu email y contraseña"
     >
       <div className="space-y-4">
+        {errorSesion && (
+          <Alert type="error" theme="light">
+            {errorSesion}
+          </Alert>
+        )}
         {error && (
           <Alert type="error" theme="light" onClose={() => setError('')}>
             {error}
@@ -76,38 +113,58 @@ export default function Login() {
           </Alert>
         )}
 
-        <form onSubmit={manejarLogin} className="space-y-5">
-          <div>
-            <label htmlFor="email" className={labelClass}>
-              Correo electrónico
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ejemplo@alquilar.com"
-              className={inputClass}
-              autoComplete="email"
-            />
-          </div>
+        <form onSubmit={manejarLogin} noValidate className="space-y-5">
+          <AuthField
+            id="email"
+            label="Correo electrónico"
+            type="email"
+            value={email}
+            onChange={(e) => {
+              const nuevoEmail = e.target.value;
+              setEmail(nuevoEmail);
+              setErroresCampos((actuales) => ({
+                ...actuales,
+                email: actuales.email
+                  ? !nuevoEmail.trim()
+                    ? 'Ingresá tu correo electrónico.'
+                    : !EMAIL_VALIDO.test(nuevoEmail.trim())
+                      ? 'Ingresá un correo electrónico válido.'
+                      : ''
+                  : '',
+              }));
+            }}
+            onBlur={() => setErroresCampos((actuales) => ({
+              ...actuales,
+              email: !email.trim()
+                ? 'Ingresá tu correo electrónico.'
+                : !EMAIL_VALIDO.test(email.trim())
+                  ? 'Ingresá un correo electrónico válido.'
+                  : '',
+            }))}
+            placeholder="Ingrese su correo electrónico"
+            autoComplete="email"
+            error={erroresCampos.email}
+          />
 
-          <div>
-            <label htmlFor="password" className={labelClass}>
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className={inputClass}
-              autoComplete="current-password"
-            />
-          </div>
+          <PasswordField
+            id="password"
+            label="Contraseña"
+            value={password}
+            onChange={(e) => {
+              const nuevaPassword = e.target.value;
+              setPassword(nuevaPassword);
+              setErroresCampos((actuales) => ({
+                ...actuales,
+                password: actuales.password && !nuevaPassword ? 'Ingresá tu contraseña.' : '',
+              }));
+            }}
+            onBlur={() => setErroresCampos((actuales) => ({
+              ...actuales,
+              password: password ? '' : 'Ingresá tu contraseña.',
+            }))}
+            error={erroresCampos.password}
+            autoComplete="current-password"
+          />
 
           <button type="submit" disabled={cargando} className={btnPrimaryClass}>
             {cargando ? 'Ingresando...' : 'Ingresar'}

@@ -149,7 +149,7 @@ export default function DisponibilidadPanel({ token }: { token: string }) {
                   <PropertyPhotoCarousel fotos={propiedad.fotos} alt={propiedad.direccion} />
                   <div className="p-5 space-y-3">
                     <div>
-                      <h2 className="font-bold text-[#14213D]">{propiedad.direccion}</h2>
+                      <h2 className="font-bold text-[var(--brand-navy)]">{propiedad.direccion}</h2>
                       <p className="text-sm text-slate-500 mt-1">{propiedad.tipo} · {propiedad.ambientes} ambientes</p>
                     </div>
                     <p className="text-emerald-600 font-semibold">{formatMoneda(propiedad.valor_base)} por mes</p>
