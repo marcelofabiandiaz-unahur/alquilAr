@@ -206,7 +206,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
               <div className="p-5 flex flex-col gap-3 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-base leading-tight text-[#14213D]">{prop.direccion}</h3>
+                  <h3 className="font-bold text-base leading-tight text-[var(--brand-navy)]">{prop.direccion}</h3>
                   <p className="text-slate-500 text-xs mt-1">
                     {prop.tipo} · {prop.ambientes} amb.
                   </p>

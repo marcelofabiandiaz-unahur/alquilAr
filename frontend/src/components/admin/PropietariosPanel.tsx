@@ -101,7 +101,7 @@ export default function PropietariosPanel({ token, onIrAUsuarios }: Propietarios
                     {usr.nombre[0]}{usr.apellido[0]}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-[#14213D] truncate">
+                    <h3 className="font-semibold text-[var(--brand-navy)] truncate">
                       {usr.nombre} {usr.apellido}
                     </h3>
                     <p className="text-xs text-slate-500 truncate mt-0.5">{usr.email}</p>

@@ -82,10 +82,10 @@ export default function FinanzasPanel({
         <LoadingRow label="Cargando resumen financiero..." />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-          <MetricCard label="A cobrar" value={formatMoneda(kpis.aCobrar)} icon="💵" variant="violet" />
-          <MetricCard label="Cobrado" value={formatMoneda(kpis.cobrado)} icon="✓" variant="emerald" />
-          <MetricCard label="Por validar" value={kpis.porValidar} icon="📋" variant="blue" />
-          <MetricCard label="Gastos registrados" value={formatMoneda(kpis.totalGastos)} icon="🧾" variant="amber" />
+          <MetricCard label="A cobrar" value={formatMoneda(kpis.aCobrar)} icon="efectivo" variant="violet" />
+          <MetricCard label="Cobrado" value={formatMoneda(kpis.cobrado)} icon="check" variant="emerald" />
+          <MetricCard label="Por validar" value={kpis.porValidar} icon="comprobante" variant="blue" />
+          <MetricCard label="Gastos registrados" value={formatMoneda(kpis.totalGastos)} icon="comprobante" variant="amber" />
         </div>
       )}
 
