@@ -437,7 +437,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
 
   const renderSeccion = (tituloSeccion: string, filas: Contrato[]) => (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-[#14213D]">
+      <h2 className="text-lg font-semibold text-[var(--brand-navy)]">
         {tituloSeccion} <span className="text-sm font-normal text-slate-400">({filas.length})</span>
       </h2>
       {filas.length > 0
@@ -515,7 +515,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
             <div className="flex items-start justify-between border-b border-slate-100 p-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">Detalle del contrato</p>
-                <h2 id="contrato-detalle-titulo" className="mt-2 text-xl font-bold text-[#14213D]">
+                <h2 id="contrato-detalle-titulo" className="mt-2 text-xl font-bold text-[var(--brand-navy)]">
                   {direccionPropiedad(contratoSeleccionado)}
                 </h2>
               </div>

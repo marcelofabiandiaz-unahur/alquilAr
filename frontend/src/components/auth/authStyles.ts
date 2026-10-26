@@ -13,9 +13,9 @@ export const inputClassSm =
   `w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-sm placeholder-slate-400 ${inputFocus}`;
 
 export const btnPrimaryClass =
-  `w-full py-3 ${brandClasses.primaryBtn} font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed`;
+  `w-full py-3 bg-violet-600 hover:bg-violet-500 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200/80 font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed`;
 
 export const btnPrimaryClassSm =
   `w-full py-2.5 ${brandClasses.primaryBtn} font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 text-sm`;
 
-export const linkClass = `text-sm ${brandClasses.link} hover:underline font-medium`;
+export const linkClass = `text-sm font-medium text-violet-300 hover:text-violet-200 hover:underline`;

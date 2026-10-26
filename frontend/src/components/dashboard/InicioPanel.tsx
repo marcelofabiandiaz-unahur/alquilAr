@@ -8,6 +8,7 @@ import { apiGet } from '../../lib/apiClient';
 import Alert from '../ui/Alert';
 import { btnSecondaryClass } from '../layout/dashboardStyles';
 import { brandClasses } from '../../theme/alquilar';
+import { NavIcon } from '../layout/dashboardNavIcons';
 import {
   claveMesActual,
   claveMesAnterior,
@@ -128,23 +129,23 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
       id: 'propiedades',
       label: roles.esAdministrador && !roles.esPropietario ? 'Propiedades' : 'Mis propiedades',
       desc: 'Inmuebles y estado operativo',
-      icon: '🏢',
+      icon: 'propiedades',
     });
   }
   if (roles.esPropietario) {
-    accesos.push({ id: 'contratos', label: 'Contratos', desc: 'Borradores y vigentes', icon: '📜' });
+    accesos.push({ id: 'contratos', label: 'Contratos', desc: 'Borradores y vigentes', icon: 'contratos' });
   }
   if (roles.esInquilino && !roles.esPropietario) {
-    accesos.push({ id: 'contratos', label: 'Mis Contratos', desc: 'Contratos activos', icon: '📜' });
-    accesos.push({ id: 'historial', label: 'Historial', desc: 'Alquileres anteriores', icon: '🗂️' });
+    accesos.push({ id: 'contratos', label: 'Mis Contratos', desc: 'Contratos activos', icon: 'contratos' });
+    accesos.push({ id: 'historial', label: 'Historial', desc: 'Alquileres anteriores', icon: 'historial' });
   }
   if (tieneAccesoFinanzas) {
-    accesos.push({ id: 'finanzas', label: 'Finanzas', desc: 'Cobros y gastos', icon: '💰' });
-    accesos.push({ id: 'reportes', label: 'Reportes', desc: 'Resumen del período', icon: '📊' });
+    accesos.push({ id: 'finanzas', label: 'Finanzas', desc: 'Cobros y gastos', icon: 'finanzas' });
+    accesos.push({ id: 'reportes', label: 'Reportes', desc: 'Resumen del período', icon: 'reportes' });
   }
   if (roles.esAdministrador) {
-    accesos.push({ id: 'propietarios', label: 'Propietarios', desc: 'Cartera de propietarios', icon: '👤' });
-    accesos.push({ id: 'usuarios', label: 'Usuarios', desc: 'Roles y permisos', icon: '👥' });
+    accesos.push({ id: 'propietarios', label: 'Propietarios', desc: 'Cartera de propietarios', icon: 'propietarios' });
+    accesos.push({ id: 'usuarios', label: 'Usuarios', desc: 'Roles y permisos', icon: 'usuarios' });
   }
 
   const puedeVerPropiedades = roles.esPropietario || roles.esAdministrador;
@@ -189,7 +190,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                 <MetricCard
                   label="Total propiedades"
                   value={resumen.totalPropiedades ?? 0}
-                  icon="🏢"
+                  icon="propiedades"
                   variant="blue"
                   trend={{ value: `${resumen.propiedadesDisponibles} disponibles`, caption: 'En el sistema' }}
                   onClick={() => setSeccionActiva('propiedades')}
@@ -197,7 +198,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                 <MetricCard
                   label="Propietarios activos"
                   value={resumen.propietariosActivos ?? 0}
-                  icon="👥"
+                  icon="propietarios"
                   variant="emerald"
                   trend={{ value: 'Cartera', caption: 'Con rol propietario' }}
                   onClick={() => setSeccionActiva('propietarios')}
@@ -205,7 +206,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                 <MetricCard
                   label="Ingresos del mes"
                   value={formatMoneda(resumen.ingresoMesActual ?? 0)}
-                  icon="💵"
+                  icon="efectivo"
                   variant="violet"
                   trend={{
                     value:
@@ -220,7 +221,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                 <MetricCard
                   label="Tasa de ocupación"
                   value={`${(resumen.tasaOcupacion ?? 0).toFixed(1)}%`}
-                  icon="📈"
+                  icon="tendencia"
                   variant="sky"
                   trend={{
                     value: `${resumen.propiedadesAlquiladas} alquiladas`,
@@ -239,7 +240,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                       <MetricCard
                         label="A cobrar"
                         value={formatMoneda(resumen.aCobrar)}
-                        icon="💵"
+                        icon="efectivo"
                         variant="violet"
                         hint="Pendiente"
                         onClick={() => setSeccionActiva(seccionPagos)}
@@ -247,7 +248,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                       <MetricCard
                         label="Cobrado"
                         value={formatMoneda(resumen.cobrado)}
-                        icon="✓"
+                        icon="check"
                         variant="emerald"
                         onClick={() => setSeccionActiva(seccionPagos)}
                       />
@@ -256,7 +257,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   <MetricCard
                     label="Pagos atrasados"
                     value={resumen.atrasados}
-                    icon="!"
+                    icon="alerta"
                     variant="rose"
                     onClick={() => setSeccionActiva(seccionPagos)}
                   />
@@ -264,7 +265,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     <MetricCard
                       label="Cobros para validar"
                       value={resumen.cobrosParaValidar}
-                      icon="📋"
+                      icon="comprobante"
                       variant="blue"
                       onClick={() => setSeccionActiva('finanzas')}
                     />
@@ -272,14 +273,14 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   <MetricCard
                     label="Reclamos abiertos"
                     value={resumen.reclamosAbiertos}
-                    icon="📣"
+                    icon="megafono"
                     variant="amber"
                     onClick={() => setSeccionActiva('reclamos')}
                   />
                   <MetricCard
                     label="Contratos por vencer"
                     value={resumen.contratosPorVencer}
-                    icon="📅"
+                    icon="calendario"
                     variant="sky"
                     hint="30 días"
                     onClick={() => setSeccionActiva('historial')}
@@ -291,14 +292,14 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   <MetricCard
                     label="Unidades disponibles"
                     value={resumen.propiedadesDisponibles}
-                    icon="🏠"
+                    icon="propiedades"
                     variant="emerald"
                     onClick={() => setSeccionActiva('propiedades')}
                   />
                   <MetricCard
                     label="Unidades alquiladas"
                     value={resumen.propiedadesAlquiladas}
-                    icon="🔑"
+                    icon="llave"
                     variant="blue"
                     onClick={() => setSeccionActiva('propiedades')}
                   />
@@ -309,28 +310,28 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   <MetricCard
                     label="Pagos atrasados"
                     value={resumen.atrasados}
-                    icon="!"
+                    icon="alerta"
                     variant="rose"
                     onClick={() => setSeccionActiva('finanzas')}
                   />
                   <MetricCard
                     label="Cobros para validar"
                     value={resumen.cobrosParaValidar}
-                    icon="📋"
+                    icon="comprobante"
                     variant="amber"
                     onClick={() => setSeccionActiva('finanzas')}
                   />
                   <MetricCard
                     label="Reclamos abiertos"
                     value={resumen.reclamosAbiertos}
-                    icon="📣"
+                    icon="megafono"
                     variant="amber"
                     onClick={() => setSeccionActiva('reclamos')}
                   />
                   <MetricCard
                     label="Contratos por vencer"
                     value={resumen.contratosPorVencer}
-                    icon="📅"
+                    icon="calendario"
                     variant="sky"
                     trend={{ value: '30 días', caption: 'Ventana de aviso' }}
                     onClick={() => setSeccionActiva('historial')}
@@ -358,11 +359,11 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
               >
                 <Card className={`p-5 h-full ${brandClasses.cardHover} hover:shadow-md transition-all`}>
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${ACCESO_STYLES[item.id] || 'bg-slate-100 text-slate-600'}`}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${ACCESO_STYLES[item.id] || 'bg-slate-100 text-slate-600'}`}
                   >
-                    {item.icon}
+                    <NavIcon id={item.icon} />
                   </div>
-                  <h3 className="font-semibold text-[#14213D] mt-4 group-hover:text-violet-600 transition-colors">
+                  <h3 className="font-semibold text-[var(--brand-navy)] mt-4 group-hover:text-violet-600 transition-colors">
                     {item.label}
                   </h3>
                   <p className="text-slate-500 text-sm mt-1">{item.desc}</p>
@@ -379,7 +380,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
 export function PlaceholderSection({ title, description }: { title: string; description: string }) {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl lg:text-3xl font-bold text-[#14213D]">{title}</h1>
+      <h1 className="text-2xl lg:text-3xl font-bold text-[var(--brand-navy)]">{title}</h1>
       <Card className="p-8 text-center">
         <p className="text-slate-600">{description}</p>
         <p className="text-slate-400 text-sm mt-2">Disponible en una próxima iteración (S5+)</p>

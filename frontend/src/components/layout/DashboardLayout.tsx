@@ -5,7 +5,9 @@ import { apiGet } from '../../lib/apiClient';
 import type { AuthUsuario, Pago, RolesDashboard, Usuario } from '../../types';
 import SolicitudPropietario from './SolicitudPropietario';
 import { brandClasses } from '../../theme/alquilar';
-import { navIconFor } from './dashboardNavIcons';
+import { useTheme } from '../../theme/themeContext';
+import { NavIcon } from './dashboardNavIcons';
+import AsistenteFlotante from '../asistente/AsistenteFlotante';
 
 interface Notificacion {
   id: string;
@@ -24,7 +26,9 @@ interface NavItem {
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'General',
-    items: [{ id: 'inicio', label: 'Inicio' }],
+    items: [
+      { id: 'inicio', label: 'Inicio' },
+    ],
   },
   {
     label: 'Operación',
@@ -44,16 +48,6 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { id: 'propietarios', label: 'Propietarios', show: (r) => r.esAdministrador },
       { id: 'usuarios', label: 'Usuarios', show: (r) => r.esAdministrador },
       { id: 'configuracion', label: 'Configuración', show: (r) => r.esAdministrador },
-    ],
-  },
-  {
-    label: 'Herramientas',
-    items: [
-      {
-        id: 'asistente',
-        label: 'Asistente IA',
-        show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador,
-      },
     ],
   },
 ];
@@ -133,6 +127,28 @@ function LogoutIcon({ className = '' }: { className?: string }) {
   );
 }
 
+function ProfileIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="8" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M3 14c0-2.5 2-4 5-4s5 1.5 5 4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ThemeIcon({ oscuro }: { oscuro: boolean }) {
+  return oscuro ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function NavButton({
   id,
   label,
@@ -152,7 +168,7 @@ function NavButton({
         active ? brandClasses.navActive : brandClasses.navInactive
       }`}
     >
-      <span className={active ? 'text-white' : 'text-violet-600'}>{navIconFor(id)}</span>
+      <span className={active ? 'text-white' : 'text-violet-600'}><NavIcon id={id} /></span>
       <span>{label}</span>
     </button>
   );
@@ -181,6 +197,7 @@ export default function DashboardLayout({
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [notificacionesAbiertas, setNotificacionesAbiertas] = useState(false);
   const [errorNotificaciones, setErrorNotificaciones] = useState('');
+  const { theme, toggleTheme } = useTheme();
   const panelRef = useRef<HTMLDivElement>(null);
   const notificacionesRef = useRef<HTMLDivElement>(null);
   const iniciales = `${usuario.nombre[0]}${usuario.apellido[0]}`.toUpperCase();
@@ -334,21 +351,11 @@ export default function DashboardLayout({
   };
 
   return (
+    <>
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <aside className="w-[17.5rem] bg-gradient-to-b from-violet-50 via-fuchsia-50/30 to-violet-50/80 border-r border-violet-100 flex flex-col shrink-0">
-        <div className="px-4 py-5 border-b border-violet-100/80">
-          <div className="flex items-center gap-3">
-            <img
-              src={logoAlquilar}
-              alt=""
-              className="h-11 w-11 object-contain shrink-0"
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <p className="font-bold text-violet-950 text-base leading-tight">AlquilAR</p>
-              <p className="text-[11px] text-slate-500 leading-snug">Gestión de alquileres</p>
-            </div>
-          </div>
+        <div className="px-4 py-4">
+          <img src={logoAlquilar} alt="AlquilAR" className="h-20 w-24 object-contain object-left" />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
@@ -414,8 +421,20 @@ export default function DashboardLayout({
                 <button
                   type="button"
                   role="menuitem"
+                  onClick={() => {
+                    setUsuarioExpandido(false);
+                    setSeccionActiva('perfil');
+                  }}
+                  className="w-full flex items-center gap-2.5 px-1 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                >
+                  <ProfileIcon className="shrink-0" />
+                  Mi perfil
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={manejarLogout}
-                  className="w-full flex items-center gap-2.5 px-1 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-2.5 px-1 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <LogoutIcon className="shrink-0" />
                   Cerrar sesión
@@ -444,7 +463,7 @@ export default function DashboardLayout({
               {iniciales}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold truncate text-[#14213D]">
+              <p className="text-sm font-semibold truncate text-[var(--brand-navy)]">
                 {usuario.nombre} {usuario.apellido}
               </p>
               <p className="text-[10px] text-slate-500 uppercase tracking-wide truncate">
@@ -461,13 +480,7 @@ export default function DashboardLayout({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 bg-white border-b border-slate-200/80 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" aria-hidden />
-            <span className="text-sm font-medium text-slate-600 truncate">Sistema operativo</span>
-            <span className="hidden md:inline text-slate-300">|</span>
-            <span className="hidden md:inline text-xs text-slate-400 truncate">Panel de gestión</span>
-          </div>
+        <header className="flex h-14 shrink-0 items-center justify-end bg-transparent px-6">
           <div className="flex items-center gap-3">
             {(roles.esAdministrador || roles.esInquilino || roles.esUsuarioBase) && (
               <div ref={notificacionesRef} className="relative">
@@ -497,7 +510,7 @@ export default function DashboardLayout({
                     className="absolute right-0 top-full z-30 mt-3 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-xl"
                   >
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                      <h2 className="text-sm font-semibold text-[#14213D]">Notificaciones</h2>
+                      <h2 className="text-sm font-semibold text-[var(--brand-navy)]">Notificaciones</h2>
                       <span className="text-xs text-slate-500">{notificaciones.length} avisos</span>
                     </div>
                     {errorNotificaciones && (
@@ -536,11 +549,49 @@ export default function DashboardLayout({
                 )}
               </div>
             )}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={`Cambiar a modo ${theme === 'dark' ? 'claro' : 'oscuro'}`}
+              title={`Modo ${theme === 'dark' ? 'claro' : 'oscuro'}`}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 text-violet-700 transition-colors hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
+            >
+              <ThemeIcon oscuro={theme === 'dark'} />
+            </button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-6 lg:p-10">
+          <div className="flex min-h-full flex-col">
+            <div className="flex-1">{children}</div>
+            <footer className="mt-12 border-t border-slate-200/80 py-5 text-center text-xs text-slate-500 sm:flex sm:items-center sm:justify-between sm:text-left">
+              <p>© {new Date().getFullYear()} AlquilAR. Todos los derechos reservados.</p>
+              <nav aria-label="Enlaces legales" className="mt-3 flex justify-center gap-5 sm:mt-0">
+                <a
+                  href="/documentos/terminos-y-condiciones.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="transition-colors hover:text-violet-700"
+                >
+                  Términos y condiciones
+                </a>
+                <a
+                  href="/documentos/politicas-de-privacidad.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="transition-colors hover:text-violet-700"
+                >
+                  Políticas de privacidad
+                </a>
+              </nav>
+            </footer>
+          </div>
+        </main>
       </div>
     </div>
+      {(roles.esInquilino || roles.esPropietario || roles.esAdministrador) && (
+        <AsistenteFlotante token={token} />
+      )}
+    </>
   );
 }

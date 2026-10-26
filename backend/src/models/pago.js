@@ -20,8 +20,7 @@ const pagoSchema = new mongoose.Schema(
       enum: ['PENDIENTE', 'ATRASADO', 'INGRESADO', 'PAGADO'],
       default: 'PENDIENTE',
     },
-    comprobante_url: { type: String, default: '' },
-    comprobantes: [{ type: String }],
+    comprobantes: { type: [{ type: String }], default: [] },
   },
   { timestamps: true, collection: 'pagos' },
 );

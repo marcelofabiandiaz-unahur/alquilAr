@@ -1,5 +1,7 @@
 import { API_URL } from '../config/api';
 
+export const SESION_NO_AUTORIZADA_EVENTO = 'alquilar:sesion-no-autorizada';
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -31,7 +33,12 @@ export function apiGet<T>(path: string, token: string): Promise<T> {
     .catch(() => {
       throw new Error('No se pudo conectar con el servidor. Verificá que el backend esté corriendo en el puerto 3000.');
     })
-    .then((res) => parseResponse<T>(res));
+    .then((res) => {
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new Event(SESION_NO_AUTORIZADA_EVENTO));
+      }
+      return parseResponse<T>(res);
+    });
 }
 
 export function apiGetBlob(path: string, token: string): Promise<Blob> {
@@ -45,10 +52,22 @@ export function apiGetBlob(path: string, token: string): Promise<Blob> {
   });
 }
 
-const fetchConRed = (url: string, options: RequestInit): Promise<Response> =>
-  fetch(url, options).catch(() => {
+const fetchConRed = async (url: string, options: RequestInit): Promise<Response> => {
+  let response: Response;
+  try {
+    response = await fetch(url, options);
+  } catch {
     throw new Error('No se pudo conectar con el servidor. Verificá que el backend esté corriendo en el puerto 3000.');
-  });
+  }
+
+  if (
+    new Headers(options.headers).has('Authorization')
+    && (response.status === 401 || response.status === 403)
+  ) {
+    window.dispatchEvent(new Event(SESION_NO_AUTORIZADA_EVENTO));
+  }
+  return response;
+};
 
 export function apiPost<T = unknown>(path: string, token: string, body: unknown): Promise<T> {
   return fetchConRed(`${API_URL}${path}`, {
