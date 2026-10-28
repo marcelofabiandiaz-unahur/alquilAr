@@ -25,7 +25,7 @@ function recortarHistorial(mensajes: MensajeChat[]): MensajeChat[] {
   return recortado;
 }
 
-export default function AsistentePanel({ token }: { token: string }) {
+export default function AsistentePanel({ token, compact = false }: { token: string; compact?: boolean }) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [texto, setTexto] = useState('');
   const [cargando, setCargando] = useState(false);
