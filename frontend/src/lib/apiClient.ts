@@ -2,6 +2,10 @@ import { API_URL } from '../config/api';
 
 export const SESION_NO_AUTORIZADA_EVENTO = 'alquilar:sesion-no-autorizada';
 
+function notificarSesionNoAutorizada(token: string | null) {
+  window.dispatchEvent(new CustomEvent(SESION_NO_AUTORIZADA_EVENTO, { detail: { token } }));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -35,7 +39,7 @@ export function apiGet<T>(path: string, token: string): Promise<T> {
     })
     .then((res) => {
       if (res.status === 401 || res.status === 403) {
-        window.dispatchEvent(new Event(SESION_NO_AUTORIZADA_EVENTO));
+        notificarSesionNoAutorizada(token);
       }
       return parseResponse<T>(res);
     });
@@ -64,7 +68,9 @@ const fetchConRed = async (url: string, options: RequestInit): Promise<Response>
     new Headers(options.headers).has('Authorization')
     && (response.status === 401 || response.status === 403)
   ) {
-    window.dispatchEvent(new Event(SESION_NO_AUTORIZADA_EVENTO));
+    const authorization = new Headers(options.headers).get('Authorization');
+    const requestToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
+    notificarSesionNoAutorizada(requestToken);
   }
   return response;
 };

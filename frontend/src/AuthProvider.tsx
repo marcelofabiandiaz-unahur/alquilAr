@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './authContext';
 import type { ReactNode } from 'react';
 import type { AuthUsuario } from './types';
@@ -26,17 +26,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(tokenInicial);
   const [cargando, setCargando] = useState(Boolean(tokenInicial));
   const [errorSesion, setErrorSesion] = useState('');
+  const versionSesion = useRef(0);
+  const tokenActual = useRef(tokenInicial);
 
   const logoutGlobal = useCallback(() => {
+    versionSesion.current += 1;
+    tokenActual.current = null;
     setToken(null);
     setUsuario(null);
+    setCargando(false);
     setErrorSesion('');
     limpiarSesionStorage();
   }, []);
 
   const loginGlobal = useCallback((datosUsuario: AuthUsuario, tokenUsuario: string) => {
+    versionSesion.current += 1;
+    tokenActual.current = tokenUsuario;
     setToken(tokenUsuario);
     setUsuario(datosUsuario);
+    setCargando(false);
     setErrorSesion('');
     persistirSesion(datosUsuario, tokenUsuario);
   }, []);
@@ -44,7 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const limpiarErrorSesion = useCallback(() => setErrorSesion(''), []);
 
   useEffect(() => {
-    const manejarSesionNoAutorizada = () => {
+    const manejarSesionNoAutorizada = (evento: Event) => {
+      const tokenSolicitud = evento instanceof CustomEvent
+        ? (evento.detail as { token?: string | null } | undefined)?.token
+        : undefined;
+      if (tokenSolicitud && tokenSolicitud !== tokenActual.current) return;
       logoutGlobal();
       setErrorSesion('Tu sesión venció o ya no tenés permisos. Iniciá sesión nuevamente.');
     };
@@ -60,6 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
+    const versionValidacion = ++versionSesion.current;
+    const validacionActual = () => !cancelled && versionSesion.current === versionValidacion;
 
     const validarSesion = async () => {
       try {
@@ -67,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           headers: { Authorization: `Bearer ${tokenGuardado}` },
         });
 
-        if (cancelled) return;
+        if (!validacionActual()) return;
 
         if (res.status === 401 || res.status === 403) {
           logoutGlobal();
@@ -79,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const perfil: unknown = await res.json();
+        if (!validacionActual()) return;
         const authUsuario = mapearPerfilAAuthUsuario(perfil);
 
         if (!authUsuario) {
@@ -89,9 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setToken(tokenGuardado);
         setUsuario(authUsuario);
+        tokenActual.current = tokenGuardado;
         persistirSesion(authUsuario, tokenGuardado);
       } catch (error) {
-        if (!cancelled) {
+        if (validacionActual()) {
           setErrorSesion(
             error instanceof Error
               ? error.message
@@ -99,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         }
       } finally {
-        if (!cancelled) {
+        if (validacionActual()) {
           setCargando(false);
         }
       }
@@ -109,6 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      if (versionSesion.current === versionValidacion) {
+        versionSesion.current += 1;
+      }
     };
   }, [logoutGlobal]);
 

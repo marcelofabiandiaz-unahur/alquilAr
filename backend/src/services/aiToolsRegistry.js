@@ -18,6 +18,16 @@ const toolsEsquemas = [
               enum: ['CONTRATOS', 'PAGOS', 'AMBOS'],
               description: 'Qué información devolver. Por defecto AMBOS.',
             },
+            estado_contrato: {
+              type: 'STRING',
+              enum: ['BORRADOR', 'VIGENTE', 'FINALIZADO', 'CANCELADO'],
+              description: 'Filtra contratos por estado cuando el usuario lo solicite.',
+            },
+            estado_pago: {
+              type: 'STRING',
+              enum: ['PENDIENTE', 'ATRASADO', 'INGRESADO', 'PAGADO'],
+              description: 'Filtra pagos por estado cuando el usuario lo solicite.',
+            },
           },
         },
       },
@@ -55,6 +65,37 @@ const toolsEsquemas = [
     ],
   },
 ];
+
+const obtenerHerramientasPorRol = (usuarioAutenticado) => {
+  const roles = Array.isArray(usuarioAutenticado?.roles) ? usuarioAutenticado.roles : [];
+  const puedeConsultar = roles.some((rol) =>
+    ['INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'].includes(rol));
+  if (!puedeConsultar) return [];
+
+  const [consulta, reclamos] = toolsEsquemas[0].functionDeclarations;
+  const accionesReclamos = roles.includes('INQUILINO')
+    ? ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR']
+    : ['LISTAR'];
+
+  return [{
+    functionDeclarations: [
+      consulta,
+      {
+        ...reclamos,
+        parameters: {
+          ...reclamos.parameters,
+          properties: {
+            ...reclamos.parameters.properties,
+            accion: {
+              ...reclamos.parameters.properties.accion,
+              enum: accionesReclamos,
+            },
+          },
+        },
+      },
+    ],
+  }];
+};
 
 const ejecutarControlador = async (controlador, req) => {
   let statusCode = 200;
@@ -134,5 +175,6 @@ const ejecutarToolSegura = async (name, args = {}, usuarioAutenticado) => {
 
 module.exports = {
   toolsEsquemas,
+  obtenerHerramientasPorRol,
   ejecutarToolSegura,
 };

@@ -172,7 +172,11 @@ export default function Login() {
         </form>
 
         <p className="text-center pt-2">
-          <button type="button" onClick={() => navigate('/registro')} className={linkClass}>
+          <button
+            type="button"
+            onClick={() => navigate('/registro', { state: { mostrarFormularioMovil: true } })}
+            className={linkClass}
+          >
             ¿No tenés cuenta? Registrate aquí
           </button>
         </p>

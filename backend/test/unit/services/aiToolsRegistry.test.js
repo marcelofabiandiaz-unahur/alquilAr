@@ -4,7 +4,11 @@ const Contrato = require('../../../src/models/contrato');
 const Propiedad = require('../../../src/models/propiedad');
 const reclamoController = require('../../../src/controllers/reclamoController');
 const pagoController = require('../../../src/controllers/pagoController');
-const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
+const {
+  toolsEsquemas,
+  obtenerHerramientasPorRol,
+  ejecutarToolSegura,
+} = require('../../../src/services/aiToolsRegistry');
 
 test('el registro publica exactamente dos herramientas para datos y gestión de reclamos', () => {
   const nombres = toolsEsquemas[0].functionDeclarations.map((tool) => tool.name);
@@ -20,6 +24,23 @@ test('el registro publica exactamente dos herramientas para datos y gestión de 
   assert.deepEqual(reclamos.parameters.required, ['accion']);
   assert.deepEqual(reclamos.parameters.properties.accion.enum, ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR']);
   assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_usuario'));
+});
+
+test('el modelo recibe solo herramientas y acciones autorizadas para el rol autenticado', () => {
+  assert.deepEqual(obtenerHerramientasPorRol({ roles: ['USUARIO'] }), []);
+
+  const propietario = obtenerHerramientasPorRol({ roles: ['PROPIETARIO'] });
+  assert.equal(propietario[0].functionDeclarations.length, 2);
+  assert.deepEqual(
+    propietario[0].functionDeclarations[1].parameters.properties.accion.enum,
+    ['LISTAR'],
+  );
+
+  const inquilino = obtenerHerramientasPorRol({ roles: ['INQUILINO'] });
+  assert.deepEqual(
+    inquilino[0].functionDeclarations[1].parameters.properties.accion.enum,
+    ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR'],
+  );
 });
 
 test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {

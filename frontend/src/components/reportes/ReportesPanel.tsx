@@ -106,14 +106,15 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
             <MetricCard label="Gastos" value={formatMoneda(resumen.totalGastos)} icon="comprobante" variant="amber" />
           </div>
 
-          <Card className="overflow-hidden">
+          <Card className="max-w-full overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100">
               <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">Últimos meses</h2>
             </div>
             {porMes.length === 0 ? (
               <p className="p-6 text-sm text-slate-500 text-center">No hay movimientos para mostrar.</p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[32rem] text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider text-slate-400 border-b border-slate-100">
                     <th className="px-5 py-3 font-semibold">Período</th>
@@ -131,6 +132,7 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </Card>
 

@@ -5,7 +5,7 @@ const BENEFICIOS = [
   'Pagos y reclamos',
   'Gestión de contratos y alquileres',
   'Seguimiento de pagos y comprobantes',
-  'Asistente IA para consultas sobre contratos y pagos',
+  'ALQUI, asistente para consultas sobre contratos y pagos',
   'Consulta de contratos vigentes y creación de reclamos',
 ];
 
@@ -14,7 +14,7 @@ export default function AuthBrandPanel({ compact = false }: { compact?: boolean 
     <section
       aria-label="AlquilAR, plataforma de gestión de alquileres"
       className={`relative flex min-w-0 w-full flex-col justify-between overflow-hidden bg-[#f8fafc] text-[#14213d] ${
-        compact ? 'min-h-48 gap-8 px-6 py-7' : 'min-h-screen px-10 py-10 lg:px-14 lg:py-12'
+        compact ? 'min-h-48 flex-1 gap-8 px-6 py-7' : 'min-h-screen px-10 py-10 lg:px-14 lg:py-12'
       }`}
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-100/70 via-transparent to-teal-50/90" />

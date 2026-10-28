@@ -20,69 +20,73 @@ test('procesarChat devuelve la respuesta final si Gemini no solicita herramienta
   assert.equal(solicitud.config.tools.length, 1);
 });
 
-test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de función', async () => {
-  const solicitudes = [];
+test('procesarChat ejecuta la herramienta una vez y resume el resultado sin otra consulta a Gemini', async () => {
+  let llamadasGemini = 0;
   const llamadasTool = [];
-  const respuestas = [
-    {
-      functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR' } }],
-      candidates: [{
-        content: {
-          role: 'model',
-          parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR' } } }],
-        },
-      }],
-    },
-    { text: 'Tenés un reclamo abierto.', functionCalls: [] },
-  ];
 
   const resultado = await procesarChat([
     { role: 'system', content: 'Instrucciones' },
     { role: 'user', content: 'Mostrame mis reclamos' },
   ], { id: 'inquilino-1', roles: ['INQUILINO'] }, {
     generateContent: async (request) => {
-      solicitudes.push(request);
-      return respuestas.shift();
+      llamadasGemini += 1;
+      assert.equal(request.config.maxOutputTokens, 256);
+      assert.equal(request.config.thinkingLevel, 'MINIMAL');
+      assert.deepEqual(request.config.httpOptions, {
+        timeout: 10000,
+        retryOptions: { attempts: 1 },
+      });
+      return {
+        functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR' } }],
+      };
     },
     executeTool: async (...args) => {
       llamadasTool.push(args);
-      return { success: true, data: [{ asunto: 'Pérdida de agua' }] };
+      return {
+        success: true,
+        data: [{ asunto: 'Pérdida de agua', estado: 'PENDIENTE', prioridad: 'ALTA' }],
+      };
     },
   });
 
-  assert.deepEqual(resultado, { role: 'assistant', content: 'Tenés un reclamo abierto.' });
+  assert.deepEqual(resultado, {
+    role: 'assistant',
+    content: 'Reclamos (1): Pérdida de agua — PENDIENTE, prioridad ALTA.',
+  });
+  assert.equal(llamadasGemini, 1);
   assert.deepEqual(llamadasTool, [['gestionarReclamos', { accion: 'LISTAR' }, { id: 'inquilino-1', roles: ['INQUILINO'] }]]);
-  assert.deepEqual(solicitudes[1].contents.slice(-2), [
-    {
-      role: 'model',
-      parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR' } } }],
-    },
-    {
-      role: 'user',
-      parts: [{
-        functionResponse: {
-          name: 'gestionarReclamos',
-          response: { result: { success: true, data: [{ asunto: 'Pérdida de agua' }] } },
-        },
-      }],
-    },
-  ]);
 });
 
-test('procesarChat limita el número de rondas de herramientas', async () => {
-  let llamadas = 0;
-  await assert.rejects(
-    procesarChat([{ role: 'user', content: 'Listá mis reclamos' }], { id: 'inquilino-1' }, {
-      generateContent: async () => {
-        llamadas += 1;
-        return {
-          functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR' } }],
-          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR' } } }] } }],
-        };
-      },
-      executeTool: async () => [],
+test('procesarChat respeta filtros de estado para consultas de contratos y pagos', async () => {
+  const resultado = await procesarChat([
+    { role: 'system', content: 'Instrucciones' },
+    { role: 'user', content: '¿Qué pagos tengo atrasados?' },
+  ], { id: 'inquilino-1', roles: ['INQUILINO'] }, {
+    generateContent: async () => ({
+      functionCalls: [{
+        name: 'consultarDatosAlquiler',
+        args: { alcance: 'PAGOS', estado_pago: 'ATRASADO' },
+      }],
     }),
-    /máximo de pasos/i,
+    executeTool: async () => ({
+      pagos: [
+        { mes_correspondiente: '202610', estado: 'ATRASADO', monto_total: 5000 },
+        { mes_correspondiente: '202611', estado: 'PENDIENTE', monto_total: 6000 },
+      ],
+    }),
+  });
+
+  assert.deepEqual(resultado, {
+    role: 'assistant',
+    content: 'Pagos con estado ATRASADO (1): 202610 — ATRASADO — $5000.',
+  });
+});
+
+test('procesarChat no ejecuta herramientas si la respuesta de Gemini solo contiene texto', async () => {
+  await assert.rejects(
+    procesarChat([{ role: 'user', content: 'Hola' }], { id: 'inquilino-1' }, {
+      generateContent: async () => ({ text: '', functionCalls: [] }),
+    }),
+    /no devolvió una respuesta de texto/i,
   );
-  assert.equal(llamadas, 6);
 });
