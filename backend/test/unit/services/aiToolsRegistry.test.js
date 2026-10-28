@@ -153,6 +153,6 @@ test('las herramientas exigen sesión y fallan ante nombres no autorizados', asy
   );
   await assert.rejects(
     ejecutarToolSegura('gestionarReclamos', { accion: 'ELIMINAR_TODO' }, { id: 'usuario-1', roles: ['ADMINISTRADOR'] }),
-    /acción.*no está autorizada/i,
+    /acción de reclamos no es válida/i,
   );
 });
