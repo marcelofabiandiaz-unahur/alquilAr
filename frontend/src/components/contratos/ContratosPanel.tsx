@@ -42,7 +42,7 @@ const FORM_VACIO: ContratoFormState = {
   garante_recibo:'',
 };
 
-function obtenerNombreInquilino(contrato: any) {
+function obtenerNombreInquilino(contrato: Contrato) {
   const inq = contrato.id_inquilino;
   if (!inq) return '—';
   if (typeof inq === 'object') {

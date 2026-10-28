@@ -135,8 +135,6 @@ const ICONS: Record<string, ReactNode> = {
   ),
 };
 
-export function NavIcon({ id, className }: { id: string; className?: string }) {
-  const icon = ICONS[id] ?? ICONS.inicio;
-  if (!className) return icon;
-  return <span className={className} aria-hidden>{icon}</span>;
+export function NavIcon({ id }: { id: string }) {
+  return <>{ICONS[id] ?? ICONS.inicio}</>;
 }

@@ -4,21 +4,34 @@ import { apiPost } from '../../lib/apiClient';
 import Card from '../ui/Card';
 import Alert from '../ui/Alert';
 
+const MAX_MENSAJES = 20;
+const MAX_CARACTERES = 4000;
+
 interface MensajeChat {
   role: 'user' | 'assistant';
   content: string;
+  error?: boolean;
 }
 
 interface RespuestaChat {
   resultado: MensajeChat;
 }
 
-export default function AsistentePanel({ token, compact = false }: { token: string; compact?: boolean }) {
+function recortarHistorial(mensajes: MensajeChat[]): MensajeChat[] {
+  const recortado = mensajes.slice(-MAX_MENSAJES);
+  while (recortado.length > 0 && recortado[0].role !== 'user') {
+    recortado.shift();
+  }
+  return recortado;
+}
+
+export default function AsistentePanel({ token }: { token: string }) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [texto, setTexto] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const finalMensajes = useRef<HTMLDivElement>(null);
+  const areaTexto = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     finalMensajes.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -28,23 +41,48 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
     event.preventDefault();
     const contenido = texto.trim();
     if (!contenido || cargando) return;
+    if (contenido.length > MAX_CARACTERES) {
+      setError(`El mensaje no puede superar los ${MAX_CARACTERES} caracteres.`);
+      return;
+    }
 
-    const historial = [...mensajes, { role: 'user' as const, content: contenido }];
-    setMensajes(historial);
+    const mensajeUsuario: MensajeChat = { role: 'user', content: contenido };
+    const mensajesConUsuario = [...mensajes, mensajeUsuario];
+    const historial = recortarHistorial(mensajesConUsuario.filter((mensaje) => !mensaje.error))
+      .map(({ role, content }) => ({ role, content: content.slice(0, MAX_CARACTERES) }));
+
+    setMensajes(mensajesConUsuario);
     setTexto('');
     setError('');
     setCargando(true);
     try {
       const respuesta = await apiPost<RespuestaChat>('/api/ai/chat', token, { mensajes: historial });
-      if (respuesta.resultado?.role !== 'assistant' || typeof respuesta.resultado.content !== 'string') {
+      if (
+        respuesta.resultado?.role !== 'assistant'
+        || typeof respuesta.resultado.content !== 'string'
+        || !respuesta.resultado.content.trim()
+      ) {
         throw new Error('El asistente devolvió una respuesta inesperada.');
       }
-      setMensajes([...historial, respuesta.resultado]);
+      setMensajes([...mensajesConUsuario, respuesta.resultado]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo enviar el mensaje.');
+      setMensajes((actuales) => actuales.map((mensaje, indice) => (
+        indice === actuales.length - 1 ? { ...mensaje, error: true } : mensaje
+      )));
+      const detalle = err instanceof Error ? err.message : 'No se pudo enviar el mensaje.';
+      setError(`${detalle} No se confirmó ninguna acción: si pediste crear un reclamo, no se creó.`);
     } finally {
       setCargando(false);
     }
+  };
+
+  const reintentar = (indice: number) => {
+    const mensaje = mensajes[indice];
+    if (!mensaje || mensaje.role !== 'user') return;
+    setMensajes((actuales) => actuales.filter((_, posicion) => posicion !== indice));
+    setTexto(mensaje.content);
+    setError('');
+    window.requestAnimationFrame(() => areaTexto.current?.focus());
   };
 
   const manejarTecla = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -92,9 +130,21 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
                   mensaje.role === 'user'
                     ? 'rounded-br-md bg-[var(--brand-navy)] text-white'
                     : 'rounded-bl-md bg-slate-100 text-slate-800'
-                }`}
+                } ${mensaje.error ? 'ring-2 ring-red-400' : ''}`}
               >
                 {mensaje.content}
+                {mensaje.error && (
+                  <div className="mt-2 flex items-center gap-2 border-t border-white/20 pt-2 text-xs text-red-200">
+                    <span>No enviado</span>
+                    <button
+                      type="button"
+                      onClick={() => reintentar(indice)}
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -115,10 +165,11 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
             <label className="sr-only" htmlFor="mensaje-asistente">Escribí tu consulta</label>
             <textarea
               id="mensaje-asistente"
-              className="max-h-36 min-h-12 flex-1 resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
+              ref={areaTexto}
+              className="max-h-36 min-h-12 flex-1 resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
               placeholder="Escribí tu consulta…"
               value={texto}
-              maxLength={4000}
+              maxLength={MAX_CARACTERES}
               rows={1}
               disabled={cargando}
               onChange={(event) => setTexto(event.target.value)}
@@ -134,6 +185,7 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
           </form>
           <p className="text-center text-xs text-slate-400">
             El asistente puede equivocarse. Confirmá los datos antes de enviar un reclamo.
+            {' '}El historial enviado se limita a los últimos {MAX_MENSAJES} mensajes.
           </p>
         </div>
       </Card>

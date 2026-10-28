@@ -5,9 +5,7 @@ import { apiGet } from '../../lib/apiClient';
 import type { AuthUsuario, Pago, RolesDashboard, Usuario } from '../../types';
 import SolicitudPropietario from './SolicitudPropietario';
 import { brandClasses } from '../../theme/alquilar';
-import { useTheme } from '../../theme/themeContext';
 import { NavIcon } from './dashboardNavIcons';
-import AsistenteFlotante from '../asistente/AsistenteFlotante';
 
 interface Notificacion {
   id: string;

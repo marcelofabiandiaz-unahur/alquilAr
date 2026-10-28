@@ -2,24 +2,35 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Contrato = require('../../../src/models/contrato');
 const Propiedad = require('../../../src/models/propiedad');
-const reclamoController = require('../../../src/controllers/reclamoController');
 const pagoController = require('../../../src/controllers/pagoController');
+const aiReclamosService = require('../../../src/services/aiReclamosService');
 const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
 
-test('el registro publica exactamente dos herramientas para datos y gestión de reclamos', () => {
-  const nombres = toolsEsquemas[0].functionDeclarations.map((tool) => tool.name);
-  assert.deepEqual(nombres, [
+test('el registro expone exactamente las dos herramientas del MVP', () => {
+  const declaraciones = toolsEsquemas.flatMap((grupo) => grupo.functionDeclarations);
+  assert.deepEqual(declaraciones.map((tool) => tool.name), [
     'consultarDatosAlquiler',
     'gestionarReclamos',
   ]);
-  const consulta = toolsEsquemas[0].functionDeclarations.find((tool) => tool.name === 'consultarDatosAlquiler');
+
+  const consulta = declaraciones.find((tool) => tool.name === 'consultarDatosAlquiler');
   assert.ok(consulta.parameters.properties.alcance);
   assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_usuario'));
   assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_inquilino'));
-  const reclamos = toolsEsquemas[0].functionDeclarations.find((tool) => tool.name === 'gestionarReclamos');
+
+  const reclamos = declaraciones.find((tool) => tool.name === 'gestionarReclamos');
   assert.deepEqual(reclamos.parameters.required, ['accion']);
-  assert.deepEqual(reclamos.parameters.properties.accion.enum, ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR']);
-  assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_usuario'));
+  assert.deepEqual(reclamos.parameters.properties.accion.enum, [
+    'LISTAR_CONTRATOS',
+    'LISTAR_RECLAMOS',
+    'CLASIFICAR',
+    'CREAR',
+  ]);
+  assert.ok(reclamos.parameters.properties.categoria.enum.includes('PLOMERIA'));
+  assert.ok(reclamos.parameters.properties.categoria.enum.includes('SERVICIOS'));
+  assert.ok(reclamos.parameters.properties.categoria.enum.includes('SEGURIDAD'));
+  assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'usuarioId'));
+  assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_inquilino'));
 });
 
 test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {
@@ -114,94 +125,27 @@ test('consultarDatosAlquiler rechaza usuarios sin permiso operativo', async () =
   );
 });
 
-test('gestionarReclamos lista con la identidad verificada', async () => {
-  const original = reclamoController.listarReclamos;
+test('gestionarReclamos delega en el servicio con identidad y argumentos', async () => {
+  const original = aiReclamosService.gestionarReclamos;
   try {
-    reclamoController.listarReclamos = async (req, res) => {
-      assert.equal(req.usuario.id, 'usuario-1');
-      assert.deepEqual(req.usuario.roles, ['INQUILINO']);
-      res.status(200).json({ success: true, data: [{ asunto: 'Consulta' }] });
+    aiReclamosService.gestionarReclamos = async (usuario, args) => {
+      assert.deepEqual(usuario, { id: 'inquilino-1', roles: ['INQUILINO'] });
+      assert.deepEqual(args, { accion: 'LISTAR_RECLAMOS' });
+      return [{ id: 'reclamo-1' }];
     };
-    const result = await ejecutarToolSegura('gestionarReclamos', { accion: 'LISTAR' }, {
-      id: 'usuario-1',
-      roles: ['INQUILINO'],
-    });
-    assert.deepEqual(result.data, [{ asunto: 'Consulta' }]);
-  } finally {
-    reclamoController.listarReclamos = original;
-  }
-});
-
-test('gestionarReclamos crea un reclamo con los campos compatibles con la API', async () => {
-  const original = reclamoController.crearReclamo;
-  try {
-    reclamoController.crearReclamo = async (req, res) => {
-      assert.equal(req.usuario.id, 'inquilino-1');
-      assert.deepEqual(req.body, {
-        id_contrato: 'contrato-1',
-        asunto: 'Pérdida de agua',
-        descripcion: 'Pierde agua bajo la pileta.',
-        categoria: 'PLOMERIA',
-        prioridad: 'ALTA',
-      });
-      res.status(201).json({ success: true, data: { _id: 'reclamo-1' } });
-    };
-    const result = await ejecutarToolSegura('gestionarReclamos', {
-      accion: 'CREAR',
-      id_contrato: 'contrato-1',
-      asunto: 'Pérdida de agua',
-      descripcion: 'Pierde agua bajo la pileta.',
-      categoria: 'PLOMERIA',
-      prioridad: 'ALTA',
+    const resultado = await ejecutarToolSegura('gestionarReclamos', {
+      accion: 'LISTAR_RECLAMOS',
     }, { id: 'inquilino-1', roles: ['INQUILINO'] });
-    assert.equal(result.data._id, 'reclamo-1');
+    assert.deepEqual(resultado, [{ id: 'reclamo-1' }]);
   } finally {
-    reclamoController.crearReclamo = original;
+    aiReclamosService.gestionarReclamos = original;
   }
 });
 
-test('gestionarReclamos consulta solo contratos vigentes del inquilino autenticado', async () => {
-  const original = Contrato.find;
-  try {
-    Contrato.find = (filter) => {
-      assert.deepEqual(filter, { id_inquilino: 'inquilino-1', estado: 'VIGENTE' });
-      return {
-        select(fields) {
-          assert.equal(fields, '_id id_propiedad fecha_inicio fecha_fin');
-          return {
-            populate: async (field, projection) => {
-              assert.equal(field, 'id_propiedad');
-              assert.equal(projection, 'direccion');
-              return [{
-                _id: 'contrato-1',
-                id_propiedad: { direccion: 'Calle 123' },
-                fecha_inicio: '2026-01-01',
-                fecha_fin: '2026-12-31',
-              }];
-            },
-          };
-        },
-      };
-    };
-    const result = await ejecutarToolSegura('gestionarReclamos', { accion: 'CONTRATOS_VIGENTES' }, {
-      id: 'inquilino-1',
-      roles: ['INQUILINO'],
-    });
-    assert.deepEqual(result, [{
-      id: 'contrato-1',
-      propiedad: 'Calle 123',
-      fecha_inicio: '2026-01-01',
-      fecha_fin: '2026-12-31',
-    }]);
-  } finally {
-    Contrato.find = original;
-  }
-});
-
-test('las herramientas fallan explícitamente ante permisos o nombres/acciones no autorizados', async () => {
+test('las herramientas exigen sesión y fallan ante nombres no autorizados', async () => {
   await assert.rejects(
-    ejecutarToolSegura('gestionarReclamos', { accion: 'CONTRATOS_VIGENTES' }, { id: 'usuario-1', roles: ['USUARIO'] }),
-    /solo un inquilino/i,
+    ejecutarToolSegura('gestionarReclamos', { accion: 'LISTAR_RECLAMOS' }, {}),
+    /sesión autenticada/i,
   );
   await assert.rejects(
     ejecutarToolSegura('borrarTodosLosReclamos', {}, { id: 'usuario-1', roles: ['ADMINISTRADOR'] }),
