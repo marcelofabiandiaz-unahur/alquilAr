@@ -92,7 +92,7 @@ export default function CobrosPanel({ token, embedded = false }: CobrosPanelProp
         </h2>
         {cargando ? (
           <LoadingRow label="Cargando cobros..." />
-        ) : porValidar.length === 0 ? (
+        ) : porValidar.length === 0 && !error ? (
           <EmptyState title="Sin cobros para validar" description="Los comprobantes enviados por los inquilinos aparecerán aquí." />
         ) : (
           <DataTable
@@ -142,7 +142,7 @@ export default function CobrosPanel({ token, embedded = false }: CobrosPanelProp
         </h2>
         {cargando ? (
           <LoadingRow label="Cargando pagos confirmados..." />
-        ) : confirmados.length === 0 ? (
+        ) : confirmados.length === 0 && !error ? (
           <EmptyState title="Sin pagos confirmados" description="Los cobros confirmados aparecerán aquí." />
         ) : (
           <DataTable
