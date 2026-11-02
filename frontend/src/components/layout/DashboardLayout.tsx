@@ -381,11 +381,13 @@ export default function DashboardLayout({
           onClick={cerrarMenuMovil}
         />
       )}
-      <aside id="dashboard-navigation" aria-label="Navegación principal" className={`fixed inset-y-0 left-0 z-40 flex w-[min(17.5rem,calc(100vw-2.5rem))] shrink-0 flex-col border-r border-violet-200/80 bg-violet-50/90 shadow-2xl shadow-violet-950/20 backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-200 lg:static lg:z-auto lg:w-[17.5rem] lg:translate-x-0 lg:border-violet-100 lg:bg-gradient-to-b lg:from-violet-50 lg:via-fuchsia-50/30 lg:to-violet-50/80 lg:shadow-none lg:backdrop-blur-none lg:backdrop-saturate-100 ${
+      <aside id="dashboard-navigation" aria-label="Navegación principal" className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(17.5rem,calc(100vw-2.5rem))] shrink-0 flex-col border-r border-violet-200/80 bg-violet-50/90 shadow-2xl shadow-violet-950/20 backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-200 lg:static lg:z-auto lg:w-[17.5rem] lg:translate-x-0 lg:border-violet-100 lg:bg-gradient-to-b lg:from-violet-50 lg:via-fuchsia-50/30 lg:to-violet-50/80 lg:shadow-none lg:backdrop-blur-none lg:backdrop-saturate-100 ${
         menuMovilAbierto ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="px-4 py-4">
-          <img src={logoAlquilar} alt="AlquilAR" className="h-20 w-24 object-contain object-left" />
+          <div className="dashboard-sidebar__brand w-fit rounded-xl px-2 py-1">
+            <img src={logoAlquilar} alt="AlquilAR" className="h-20 w-24 object-contain object-left" />
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
