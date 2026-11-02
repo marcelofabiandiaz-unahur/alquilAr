@@ -27,6 +27,11 @@ test('chatAsistente agrega instrucciones del servidor e identidad autenticada', 
     assert.equal(historial[0].role, 'system');
     assert.match(historial[0].content, /user_test_123/);
     assert.match(historial[0].content, /INQUILINO/);
+<<<<<<< HEAD
+=======
+    assert.match(historial[0].content, /gestionarReclamos/);
+    assert.match(historial[0].content, /creado: true/);
+>>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
     assert.equal(historial[1].content, 'Hola');
     assert.equal(usuario.id, 'user_test_123');
     return { role: 'assistant', content: 'Hola, ¿en qué puedo ayudarte?' };

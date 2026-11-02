@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Contrato = require('../../../src/models/contrato');
 const Propiedad = require('../../../src/models/propiedad');
+<<<<<<< HEAD
 const reclamoController = require('../../../src/controllers/reclamoController');
 const pagoController = require('../../../src/controllers/pagoController');
 const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
@@ -20,6 +21,37 @@ test('el registro publica exactamente dos herramientas para datos y gestión de 
   assert.deepEqual(reclamos.parameters.required, ['accion']);
   assert.deepEqual(reclamos.parameters.properties.accion.enum, ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR']);
   assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_usuario'));
+=======
+const pagoController = require('../../../src/controllers/pagoController');
+const aiReclamosService = require('../../../src/services/aiReclamosService');
+const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
+
+test('el registro expone exactamente las dos herramientas del MVP', () => {
+  const declaraciones = toolsEsquemas.flatMap((grupo) => grupo.functionDeclarations);
+  assert.deepEqual(declaraciones.map((tool) => tool.name), [
+    'consultarDatosAlquiler',
+    'gestionarReclamos',
+  ]);
+
+  const consulta = declaraciones.find((tool) => tool.name === 'consultarDatosAlquiler');
+  assert.ok(consulta.parameters.properties.alcance);
+  assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_usuario'));
+  assert.ok(!Object.hasOwn(consulta.parameters.properties, 'id_inquilino'));
+
+  const reclamos = declaraciones.find((tool) => tool.name === 'gestionarReclamos');
+  assert.deepEqual(reclamos.parameters.required, ['accion']);
+  assert.deepEqual(reclamos.parameters.properties.accion.enum, [
+    'LISTAR_CONTRATOS',
+    'LISTAR_RECLAMOS',
+    'CLASIFICAR',
+    'CREAR',
+  ]);
+  assert.ok(reclamos.parameters.properties.categoria.enum.includes('PLOMERIA'));
+  assert.ok(reclamos.parameters.properties.categoria.enum.includes('SERVICIOS'));
+  assert.ok(reclamos.parameters.properties.categoria.enum.includes('SEGURIDAD'));
+  assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'usuarioId'));
+  assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_inquilino'));
+>>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
 });
 
 test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {
@@ -114,6 +146,7 @@ test('consultarDatosAlquiler rechaza usuarios sin permiso operativo', async () =
   );
 });
 
+<<<<<<< HEAD
 test('gestionarReclamos lista con la identidad verificada', async () => {
   const original = reclamoController.listarReclamos;
   try {
@@ -202,6 +235,29 @@ test('las herramientas fallan explícitamente ante permisos o nombres/acciones n
   await assert.rejects(
     ejecutarToolSegura('gestionarReclamos', { accion: 'CONTRATOS_VIGENTES' }, { id: 'usuario-1', roles: ['USUARIO'] }),
     /solo un inquilino/i,
+=======
+test('gestionarReclamos delega en el servicio con identidad y argumentos', async () => {
+  const original = aiReclamosService.gestionarReclamos;
+  try {
+    aiReclamosService.gestionarReclamos = async (usuario, args) => {
+      assert.deepEqual(usuario, { id: 'inquilino-1', roles: ['INQUILINO'] });
+      assert.deepEqual(args, { accion: 'LISTAR_RECLAMOS' });
+      return [{ id: 'reclamo-1' }];
+    };
+    const resultado = await ejecutarToolSegura('gestionarReclamos', {
+      accion: 'LISTAR_RECLAMOS',
+    }, { id: 'inquilino-1', roles: ['INQUILINO'] });
+    assert.deepEqual(resultado, [{ id: 'reclamo-1' }]);
+  } finally {
+    aiReclamosService.gestionarReclamos = original;
+  }
+});
+
+test('las herramientas exigen sesión y fallan ante nombres no autorizados', async () => {
+  await assert.rejects(
+    ejecutarToolSegura('gestionarReclamos', { accion: 'LISTAR_RECLAMOS' }, {}),
+    /sesión autenticada/i,
+>>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
   );
   await assert.rejects(
     ejecutarToolSegura('borrarTodosLosReclamos', {}, { id: 'usuario-1', roles: ['ADMINISTRADOR'] }),
@@ -209,6 +265,10 @@ test('las herramientas fallan explícitamente ante permisos o nombres/acciones n
   );
   await assert.rejects(
     ejecutarToolSegura('gestionarReclamos', { accion: 'ELIMINAR_TODO' }, { id: 'usuario-1', roles: ['ADMINISTRADOR'] }),
+<<<<<<< HEAD
     /acción.*no está autorizada/i,
+=======
+    /acción de reclamos no es válida/i,
+>>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
   );
 });

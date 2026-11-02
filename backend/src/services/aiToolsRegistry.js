@@ -1,6 +1,5 @@
-const Contrato = require('../models/contrato');
-const reclamoController = require('../controllers/reclamoController');
 const { consultarDatosAlquiler } = require('./aiConsultaDatosService');
+const aiReclamosService = require('./aiReclamosService');
 
 const toolsEsquemas = [
   {
@@ -24,29 +23,39 @@ const toolsEsquemas = [
       {
         name: 'gestionarReclamos',
         description:
-          'Consulta reclamos visibles, consulta contratos vigentes propios para abrir un reclamo, '
-          + 'o crea un reclamo con categoría y prioridad sugeridas. La identidad y los permisos '
-          + 'se verifican únicamente con la sesión autenticada.',
+          'Gestiona los reclamos del usuario autenticado. Usá LISTAR_CONTRATOS para ver sus contratos vigentes, '
+          + 'LISTAR_RECLAMOS para consultar sus reclamos, CLASIFICAR para proponer categoría y prioridad a partir '
+          + 'de la descripción, y CREAR solo cuando el usuario confirme explícitamente. '
+          + 'La identidad se obtiene solo del token de sesión; nunca accede a datos de otra cuenta.',
         parameters: {
           type: 'OBJECT',
           properties: {
             accion: {
               type: 'STRING',
-              enum: ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR'],
-              description: 'Acción requerida: listar reclamos, consultar contratos vigentes o crear un reclamo.',
+              enum: aiReclamosService.ACCIONES,
+              description: 'Operación de reclamos a ejecutar.',
             },
-            id_contrato: { type: 'STRING', description: 'ID de un contrato vigente del usuario autenticado.' },
-            asunto: { type: 'STRING', description: 'Título breve del reclamo.' },
-            descripcion: { type: 'STRING', description: 'Detalle del problema.' },
+            id_contrato: {
+              type: 'STRING',
+              description: 'ID de un contrato vigente del inquilino autenticado. Solo para CREAR.',
+            },
+            asunto: {
+              type: 'STRING',
+              description: 'Título breve de la incidencia. Para CLASIFICAR y CREAR.',
+            },
+            descripcion: {
+              type: 'STRING',
+              description: 'Detalle de la incidencia. Para CLASIFICAR y CREAR.',
+            },
             categoria: {
               type: 'STRING',
-              enum: ['PLOMERIA', 'ELECTRICIDAD', 'GAS', 'ESTRUCTURAL', 'MANTENIMIENTO', 'SERVICIOS', 'SEGURIDAD', 'OTRO'],
-              description: 'Categoría del reclamo.',
+              enum: aiReclamosService.CATEGORIAS_RECLAMO,
+              description: 'Categoría propuesta. Si no se envía, se usa la clasificación del servidor.',
             },
             prioridad: {
               type: 'STRING',
-              enum: ['BAJA', 'MEDIA', 'ALTA', 'URGENTE'],
-              description: 'Prioridad; usar MEDIA salvo que el usuario indique urgencia.',
+              enum: aiReclamosService.PRIORIDADES_RECLAMO,
+              description: 'Prioridad propuesta. Si no se envía, se usa la clasificación del servidor.',
             },
           },
           required: ['accion'],
@@ -56,77 +65,17 @@ const toolsEsquemas = [
   },
 ];
 
-const ejecutarControlador = async (controlador, req) => {
-  let statusCode = 200;
-  let responseBody;
-  const res = {
-    status(code) {
-      statusCode = code;
-      return this;
-    },
-    json(body) {
-      responseBody = body;
-      return this;
-    },
-  };
-
-  await controlador(req, res);
-  if (statusCode >= 400) {
-    throw new Error(responseBody?.message || responseBody?.mensaje || 'No se pudo completar la operación solicitada.');
-  }
-  return responseBody;
-};
-
 const ejecutarToolSegura = async (name, args = {}, usuarioAutenticado) => {
   const usuario = usuarioAutenticado || {};
   const userId = usuario.id || usuario._id;
-  const roles = Array.isArray(usuario.roles) ? usuario.roles : [];
 
   switch (name) {
     case 'consultarDatosAlquiler':
       if (!userId) throw new Error('Se requiere una sesión autenticada.');
       return consultarDatosAlquiler(usuario, args);
-    case 'gestionarReclamos': {
+    case 'gestionarReclamos':
       if (!userId) throw new Error('Se requiere una sesión autenticada.');
-      switch (args.accion) {
-        case 'LISTAR':
-          return ejecutarControlador(reclamoController.listarReclamos, {
-            usuario,
-            query: {},
-            params: {},
-            body: {},
-          });
-        case 'CONTRATOS_VIGENTES': {
-          if (!roles.includes('INQUILINO')) {
-            throw new Error('Solo un inquilino autenticado puede consultar sus contratos vigentes.');
-          }
-          const contratos = await Contrato.find({ id_inquilino: userId, estado: 'VIGENTE' })
-            .select('_id id_propiedad fecha_inicio fecha_fin')
-            .populate('id_propiedad', 'direccion');
-          return contratos.map((contrato) => ({
-            id: String(contrato._id),
-            propiedad: contrato.id_propiedad?.direccion || 'Propiedad',
-            fecha_inicio: contrato.fecha_inicio,
-            fecha_fin: contrato.fecha_fin,
-          }));
-        }
-        case 'CREAR': {
-          if (!roles.includes('INQUILINO')) {
-            throw new Error('Solo un inquilino autenticado puede crear un reclamo.');
-          }
-          const datosReclamo = { ...args };
-          delete datosReclamo.accion;
-          return ejecutarControlador(reclamoController.crearReclamo, {
-            usuario,
-            query: {},
-            params: {},
-            body: datosReclamo,
-          });
-        }
-        default:
-          throw new Error('La acción de gestión de reclamos no está autorizada.');
-      }
-    }
+      return aiReclamosService.gestionarReclamos(usuario, args);
     default:
       throw new Error(`La herramienta ${name} no está autorizada o registrada.`);
   }

@@ -8,6 +8,8 @@ import Alert from '../ui/Alert';
 import StatBadge from '../ui/StatBadge';
 import Modal from '../ui/Modal';
 import { btnPrimaryClass, btnGhostClass, inputClass, labelClass } from '../layout/dashboardStyles';
+import { CATEGORIAS_RECLAMO, PRIORIDADES_RECLAMO } from '../../lib/reclamoOpciones';
+import type { CategoriaReclamo, PrioridadReclamo } from '../../lib/reclamoOpciones';
 import type { FormEvent } from 'react';
 import type { Contrato, Reclamo } from '../../types';
 
@@ -15,13 +17,12 @@ interface ReclamoForm {
   id_contrato: string;
   asunto: string;
   descripcion: string;
-  categoria: string;
-  prioridad: string;
+  categoria: CategoriaReclamo;
+  prioridad: PrioridadReclamo;
 }
 
 const FORM_INICIAL: ReclamoForm = { id_contrato: '', asunto: '', descripcion: '', categoria: 'MANTENIMIENTO', prioridad: 'MEDIA' };
 const ESTADOS = ['PENDIENTE', 'EN_PROCESO', 'RESUELTO'];
-const CATEGORIAS = ['MANTENIMIENTO', 'SERVICIOS', 'SEGURIDAD', 'OTRO'];
 
 function direccion(reclamo: Reclamo): string {
   const propiedad = reclamo.id_propiedad;
@@ -127,7 +128,7 @@ export default function ReclamosPanel({ token, esPropietario, esInquilino, esAdm
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
       {cargando ? (
         <LoadingRow label="Cargando reclamos..." />
-      ) : reclamos.length === 0 ? (
+      ) : reclamos.length === 0 && !error ? (
         <EmptyState title="Sin reclamos" description="No hay reclamos disponibles para tu cuenta." />
       ) : (
         <DataTable
@@ -185,14 +186,14 @@ export default function ReclamosPanel({ token, esPropietario, esInquilino, esAdm
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Categoría</label>
-              <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value })} className={inputClass}>
-                {CATEGORIAS.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
+              <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value as CategoriaReclamo })} className={inputClass}>
+                {CATEGORIAS_RECLAMO.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}
               </select>
             </div>
             <div>
               <label className={labelClass}>Prioridad</label>
-              <select value={form.prioridad} onChange={(event) => setForm({ ...form, prioridad: event.target.value })} className={inputClass}>
-                {['BAJA', 'MEDIA', 'ALTA', 'URGENTE'].map((prioridad) => <option key={prioridad} value={prioridad}>{prioridad}</option>)}
+              <select value={form.prioridad} onChange={(event) => setForm({ ...form, prioridad: event.target.value as PrioridadReclamo })} className={inputClass}>
+                {PRIORIDADES_RECLAMO.map((prioridad) => <option key={prioridad} value={prioridad}>{prioridad}</option>)}
               </select>
             </div>
           </div>
