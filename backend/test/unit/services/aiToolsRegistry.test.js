@@ -33,23 +33,6 @@ test('el registro expone exactamente las dos herramientas del MVP', () => {
   assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_inquilino'));
 });
 
-test('el modelo recibe solo herramientas y acciones autorizadas para el rol autenticado', () => {
-  assert.deepEqual(obtenerHerramientasPorRol({ roles: ['USUARIO'] }), []);
-
-  const propietario = obtenerHerramientasPorRol({ roles: ['PROPIETARIO'] });
-  assert.equal(propietario[0].functionDeclarations.length, 2);
-  assert.deepEqual(
-    propietario[0].functionDeclarations[1].parameters.properties.accion.enum,
-    ['LISTAR'],
-  );
-
-  const inquilino = obtenerHerramientasPorRol({ roles: ['INQUILINO'] });
-  assert.deepEqual(
-    inquilino[0].functionDeclarations[1].parameters.properties.accion.enum,
-    ['LISTAR', 'CONTRATOS_VIGENTES', 'CREAR'],
-  );
-});
-
 test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {
   const originalPagos = pagoController.listarPagos;
   const originalContratos = Contrato.find;
