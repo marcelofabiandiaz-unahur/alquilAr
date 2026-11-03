@@ -157,7 +157,8 @@ npm run dev
 # o desde la raíz: npm run frontend
 ```
 
-En desarrollo el front usa `http://localhost:3000` como API (`frontend/src/config/api.ts`).
+En desarrollo el front usa el API desplegado en Render por defecto. Para apuntarlo a un backend local,
+configurá `VITE_API_URL=http://localhost:3000` en `frontend/.env.local` y asegurate de iniciar MongoDB y el backend.
 
 El tema claro/oscuro puede cambiarse desde el botón del encabezado; la selección se conserva en `localStorage` (`alquilar_theme`) y, si todavía no existe, se toma de la preferencia del sistema. La paleta del tema usa violeta para acciones principales y verde agua para acciones secundarias y el chat.
 
@@ -165,6 +166,7 @@ El tema claro/oscuro puede cambiarse desde el botón del encabezado; la selecci�
 
 | Variable | Uso |
 |---|---|
+| `VITE_API_URL` | URL base del backend (por defecto, el API de Render; en local puede ser `http://localhost:3000`) |
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloud name |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES` | Fotos → `alquilar/propiedades` |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_GASTOS` | Comprobantes de gastos |

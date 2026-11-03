@@ -25,19 +25,11 @@ test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de func
   const llamadasTool = [];
   const respuestas = [
     {
-<<<<<<< HEAD
-      functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR' } }],
-      candidates: [{
-        content: {
-          role: 'model',
-          parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR' } } }],
-=======
       functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } }],
       candidates: [{
         content: {
           role: 'model',
           parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } } }],
->>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
         },
       }],
     },
@@ -59,19 +51,11 @@ test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de func
   });
 
   assert.deepEqual(resultado, { role: 'assistant', content: 'Tenés un reclamo abierto.' });
-<<<<<<< HEAD
-  assert.deepEqual(llamadasTool, [['gestionarReclamos', { accion: 'LISTAR' }, { id: 'inquilino-1', roles: ['INQUILINO'] }]]);
-  assert.deepEqual(solicitudes[1].contents.slice(-2), [
-    {
-      role: 'model',
-      parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR' } } }],
-=======
   assert.deepEqual(llamadasTool, [['gestionarReclamos', { accion: 'LISTAR_RECLAMOS' }, { id: 'inquilino-1', roles: ['INQUILINO'] }]]);
   assert.deepEqual(solicitudes[1].contents.slice(-2), [
     {
       role: 'model',
       parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } } }],
->>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
     },
     {
       role: 'user',
@@ -92,13 +76,8 @@ test('procesarChat limita el número de rondas de herramientas', async () => {
       generateContent: async () => {
         llamadas += 1;
         return {
-<<<<<<< HEAD
-          functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR' } }],
-          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR' } } }] } }],
-=======
           functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } }],
           candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } } }] } }],
->>>>>>> 7abd08bb2e3f3f3043456306e6f86fb4b444cfc4
         };
       },
       executeTool: async () => [],

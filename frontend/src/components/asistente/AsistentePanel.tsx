@@ -17,6 +17,25 @@ interface RespuestaChat {
   resultado: MensajeChat;
 }
 
+export function RobotIcon() {
+  return (
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path d="M16 4v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16" cy="3" r="2" fill="currentColor" />
+      <rect x="5" y="9" width="22" height="18" rx="6" stroke="currentColor" strokeWidth="2" />
+      <path d="M10 15h.01M22 15h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <path d="M11 20c1.2 1.5 2.8 2.25 5 2.25s3.8-.75 5-2.25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M2 15v6m28-6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function recortarHistorial(mensajes: MensajeChat[]): MensajeChat[] {
   const recortado = mensajes.slice(-MAX_MENSAJES);
   while (recortado.length > 0 && recortado[0].role !== 'user') {
