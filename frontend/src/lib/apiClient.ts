@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import { MENSAJE_ERROR_CONEXION } from './networkErrors';
 
 export const SESION_NO_AUTORIZADA_EVENTO = 'alquilar:sesion-no-autorizada';
 
@@ -35,7 +36,7 @@ export function apiGet<T>(path: string, token: string): Promise<T> {
     headers: { Authorization: `Bearer ${token}` },
   })
     .catch(() => {
-      throw new Error('No se pudo conectar con el servidor. Verificá que el backend esté corriendo en el puerto 3000.');
+      throw new Error(MENSAJE_ERROR_CONEXION);
     })
     .then((res) => {
       if (res.status === 401 || res.status === 403) {
@@ -61,7 +62,7 @@ const fetchConRed = async (url: string, options: RequestInit): Promise<Response>
   try {
     response = await fetch(url, options);
   } catch {
-    throw new Error('No se pudo conectar con el servidor. Verificá que el backend esté corriendo en el puerto 3000.');
+    throw new Error(MENSAJE_ERROR_CONEXION);
   }
 
   if (

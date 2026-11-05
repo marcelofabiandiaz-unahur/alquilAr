@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { apiPost } from '../../lib/apiClient';
 import Card from '../ui/Card';
-import Alert from '../ui/Alert';
 
 const MAX_MENSAJES = 20;
 const MAX_CARACTERES = 4000;
@@ -20,6 +19,7 @@ interface RespuestaChat {
 export function RobotIcon() {
   return (
     <svg
+      className="block"
       width="28"
       height="28"
       viewBox="0 0 32 32"
@@ -125,15 +125,15 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
         </div>
       )}
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <Card className="assistant-chat-panel flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite">
           {mensajes.length === 0 && (
             <div className="mx-auto mt-12 max-w-md text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-2xl" aria-hidden>
-                ✨
+              <div className="assistant-chat__welcome-icon mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" aria-hidden>
+                <RobotIcon />
               </div>
-              <h2 className="font-semibold text-slate-800">¿En qué te puedo ayudar?</h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <h2 className="assistant-chat__title font-semibold">¿En qué te puedo ayudar?</h2>
+              <p className="assistant-chat__secondary mt-2 text-sm">
                 Por ejemplo: “Mostrame mis reclamos” o “Quiero reportar una pérdida de agua”.
               </p>
             </div>
@@ -142,50 +142,50 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
           {mensajes.map((mensaje, indice) => (
             <div
               key={`${indice}-${mensaje.role}`}
-              className={`flex ${mensaje.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex flex-col ${mensaje.role === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`assistant-chat__bubble max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   mensaje.role === 'user'
-                    ? 'rounded-br-md bg-[var(--brand-navy)] text-white'
-                    : 'rounded-bl-md bg-slate-100 text-slate-800'
-                } ${mensaje.error ? 'ring-2 ring-red-400' : ''}`}
+                    ? 'assistant-chat__bubble--user rounded-br-md'
+                    : 'assistant-chat__bubble--assistant rounded-bl-md'
+                }`}
               >
                 {mensaje.content}
-                {mensaje.error && (
-                  <div className="mt-2 flex items-center gap-2 border-t border-white/20 pt-2 text-xs text-red-200">
-                    <span>No enviado</span>
-                    <button
-                      type="button"
-                      onClick={() => reintentar(indice)}
-                      className="font-semibold underline underline-offset-2"
-                    >
-                      Reintentar
-                    </button>
-                  </div>
-                )}
               </div>
+              {mensaje.error && (
+                <p role="alert" className="chat-error mt-1 flex items-center gap-1 text-xs font-medium">
+                  <span>No enviado.</span>
+                  <button
+                    type="button"
+                    onClick={() => reintentar(indice)}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Reintentar
+                  </button>
+                </p>
+              )}
             </div>
           ))}
 
           {cargando && (
             <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 text-sm text-slate-500" role="status">
-                El asistente está pensando…
+              <div className="assistant-chat__typing rounded-2xl rounded-bl-md px-4 py-3 text-sm" role="status">
+                ALQUI está pensando…
               </div>
             </div>
           )}
           <div ref={finalMensajes} />
         </div>
 
-        <div className="space-y-3 border-t border-slate-200 p-3 sm:p-4">
-          {error && <Alert type="error" theme="light">{error}</Alert>}
+        <div className="assistant-chat__composer space-y-3 border-t p-3 sm:p-4">
+          {error && <p role="alert" className="chat-error text-xs font-medium">{error}</p>}
           <form onSubmit={enviar} className="flex items-end gap-2">
             <label className="sr-only" htmlFor="mensaje-asistente">Escribí tu consulta</label>
             <textarea
               id="mensaje-asistente"
               ref={areaTexto}
-              className="max-h-36 min-h-12 flex-1 resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
+              className="assistant-chat__input h-12 min-h-12 max-h-12 flex-1 resize-none overflow-y-auto rounded-xl border px-4 py-3 text-sm outline-none transition disabled:opacity-60"
               placeholder="Escribí tu consulta…"
               value={texto}
               maxLength={MAX_CARACTERES}
@@ -196,13 +196,13 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
             />
             <button
               type="submit"
-              className="flex h-12 shrink-0 items-center justify-center rounded-xl bg-teal-600 px-5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="assistant-chat__send flex h-12 shrink-0 items-center justify-center rounded-xl px-5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               disabled={cargando || !texto.trim()}
             >
               {cargando ? 'Enviando…' : 'Enviar'}
             </button>
           </form>
-          <p className="text-center text-xs text-slate-400">
+          <p className="assistant-chat__footnote text-center text-xs">
             El asistente puede equivocarse. Confirmá los datos antes de enviar un reclamo.
             {' '}El historial enviado se limita a los últimos {MAX_MENSAJES} mensajes.
           </p>

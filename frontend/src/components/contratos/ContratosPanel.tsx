@@ -12,8 +12,6 @@ import FileDropzone from '../ui/FileDropzone';
 import {
   inputClass,
   labelClass,
-  btnPrimaryClass,
-  btnGhostClass,
 } from '../layout/dashboardStyles';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { Contrato, Propiedad } from '../../types';
@@ -41,6 +39,13 @@ const FORM_VACIO: ContratoFormState = {
   garante_telefono: '',
   garante_recibo:'',
 };
+
+const btnVioletOutlineClass =
+  'rounded-lg border border-violet-600 text-violet-700 transition-colors hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40 disabled:opacity-50';
+const btnGreenOutlineClass =
+  'rounded-lg border border-emerald-600 text-emerald-700 transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:opacity-50';
+const btnRedOutlineClass =
+  'rounded-lg border border-red-600 text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:opacity-50';
 
 function obtenerNombreInquilino(contrato: Contrato) {
   const inq = contrato.id_inquilino;
@@ -383,7 +388,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                       event.stopPropagation();
                       activar(c._id);
                     }}
-                    className="text-xs px-2 py-1 rounded bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50"
+                    className={`px-2 py-1 text-xs ${btnGreenOutlineClass}`}
                   >
                     Activar
                   </button>
@@ -397,7 +402,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                         event.stopPropagation();
                         abrirEdicion(c);
                       }}
-                      className="text-xs px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50"
+                      className={`px-2 py-1 text-xs ${btnVioletOutlineClass}`}
                     >
                       Editar
                     </button>
@@ -408,7 +413,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                         event.stopPropagation();
                         finalizar(c._id);
                       }}
-                      className="text-xs px-2 py-1 rounded bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50"
+                      className={`px-2 py-1 text-xs ${btnGreenOutlineClass}`}
                     >
                       Finalizar
                     </button>
@@ -422,7 +427,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                       event.stopPropagation();
                       cancelar(c._id);
                     }}
-                    className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    className={`px-2 py-1 text-xs ${btnRedOutlineClass}`}
                   >
                     Cancelar
                   </button>
@@ -461,7 +466,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               type="button"
               onClick={abrirNuevo}
               disabled={propiedades.length === 0}
-              className={`${btnPrimaryClass} disabled:opacity-40`}
+              className={`px-4 py-2.5 text-sm font-semibold ${btnVioletOutlineClass} disabled:opacity-40`}
             >
               + Nuevo contrato
             </button>
@@ -485,7 +490,11 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
           action={
             esPropietario &&
             propiedades.length > 0 && (
-              <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>
+              <button
+                type="button"
+                onClick={abrirNuevo}
+                className={`px-4 py-2.5 text-sm font-semibold ${btnVioletOutlineClass}`}
+              >
                 + Nuevo contrato
               </button>
             )
@@ -745,11 +754,15 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               type="button"
               disabled={guardandoEdicion}
               onClick={() => setEdicionAbierta(false)}
-              className={btnGhostClass}
+              className={`px-4 py-2.5 text-sm font-semibold ${btnRedOutlineClass}`}
             >
               Cancelar
             </button>
-            <button type="submit" disabled={guardandoEdicion} className={btnPrimaryClass}>
+            <button
+              type="submit"
+              disabled={guardandoEdicion}
+              className={`px-4 py-2.5 text-sm font-semibold ${btnVioletOutlineClass}`}
+            >
               {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
             </button>
           </div>
@@ -870,10 +883,18 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
             }}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setModalAbierto(false)} className={btnGhostClass}>
+            <button
+              type="button"
+              onClick={() => setModalAbierto(false)}
+              className={`px-4 py-2.5 text-sm font-semibold ${btnRedOutlineClass}`}
+            >
               Cancelar
             </button>
-            <button type="submit" disabled={guardando} className={btnPrimaryClass}>
+            <button
+              type="submit"
+              disabled={guardando}
+              className={`px-4 py-2.5 text-sm font-semibold ${btnVioletOutlineClass}`}
+            >
               {guardando ? 'Creando...' : 'Crear borrador'}
             </button>
           </div>

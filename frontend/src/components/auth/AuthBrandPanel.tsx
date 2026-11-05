@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import logoAlquilar from '../../assets/logo-alquilar.png';
 
 const BENEFICIOS = [
@@ -9,11 +10,16 @@ const BENEFICIOS = [
   'Consulta de contratos vigentes y creación de reclamos',
 ];
 
-export default function AuthBrandPanel({ compact = false }: { compact?: boolean }) {
+interface AuthBrandPanelProps {
+  compact?: boolean;
+  compactActions?: ReactNode;
+}
+
+export default function AuthBrandPanel({ compact = false, compactActions }: AuthBrandPanelProps) {
   return (
     <section
       aria-label="AlquilAR, plataforma de gestión de alquileres"
-      className={`relative flex min-w-0 w-full flex-col justify-between overflow-hidden bg-[#f8fafc] text-[#14213d] ${
+      className={`auth-brand-panel relative flex min-w-0 w-full flex-col justify-between overflow-hidden bg-[#f8fafc] text-[#14213d] ${
         compact ? 'min-h-48 flex-1 gap-8 px-6 py-7' : 'min-h-screen px-10 py-10 lg:px-14 lg:py-12'
       }`}
     >
@@ -37,6 +43,8 @@ export default function AuthBrandPanel({ compact = false }: { compact?: boolean 
           AlquilAR, una empresa argentina que simplifica la gestión de alquileres
         </p>
       </div>
+
+      {compactActions}
 
       <div
         className={`auth-marquee relative z-10 min-w-0 w-full overflow-hidden py-3 ${

@@ -5,6 +5,7 @@ import type { AuthUsuario } from './types';
 import { API_URL } from './config/api';
 import { mapearPerfilAAuthUsuario } from './lib/authSession';
 import { SESION_NO_AUTORIZADA_EVENTO } from './lib/apiClient';
+import { mensajeErrorConexion } from './lib/networkErrors';
 
 function leerTokenGuardado(): string | null {
   return localStorage.getItem('token_arquilar');
@@ -108,11 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         persistirSesion(authUsuario, tokenGuardado);
       } catch (error) {
         if (validacionActual()) {
-          setErrorSesion(
-            error instanceof Error
-              ? error.message
-              : 'No se pudo validar la sesión. Verificá la conexión con el servidor.',
-          );
+          setErrorSesion(mensajeErrorConexion(error, 'No se pudo validar la sesión.'));
         }
       } finally {
         if (validacionActual()) {

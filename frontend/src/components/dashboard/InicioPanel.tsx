@@ -186,7 +186,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
           ) : resumen ? (
             <>
             {esAdministrador && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+              <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-5 xl:grid-cols-4">
                 <MetricCard
                   label="Total propiedades"
                   value={resumen.totalPropiedades ?? 0}
@@ -194,6 +194,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   variant="blue"
                   trend={{ value: `${resumen.propiedadesDisponibles} disponibles`, caption: 'En el sistema' }}
                   onClick={() => setSeccionActiva('propiedades')}
+                  compact
                 />
                 <MetricCard
                   label="Propietarios activos"
@@ -202,6 +203,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                   variant="emerald"
                   trend={{ value: 'Cartera', caption: 'Con rol propietario' }}
                   onClick={() => setSeccionActiva('propietarios')}
+                  compact
                 />
                 <MetricCard
                   label="Ingresos del mes"
@@ -217,6 +219,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     caption: 'vs mes anterior',
                   }}
                   onClick={() => setSeccionActiva('finanzas')}
+                  compact
                 />
                 <MetricCard
                   label="Tasa de ocupación"
@@ -228,11 +231,12 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     caption: 'Unidades ocupadas',
                   }}
                   onClick={() => setSeccionActiva('propiedades')}
+                  compact
                 />
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
               {tieneAccesoOperativo && !esAdministrador && (
                 <>
                   {!roles.esInquilino && (
@@ -244,6 +248,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                         variant="violet"
                         hint="Pendiente"
                         onClick={() => setSeccionActiva(seccionPagos)}
+                        compact
                       />
                       <MetricCard
                         label="Cobrado"
@@ -251,6 +256,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                         icon="check"
                         variant="emerald"
                         onClick={() => setSeccionActiva(seccionPagos)}
+                        compact
                       />
                     </>
                   )}
@@ -260,6 +266,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     icon="alerta"
                     variant="rose"
                     onClick={() => setSeccionActiva(seccionPagos)}
+                    compact
                   />
                   {tieneAccesoFinanzas && (
                     <MetricCard
@@ -268,14 +275,16 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                       icon="comprobante"
                       variant="blue"
                       onClick={() => setSeccionActiva('finanzas')}
+                      compact
                     />
                   )}
                   <MetricCard
                     label="Reclamos abiertos"
                     value={resumen.reclamosAbiertos}
-                    icon="megafono"
+                    icon="reclamos"
                     variant="amber"
                     onClick={() => setSeccionActiva('reclamos')}
+                    compact
                   />
                   <MetricCard
                     label="Contratos por vencer"
@@ -284,6 +293,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     variant="sky"
                     hint="30 días"
                     onClick={() => setSeccionActiva('historial')}
+                    compact
                   />
                 </>
               )}
@@ -295,6 +305,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     icon="propiedades"
                     variant="emerald"
                     onClick={() => setSeccionActiva('propiedades')}
+                    compact
                   />
                   <MetricCard
                     label="Unidades alquiladas"
@@ -302,6 +313,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     icon="llave"
                     variant="blue"
                     onClick={() => setSeccionActiva('propiedades')}
+                    compact
                   />
                 </>
               )}
@@ -313,6 +325,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     icon="alerta"
                     variant="rose"
                     onClick={() => setSeccionActiva('finanzas')}
+                    compact
                   />
                   <MetricCard
                     label="Cobros para validar"
@@ -320,13 +333,15 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     icon="comprobante"
                     variant="amber"
                     onClick={() => setSeccionActiva('finanzas')}
+                    compact
                   />
                   <MetricCard
                     label="Reclamos abiertos"
                     value={resumen.reclamosAbiertos}
-                    icon="megafono"
+                    icon="reclamos"
                     variant="amber"
                     onClick={() => setSeccionActiva('reclamos')}
+                    compact
                   />
                   <MetricCard
                     label="Contratos por vencer"
@@ -335,6 +350,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva }:
                     variant="sky"
                     trend={{ value: '30 días', caption: 'Ventana de aviso' }}
                     onClick={() => setSeccionActiva('historial')}
+                    compact
                   />
                 </>
               )}

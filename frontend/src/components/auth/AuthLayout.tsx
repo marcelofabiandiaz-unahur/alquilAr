@@ -75,23 +75,27 @@ export default function AuthLayout({ children, title, subtitle }: AuthLayoutProp
       </div>
 
       <div className={`${mostrarFormularioMovil ? 'hidden' : 'flex'} min-h-dvh min-w-0 flex-col bg-[#f8fafc] md:hidden`}>
-        <AuthBrandPanel compact />
-        <div className="grid gap-3 px-6 pb-[calc(1.75rem+env(safe-area-inset-bottom))] sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={abrirInicioSesion}
-            className="w-full rounded-lg bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-          >
-            Iniciar sesión
-          </button>
-          <button
-            type="button"
-            onClick={abrirRegistro}
-            className="w-full rounded-lg border border-teal-700 bg-white/80 px-4 py-3 text-sm font-semibold text-teal-800 shadow-sm transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-          >
-            Registrarse
-          </button>
-        </div>
+        <AuthBrandPanel
+          compact
+          compactActions={(
+            <div className="relative z-10 grid w-full gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={abrirInicioSesion}
+                className="w-full rounded-lg bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+              >
+                Iniciar sesión
+              </button>
+              <button
+                type="button"
+                onClick={abrirRegistro}
+                className="w-full rounded-lg border border-teal-700 bg-white/80 px-4 py-3 text-sm font-semibold text-teal-800 shadow-sm transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+              >
+                Registrarse
+              </button>
+            </div>
+          )}
+        />
       </div>
     </div>
   );
