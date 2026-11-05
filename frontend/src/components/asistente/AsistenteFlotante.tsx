@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import AsistentePanel from './AsistentePanel';
 
-export default function AsistenteFlotante({ token }: { token: string }) {
+export default function AsistenteFlotante({
+  token,
+  idAgrupamiento = '',
+}: {
+  token: string;
+  idAgrupamiento?: string;
+}) {
   const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
@@ -41,7 +47,7 @@ export default function AsistenteFlotante({ token }: { token: string }) {
           </button>
         </header>
         <div className="min-h-0 flex-1 p-2">
-          <AsistentePanel token={token} compact />
+          <AsistentePanel token={token} idAgrupamiento={idAgrupamiento} compact />
         </div>
       </section>
 

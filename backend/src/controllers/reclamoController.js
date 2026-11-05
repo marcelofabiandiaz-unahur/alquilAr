@@ -10,16 +10,18 @@ const {
   buscarContratoGestionable,
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
+const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
 
 const CATEGORIAS_RECLAMO = [
   'PLOMERIA',
   'ELECTRICIDAD',
-  'GAS',
   'ESTRUCTURAL',
+  'EDIFICIO',
+  'OTRO',
+  'GAS',
   'MANTENIMIENTO',
   'SERVICIOS',
   'SEGURIDAD',
-  'OTRO',
 ];
 const responder = (res, status, data, message) =>
   res.status(status).json({ success: status < 400, data, message });
@@ -27,13 +29,14 @@ const responder = (res, status, data, message) =>
 const listarReclamos = async (req, res) => {
   try {
     const { id, roles } = obtenerIdentidad(req.usuario);
+    const query = req.query || {};
     const condiciones = [];
     if (esInquilino(roles)) condiciones.push({ id_inquilino: id });
     if (esPropietario(roles)) {
       const propiedades = await Propiedad.find({ id_propietario: id }).select('_id');
       condiciones.push({ id_propiedad: { $in: propiedades.map((propiedad) => propiedad._id) } });
     }
-    const filtro = esAdministrador(roles)
+    let filtro = esAdministrador(roles)
       ? {}
       : condiciones.length === 0
         ? null
@@ -41,6 +44,45 @@ const listarReclamos = async (req, res) => {
           ? condiciones[0]
           : { $or: condiciones };
     if (!filtro) return responder(res, 403, null, 'No tenés permiso para consultar reclamos.');
+
+    const extras = {};
+    if (query.estado !== undefined) {
+      if (!['PENDIENTE', 'EN_PROCESO', 'RESUELTO', 'CANCELADO'].includes(query.estado)) {
+        return responder(res, 400, null, 'estado inválido.');
+      }
+      extras.estado = query.estado;
+    }
+    if (query.prioridad !== undefined) {
+      if (!['BAJA', 'MEDIA', 'ALTA', 'URGENTE'].includes(query.prioridad)) {
+        return responder(res, 400, null, 'prioridad inválida.');
+      }
+      extras.prioridad = query.prioridad;
+    }
+    if (query.categoria !== undefined) {
+      if (!CATEGORIAS_RECLAMO.includes(query.categoria)) {
+        return responder(res, 400, null, 'categoria inválida.');
+      }
+      extras.categoria = query.categoria;
+    }
+
+    if (query.id_agrupamiento !== undefined) {
+      if (!esObjectIdValido(String(query.id_agrupamiento))) {
+        return responder(res, 400, null, 'id_agrupamiento inválido.');
+      }
+      const { propiedades, error } = await resolverAlcanceAgrupamiento(
+        query.id_agrupamiento,
+        req.usuario,
+      );
+      if (error) return responder(res, error.status, null, error.mensaje);
+      extras.id_propiedad = { $in: propiedades.map((propiedad) => propiedad._id) };
+    }
+
+    if (Object.keys(extras).length > 0) {
+      filtro = Object.keys(filtro).length > 0
+        ? { $and: [filtro, extras] }
+        : extras;
+    }
+
     const reclamos = await Reclamo.find(filtro)
       .populate('id_contrato')
       .populate('id_propiedad', 'direccion')

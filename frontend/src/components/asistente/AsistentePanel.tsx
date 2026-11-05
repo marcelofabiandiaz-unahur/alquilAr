@@ -4,8 +4,15 @@ import { apiPost } from '../../lib/apiClient';
 import Card from '../ui/Card';
 import Alert from '../ui/Alert';
 
-const MAX_MENSAJES = 20;
+const MAX_MENSAJES = 10;
 const MAX_CARACTERES = 4000;
+
+const SUGERENCIAS = [
+  'Mostrame mis reclamos',
+  'Quiero reportar una pérdida de agua',
+  '¿Cuánto debo y cuándo vence?',
+  'Resumen del edificio',
+];
 
 interface MensajeChat {
   role: 'user' | 'assistant';
@@ -25,7 +32,15 @@ function recortarHistorial(mensajes: MensajeChat[]): MensajeChat[] {
   return recortado;
 }
 
-export default function AsistentePanel({ token, compact = false }: { token: string; compact?: boolean }) {
+export default function AsistentePanel({
+  token,
+  compact = false,
+  idAgrupamiento = '',
+}: {
+  token: string;
+  compact?: boolean;
+  idAgrupamiento?: string;
+}) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [texto, setTexto] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -56,7 +71,10 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
     setError('');
     setCargando(true);
     try {
-      const respuesta = await apiPost<RespuestaChat>('/api/ai/chat', token, { mensajes: historial });
+      const respuesta = await apiPost<RespuestaChat>('/api/ai/chat', token, {
+        mensajes: historial,
+        ...(idAgrupamiento ? { contexto: { id_agrupamiento: idAgrupamiento } } : {}),
+      });
       if (
         respuesta.resultado?.role !== 'assistant'
         || typeof respuesta.resultado.content !== 'string'
@@ -81,6 +99,12 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
     if (!mensaje || mensaje.role !== 'user') return;
     setMensajes((actuales) => actuales.filter((_, posicion) => posicion !== indice));
     setTexto(mensaje.content);
+    setError('');
+    window.requestAnimationFrame(() => areaTexto.current?.focus());
+  };
+
+  const usarSugerencia = (sugerencia: string) => {
+    setTexto(sugerencia);
     setError('');
     window.requestAnimationFrame(() => areaTexto.current?.focus());
   };
@@ -117,6 +141,18 @@ export default function AsistentePanel({ token, compact = false }: { token: stri
               <p className="mt-2 text-sm text-slate-500">
                 Por ejemplo: “Mostrame mis reclamos” o “Quiero reportar una pérdida de agua”.
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {SUGERENCIAS.map((sugerencia) => (
+                  <button
+                    key={sugerencia}
+                    type="button"
+                    onClick={() => usarSugerencia(sugerencia)}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700"
+                  >
+                    {sugerencia}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

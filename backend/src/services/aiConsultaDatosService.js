@@ -1,27 +1,21 @@
 const pagoController = require('../controllers/pagoController');
-const { obtenerContratosVisibles, obtenerIdentidad } = require('../utils/operacionHelpers');
+const {
+  obtenerContratosVisibles,
+  obtenerIdentidad,
+  resolverId,
+} = require('../utils/operacionHelpers');
+const { esObjectIdValido } = require('../utils/recursosHelpers');
+const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
+const { ejecutarControlador } = require('../utils/controllerInvoker');
 
 const ALCANCES_VALIDOS = new Set(['CONTRATOS', 'PAGOS', 'AMBOS']);
+const CAMPOS_PERMITIDOS = new Set(['alcance', 'id_agrupamiento']);
 
-const ejecutarControlador = async (controlador, req) => {
-  let statusCode = 200;
-  let responseBody;
-  const res = {
-    status(code) {
-      statusCode = code;
-      return this;
-    },
-    json(body) {
-      responseBody = body;
-      return this;
-    },
-  };
-
-  await controlador(req, res);
-  if (statusCode >= 400) {
-    throw new Error(responseBody?.message || responseBody?.mensaje || 'No se pudo completar la consulta.');
+const validarCampos = (args) => {
+  const invalidos = Object.keys(args || {}).filter((campo) => !CAMPOS_PERMITIDOS.has(campo));
+  if (invalidos.length > 0) {
+    throw new Error(`La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`);
   }
-  return responseBody;
 };
 
 const normalizarAlcance = (args) => {
@@ -39,7 +33,7 @@ const serializarContrato = (contrato) => ({
   dia_vencimiento: contrato.dia_vencimiento,
 });
 
-const consultarContratos = async (usuarioAutenticado) => {
+const consultarContratos = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
   if (!id) throw new Error('Se requiere una sesión autenticada.');
 
@@ -48,10 +42,24 @@ const consultarContratos = async (usuarioAutenticado) => {
     throw new Error('No tenés permiso para consultar contratos.');
   }
 
-  const contratos = await consulta
+  let contratos = await consulta
     .populate('id_propiedad', 'direccion')
     .select('estado fecha_inicio fecha_fin monto_mensual dia_vencimiento id_propiedad')
     .sort({ fecha_inicio: -1 });
+
+  if (args.id_agrupamiento !== undefined) {
+    if (!esObjectIdValido(String(args.id_agrupamiento))) {
+      throw new Error('id_agrupamiento inválido.');
+    }
+    const { propiedades, error } = await resolverAlcanceAgrupamiento(
+      args.id_agrupamiento,
+      usuarioAutenticado,
+    );
+    if (error) throw new Error(error.mensaje);
+    const ids = new Set(propiedades.map((propiedad) => resolverId(propiedad._id)));
+    contratos = contratos.filter((contrato) =>
+      ids.has(resolverId(contrato.id_propiedad)));
+  }
 
   return contratos.map(serializarContrato);
 };
@@ -72,13 +80,21 @@ const serializarPago = (pago) => {
   };
 };
 
-const consultarPagos = async (usuarioAutenticado) => {
+const consultarPagos = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
   if (!id) throw new Error('Se requiere una sesión autenticada.');
 
+  const query = {};
+  if (args.id_agrupamiento !== undefined) {
+    if (!esObjectIdValido(String(args.id_agrupamiento))) {
+      throw new Error('id_agrupamiento inválido.');
+    }
+    query.id_agrupamiento = args.id_agrupamiento;
+  }
+
   const respuesta = await ejecutarControlador(pagoController.listarPagos, {
     usuario: usuarioAutenticado,
-    query: {},
+    query,
     params: {},
     body: {},
   });
@@ -88,20 +104,22 @@ const consultarPagos = async (usuarioAutenticado) => {
 };
 
 const consultarDatosAlquiler = async (usuarioAutenticado, args = {}) => {
+  validarCampos(args);
   const alcance = normalizarAlcance(args);
   const resultado = {};
 
   if (alcance === 'CONTRATOS' || alcance === 'AMBOS') {
-    resultado.contratos = await consultarContratos(usuarioAutenticado);
+    resultado.contratos = await consultarContratos(usuarioAutenticado, args);
   }
   if (alcance === 'PAGOS' || alcance === 'AMBOS') {
-    resultado.pagos = await consultarPagos(usuarioAutenticado);
+    resultado.pagos = await consultarPagos(usuarioAutenticado, args);
   }
 
   return resultado;
 };
 
 module.exports = {
+  CAMPOS_PERMITIDOS,
   consultarDatosAlquiler,
   consultarContratos,
   consultarPagos,

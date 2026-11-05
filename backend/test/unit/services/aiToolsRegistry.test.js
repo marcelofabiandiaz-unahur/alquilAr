@@ -4,13 +4,19 @@ const Contrato = require('../../../src/models/contrato');
 const Propiedad = require('../../../src/models/propiedad');
 const pagoController = require('../../../src/controllers/pagoController');
 const aiReclamosService = require('../../../src/services/aiReclamosService');
+const aiFinanzasService = require('../../../src/services/aiFinanzasService');
+const aiAgrupamientoService = require('../../../src/services/aiAgrupamientoService');
 const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
 
-test('el registro expone exactamente las dos herramientas del MVP', () => {
+const USUARIO_INQUILINO = { id: 'inquilino-1', roles: ['INQUILINO'] };
+
+test('el registro expone exactamente las cuatro herramientas del asistente', () => {
   const declaraciones = toolsEsquemas.flatMap((grupo) => grupo.functionDeclarations);
   assert.deepEqual(declaraciones.map((tool) => tool.name), [
     'consultarDatosAlquiler',
     'gestionarReclamos',
+    'consultarFinanzas',
+    'consultarResumenAgrupamiento',
   ]);
 
   const consulta = declaraciones.find((tool) => tool.name === 'consultarDatosAlquiler');
@@ -26,16 +32,42 @@ test('el registro expone exactamente las dos herramientas del MVP', () => {
     'CLASIFICAR',
     'CREAR',
   ]);
-  assert.ok(reclamos.parameters.properties.categoria.enum.includes('PLOMERIA'));
-  assert.ok(reclamos.parameters.properties.categoria.enum.includes('SERVICIOS'));
-  assert.ok(reclamos.parameters.properties.categoria.enum.includes('SEGURIDAD'));
+  assert.deepEqual(
+    reclamos.parameters.properties.categoria.enum,
+    aiReclamosService.CATEGORIAS_IA,
+  );
+  assert.deepEqual(
+    reclamos.parameters.properties.prioridad.enum,
+    aiReclamosService.PRIORIDADES_IA,
+  );
+  assert.deepEqual(reclamos.parameters.properties.categoria.enum, [
+    'PLOMERIA',
+    'ELECTRICIDAD',
+    'ESTRUCTURAL',
+    'EDIFICIO',
+    'OTRO',
+  ]);
+  assert.deepEqual(reclamos.parameters.properties.prioridad.enum, ['BAJA', 'MEDIA', 'ALTA']);
   assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'usuarioId'));
   assert.ok(!Object.hasOwn(reclamos.parameters.properties, 'id_inquilino'));
+
+  const finanzas = declaraciones.find((tool) => tool.name === 'consultarFinanzas');
+  assert.deepEqual(finanzas.parameters.properties.accion.enum, [
+    'SALDOS',
+    'ANALIZAR_COMPROBANTE',
+    'RECORDATORIO_MORA',
+  ]);
+  assert.ok(finanzas.parameters.properties.texto);
+  assert.ok(!Object.hasOwn(finanzas.parameters.properties, 'id_usuario'));
+
+  const resumen = declaraciones.find((tool) => tool.name === 'consultarResumenAgrupamiento');
+  assert.ok(resumen.parameters.properties.id_agrupamiento);
+  assert.ok(resumen.parameters.properties.periodo);
+  assert.ok(!Object.hasOwn(resumen.parameters.properties, 'id_propietario'));
 });
 
 test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin query del LLM', async () => {
   const originalPagos = pagoController.listarPagos;
-  const originalContratos = Contrato.find;
   try {
     pagoController.listarPagos = async (req, res) => {
       assert.equal(req.usuario.id, 'inquilino-1');
@@ -53,24 +85,14 @@ test('consultarDatosAlquiler reutiliza listarPagos con identidad del token y sin
         }],
       });
     };
-    Contrato.find = (filter) => {
-      assert.deepEqual(filter, { id_inquilino: 'inquilino-1' });
-      return {
-        populate() { return this; },
-        select() { return this; },
-        sort: async () => [],
-      };
-    };
     const result = await ejecutarToolSegura('consultarDatosAlquiler', {
       alcance: 'PAGOS',
-      id_usuario: 'otro-usuario',
-    }, { id: 'inquilino-1', roles: ['INQUILINO'] });
+    }, USUARIO_INQUILINO);
     assert.ok(!Object.hasOwn(result, 'contratos'));
     assert.equal(result.pagos.length, 1);
     assert.equal(result.pagos[0].id, 'pago-1');
   } finally {
     pagoController.listarPagos = originalPagos;
-    Contrato.find = originalContratos;
   }
 });
 
@@ -102,12 +124,11 @@ test('consultarDatosAlquiler filtra contratos del propietario autenticado', asyn
       };
       return chain;
     };
-    pagoController.listarPagos = async (req, res) => {
+    pagoController.listarPagos = async (_req, res) => {
       res.status(200).json({ success: true, data: [] });
     };
     const result = await ejecutarToolSegura('consultarDatosAlquiler', {
       alcance: 'CONTRATOS',
-      id_inquilino: 'otro',
     }, { id: 'prop-1', roles: ['PROPIETARIO'] });
     assert.ok(!Object.hasOwn(result, 'pagos'));
     assert.equal(result.contratos[0].propiedad, 'Av. Siempre Viva 742');
@@ -125,20 +146,80 @@ test('consultarDatosAlquiler rechaza usuarios sin permiso operativo', async () =
   );
 });
 
+test('las herramientas rechazan campos de identidad inyectados por el LLM', async () => {
+  await assert.rejects(
+    ejecutarToolSegura('consultarDatosAlquiler', {
+      alcance: 'PAGOS',
+      id_usuario: 'otro-usuario',
+    }, USUARIO_INQUILINO),
+    /campos no autorizados: id_usuario/i,
+  );
+  await assert.rejects(
+    ejecutarToolSegura('gestionarReclamos', {
+      accion: 'LISTAR_RECLAMOS',
+      id_inquilino: 'otro-usuario',
+    }, USUARIO_INQUILINO),
+    /campos no autorizados: id_inquilino/i,
+  );
+  await assert.rejects(
+    ejecutarToolSegura('consultarFinanzas', {
+      accion: 'SALDOS',
+      roles: ['ADMINISTRADOR'],
+    }, USUARIO_INQUILINO),
+    /campos no autorizados: roles/i,
+  );
+});
+
 test('gestionarReclamos delega en el servicio con identidad y argumentos', async () => {
   const original = aiReclamosService.gestionarReclamos;
   try {
     aiReclamosService.gestionarReclamos = async (usuario, args) => {
-      assert.deepEqual(usuario, { id: 'inquilino-1', roles: ['INQUILINO'] });
+      assert.deepEqual(usuario, USUARIO_INQUILINO);
       assert.deepEqual(args, { accion: 'LISTAR_RECLAMOS' });
       return [{ id: 'reclamo-1' }];
     };
     const resultado = await ejecutarToolSegura('gestionarReclamos', {
       accion: 'LISTAR_RECLAMOS',
-    }, { id: 'inquilino-1', roles: ['INQUILINO'] });
+    }, USUARIO_INQUILINO);
     assert.deepEqual(resultado, [{ id: 'reclamo-1' }]);
   } finally {
     aiReclamosService.gestionarReclamos = original;
+  }
+});
+
+test('consultarFinanzas delega en el servicio financiero con identidad y argumentos', async () => {
+  const original = aiFinanzasService.gestionarFinanzas;
+  try {
+    aiFinanzasService.gestionarFinanzas = async (usuario, args) => {
+      assert.deepEqual(usuario, USUARIO_INQUILINO);
+      assert.deepEqual(args, { accion: 'ANALIZAR_COMPROBANTE', texto: 'Total $10.000' });
+      return { extraido: true, monto: 10000 };
+    };
+    const resultado = await ejecutarToolSegura('consultarFinanzas', {
+      accion: 'ANALIZAR_COMPROBANTE',
+      texto: 'Total $10.000',
+    }, USUARIO_INQUILINO);
+    assert.equal(resultado.monto, 10000);
+  } finally {
+    aiFinanzasService.gestionarFinanzas = original;
+  }
+});
+
+test('consultarResumenAgrupamiento delega en el servicio con identidad y argumentos', async () => {
+  const original = aiAgrupamientoService.consultarResumenAgrupamiento;
+  try {
+    aiAgrupamientoService.consultarResumenAgrupamiento = async (usuario, args) => {
+      assert.deepEqual(usuario, USUARIO_INQUILINO);
+      assert.deepEqual(args, { id_agrupamiento: 'agrupamiento-1', periodo: '2026-10' });
+      return { totalCobradoMes: 0, reclamosUrgentes: 0 };
+    };
+    const resultado = await ejecutarToolSegura('consultarResumenAgrupamiento', {
+      id_agrupamiento: 'agrupamiento-1',
+      periodo: '2026-10',
+    }, USUARIO_INQUILINO);
+    assert.equal(resultado.reclamosUrgentes, 0);
+  } finally {
+    aiAgrupamientoService.consultarResumenAgrupamiento = original;
   }
 });
 

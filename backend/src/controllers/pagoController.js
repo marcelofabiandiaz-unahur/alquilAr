@@ -15,6 +15,7 @@ const {
   obtenerContratosVisibles,
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
+const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
 const { construirOperacionesCuotas } = require('../utils/cuotasContrato');
 
 const responder = (res, status, data, message) =>
@@ -59,23 +60,59 @@ const subirComprobanteCloudinary = (cloudinary, file, pagoId, usuarioId) =>
 
 const listarPagos = async (req, res) => {
   try {
-    const contratos = await obtenerContratosVisibles(req.usuario);
+    const query = req.query || {};
+    let contratos = await obtenerContratosVisibles(req.usuario);
     if (!contratos) return responder(res, 403, null, 'No tenés permiso para consultar pagos.');
 
     const filtro = { id_contrato: { $in: contratos.map((contrato) => contrato._id) } };
-    if (req.query.id_contrato) {
-      if (!esObjectIdValido(req.query.id_contrato)) {
+    if (query.id_contrato) {
+      if (!esObjectIdValido(query.id_contrato)) {
         return responder(res, 400, null, 'id_contrato inválido.');
       }
-      filtro.id_contrato = req.query.id_contrato;
-      if (!contratos.some((contrato) => resolverId(contrato._id) === req.query.id_contrato)) {
+      filtro.id_contrato = query.id_contrato;
+      if (!contratos.some((contrato) => resolverId(contrato._id) === query.id_contrato)) {
         return responder(res, 403, null, 'No tenés permiso para consultar este contrato.');
       }
     }
 
+    if (query.id_agrupamiento !== undefined) {
+      if (!esObjectIdValido(String(query.id_agrupamiento))) {
+        return responder(res, 400, null, 'id_agrupamiento inválido.');
+      }
+      const { propiedades, error } = await resolverAlcanceAgrupamiento(
+        query.id_agrupamiento,
+        req.usuario,
+      );
+      if (error) return responder(res, error.status, null, error.mensaje);
+
+      const idsPropiedades = new Set(propiedades.map((propiedad) => resolverId(propiedad._id)));
+      contratos = contratos.filter((contrato) => idsPropiedades.has(resolverId(contrato.id_propiedad)));
+
+      if (query.id_contrato && !contratos.some((contrato) => resolverId(contrato._id) === query.id_contrato)) {
+        return responder(res, 403, null, 'No tenés permiso para consultar este contrato.');
+      }
+      filtro.id_contrato = {
+        $in: contratos.map((contrato) => contrato._id),
+      };
+    }
+
+    if (query.periodo !== undefined) {
+      const periodoNormalizado = String(query.periodo).replace('-', '');
+      if (!/^\d{4}(0[1-9]|1[0-2])$/.test(periodoNormalizado)) {
+        return responder(res, 400, null, 'periodo debe tener formato YYYY-MM.');
+      }
+      filtro.mes_correspondiente = { $in: [periodoNormalizado, String(query.periodo)] };
+    }
+    if (query.estado !== undefined) {
+      if (!['PENDIENTE', 'INGRESADO', 'PAGADO', 'ATRASADO'].includes(query.estado)) {
+        return responder(res, 400, null, 'estado inválido.');
+      }
+      filtro.estado = query.estado;
+    }
+
     const contratosVigentes = contratos.filter((contrato) =>
       contrato.estado === 'VIGENTE'
-      && (!req.query.id_contrato || resolverId(contrato._id) === req.query.id_contrato));
+      && (!query.id_contrato || resolverId(contrato._id) === query.id_contrato));
     const operacionesCuotas = contratosVigentes.flatMap((contrato) =>
       construirOperacionesCuotas(contrato));
     if (operacionesCuotas.length > 0) {
