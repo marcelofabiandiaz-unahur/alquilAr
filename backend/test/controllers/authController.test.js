@@ -166,6 +166,58 @@ describe('authController', () => {
     assert.equal(usuario.cbu_alias, 'alquilar.santiago');
   });
 
+  it('actualizarMiPerfil solo modifica campos permitidos de la identidad autenticada', async () => {
+    let idBuscado;
+    const usuario = {
+      _id: usuarioId,
+      nombre: 'Santiago',
+      apellido: 'Torales',
+      email: 'santiago@alquilar.com',
+      roles: ['USUARIO'],
+      estado: 'ACTIVO',
+      password: 'hash-privado',
+      telefono: '',
+      cbu_alias: '',
+      cuit_cuil: '',
+      save: async () => {},
+      toObject() {
+        return { ...this };
+      },
+    };
+    Usuario.findById = async (id) => {
+      idBuscado = id;
+      return usuario;
+    };
+
+    const req = {
+      usuario: { _id: usuarioId },
+      body: {
+        telefono: '1155551234',
+        cbu_alias: 'alquilar.santiago',
+        cuit_cuil: '20123456789',
+        nombre: 'Administrador',
+        apellido: 'Falso',
+        email: 'otro@alquilar.com',
+        roles: ['ADMINISTRADOR'],
+        estado: 'INACTIVO',
+        password: 'nueva-clave',
+      },
+    };
+    const res = mockRes();
+    await actualizarMiPerfil(req, res);
+
+    assert.equal(String(idBuscado), String(usuarioId));
+    assert.equal(usuario.telefono, '1155551234');
+    assert.equal(usuario.cbu_alias, 'alquilar.santiago');
+    assert.equal(usuario.cuit_cuil, '20123456789');
+    assert.equal(usuario.nombre, 'Santiago');
+    assert.equal(usuario.apellido, 'Torales');
+    assert.equal(usuario.email, 'santiago@alquilar.com');
+    assert.deepEqual(usuario.roles, ['USUARIO']);
+    assert.equal(usuario.estado, 'ACTIVO');
+    assert.equal(res.body.password, undefined);
+  });
+
   it('agregarRolesUsuario rechaza body sin array agregar', async () => {
     const req = { params: { id: usuarioId }, body: {} };
     const res = mockRes();

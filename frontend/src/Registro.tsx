@@ -162,7 +162,7 @@ export default function Registro() {
       }
 
       setMensaje('¡Registro exitoso! Redirigiendo al inicio de sesión...');
-      window.setTimeout(() => navigate('/'), 2500);
+      window.setTimeout(() => navigate('/', { state: { mostrarFormularioMovil: true } }), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar el usuario.');
     } finally {
@@ -280,7 +280,11 @@ export default function Registro() {
         )}
 
         <p className="border-t border-slate-700 pt-4 text-center">
-          <button type="button" onClick={() => navigate('/')} className={linkClass}>
+          <button
+            type="button"
+            onClick={() => navigate('/', { state: { mostrarFormularioMovil: true } })}
+            className={linkClass}
+          >
             ¿Ya tenés cuenta? Iniciá sesión
           </button>
         </p>

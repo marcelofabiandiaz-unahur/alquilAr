@@ -96,16 +96,15 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
 - **Gastos:** `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`, filtros por propiedad, fechas y `estado_pago`.
 - **Reclamos:** `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH …/estado`, `DELETE`. El inquilino abre reclamos sobre contratos vigentes; propietario y administrador gestionan los de sus propiedades.
 
-### Asistente IA
+### ALQUI — asistente IA
 
 - `POST /api/ai/chat` — requiere JWT; body `{ mensajes }` con roles `user` y `assistant`.
 - Modelo: `gemini-3.8-flash` (`GEMINI_API_KEY` solo en backend).
-- Límites: hasta **20** mensajes por request y **4000** caracteres por mensaje; el último mensaje debe ser del usuario.
-- Herramientas (`aiToolsRegistry.js`): exactamente dos.
-  - `consultarDatosAlquiler`: consulta contratos y pagos visibles según el rol.
-  - `gestionarReclamos`: lista contratos vigentes del inquilino, lista reclamos visibles, clasifica una incidencia (categoría y prioridad propuestas por el servidor) y crea el reclamo con validación en los controladores existentes.
-- Seguridad: la identidad y los permisos se resuelven solo con el JWT; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados.
-- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **20** mensajes y limita cada mensaje a **4000** caracteres. Si la API falla, muestra el error sin confirmar ninguna acción y permite reintentar el mensaje. El historial **no** se persiste en MongoDB.
+- Límites: hasta **20** mensajes por request y **200** caracteres por consulta del usuario; el último mensaje debe ser del usuario.
+- Rendimiento: una sola generación por consulta, salida breve, nivel de razonamiento mínimo, sin reintentos y timeout del proveedor de **10 s** (mínimo aceptado por Gemini). La latencia de base de datos, red y arranque de Render puede extender el tiempo total; al vencer el timeout, la API devuelve un error explícito y no simula una respuesta.
+- Herramientas (`aiToolsRegistry.js`): `consultarDatosAlquiler` (contratos/pagos visibles para el rol autenticado) y `gestionarReclamos` (listar reclamos para roles operativos; consultar contratos vigentes y crear reclamos solo para inquilinos). El servidor filtra las herramientas ofrecidas al modelo y vuelve a comprobar los permisos al ejecutarlas. La identidad y los datos consultables provienen del JWT y de las reglas de acceso de la API.
+- Alcance: exclusivamente funciones e información de AlquilAR sobre propiedades, alquileres, contratos, inquilinos, pagos, gastos y reclamos; no ofrece asesoramiento general fuera de la plataforma.
+- UI: chat flotante verde agua para inquilinos, propietarios y administradores. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 

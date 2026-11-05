@@ -255,7 +255,7 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
               onChange={(e) => setForm({ ...form, direccion: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Tipo</label>
               <input

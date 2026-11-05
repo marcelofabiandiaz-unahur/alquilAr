@@ -5,10 +5,38 @@
 }
 
 body {
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
   font-family: var(--font-sans);
   background: #f8fafc;
   color: #0f172a;
   transition: background-color 180ms ease, color 180ms ease;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button {
+  min-width: 0;
+}
+
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
 }
 
 .auth-input {
@@ -210,6 +238,34 @@ body {
 
 :root[data-theme='dark'] .bg-fuchsia-50 {
   background-color: #4a044e;
+}
+
+:root[data-theme='dark'] .dashboard-sidebar {
+  background: rgb(25 22 45 / 94%);
+  border-color: #443b62;
+  box-shadow: 12px 0 36px rgb(0 0 0 / 30%);
+}
+
+:root[data-theme='dark'] .dashboard-sidebar__brand {
+  background-color: rgb(255 255 255 / 94%);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
+}
+
+:root[data-theme='dark'] .dashboard-sidebar nav > div > p {
+  color: #b7a9d8;
+}
+
+:root[data-theme='dark'] .dashboard-sidebar nav button:not(.bg-violet-700) {
+  color: #d7d2e7;
+}
+
+:root[data-theme='dark'] .dashboard-sidebar nav button:not(.bg-violet-700):hover {
+  background-color: rgb(196 181 253 / 14%);
+  color: #f5f3ff;
+}
+
+:root[data-theme='dark'] .dashboard-sidebar > div:last-child {
+  border-color: #443b62;
 }
 
 :root[data-theme='dark'] .text-slate-300 {

@@ -537,7 +537,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               </div>
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Alquiler</h3>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-slate-400">Fecha de inicio</dt>
                     <dd className="mt-1 font-medium text-slate-800">{fechaContrato(contratoSeleccionado.fecha_inicio)}</dd>
@@ -558,7 +558,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               </section>
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Propiedad</h3>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-slate-400">Dirección</dt>
                     <dd className="mt-1 font-medium text-slate-800">{direccionPropiedad(contratoSeleccionado)}</dd>
@@ -577,7 +577,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               </section>
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Inquilino</h3>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-slate-400">Nombre</dt>
                     <dd className="mt-1 font-medium text-slate-800">{obtenerNombreInquilino(contratoSeleccionado)}</dd>
@@ -595,7 +595,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               <section>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Garante</h3>
                 {contratoSeleccionado.garante?.nombre || contratoSeleccionado.garante?.telefono || contratoSeleccionado.garante?.recibo ? (
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
                     <div>
                       <dt className="text-slate-400">Nombre</dt>
                       <dd className="mt-1 font-medium text-slate-800">{contratoSeleccionado.garante.nombre || '—'}</dd>
@@ -605,7 +605,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
                       <dd className="mt-1 font-medium text-slate-800">{contratoSeleccionado.garante.telefono || '—'}</dd>
                     </div>
                     {contratoSeleccionado.garante.recibo && (
-                      <div className="col-span-2">
+                      <div className="col-span-1 sm:col-span-2">
                         <button
                           type="button"
                           className="font-medium text-emerald-700 hover:underline"
@@ -839,7 +839,7 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
               value={form.monto_mensual}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Garante (opcional)</label>
               <input

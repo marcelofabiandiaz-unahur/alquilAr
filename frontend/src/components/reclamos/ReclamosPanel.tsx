@@ -183,7 +183,7 @@ export default function ReclamosPanel({ token, esPropietario, esInquilino, esAdm
             <label className={labelClass}>Descripción</label>
             <textarea required maxLength={3000} rows={4} value={form.descripcion} onChange={(event) => setForm({ ...form, descripcion: event.target.value })} className={inputClass} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Categoría</label>
               <select value={form.categoria} onChange={(event) => setForm({ ...form, categoria: event.target.value as CategoriaReclamo })} className={inputClass}>
