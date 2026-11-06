@@ -1,12 +1,13 @@
 export const CATEGORIAS_RECLAMO = [
   'PLOMERIA',
   'ELECTRICIDAD',
-  'GAS',
   'ESTRUCTURAL',
+  'EDIFICIO',
+  'OTRO',
+  'GAS',
   'MANTENIMIENTO',
   'SERVICIOS',
   'SEGURIDAD',
-  'OTRO',
 ] as const;
 
 export const PRIORIDADES_RECLAMO = ['BAJA', 'MEDIA', 'ALTA', 'URGENTE'] as const;

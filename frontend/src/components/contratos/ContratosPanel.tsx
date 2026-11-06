@@ -17,6 +17,7 @@ import {
 } from '../layout/dashboardStyles';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { Contrato, Propiedad } from '../../types';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 
 interface ContratoFormState {
   id_propiedad: string;
@@ -75,9 +76,15 @@ interface ContratosPanelProps {
   token: string;
   esPropietario: boolean;
   esInquilino: boolean;
+  idAgrupamiento?: string;
 }
 
-export default function ContratosPanel({ token, esPropietario, esInquilino }: ContratosPanelProps) {
+export default function ContratosPanel({
+  token,
+  esPropietario,
+  esInquilino,
+  idAgrupamiento = '',
+}: ContratosPanelProps) {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -110,7 +117,10 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
     setCargando(true);
     setError('');
     try {
-      const data = await apiGet<Contrato[]>('/api/contratos', token);
+      const data = await apiGet<Contrato[]>(
+        conAgrupamiento('/api/contratos', idAgrupamiento),
+        token,
+      );
       setContratos(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los contratos.');
@@ -118,17 +128,20 @@ export default function ContratosPanel({ token, esPropietario, esInquilino }: Co
     } finally {
       setCargando(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   const cargarPropiedades = useCallback(async () => {
     if (!esPropietario) return;
     try {
-      const data = await apiGet<Propiedad[]>('/api/propiedades', token);
+      const data = await apiGet<Propiedad[]>(
+        conAgrupamiento('/api/propiedades', idAgrupamiento),
+        token,
+      );
       setPropiedades(Array.isArray(data) ? data.filter((p) => p.estado !== 'INACTIVA') : []);
     } catch {
       setPropiedades([]);
     }
-  }, [token, esPropietario]);
+  }, [token, esPropietario, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

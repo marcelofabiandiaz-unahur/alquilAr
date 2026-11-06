@@ -11,6 +11,7 @@ import Alert from '../ui/Alert';
 import StatBadge from '../ui/StatBadge';
 import Modal from '../ui/Modal';
 import { btnPrimaryClass, btnGhostClass, inputClass, labelClass } from '../layout/dashboardStyles';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { Gasto, Propiedad, PropiedadReferencia } from '../../types';
 
@@ -43,6 +44,7 @@ interface GastosPanelProps {
   esInquilino: boolean;
   esAdmin: boolean;
   embedded?: boolean;
+  idAgrupamiento?: string;
 }
 
 function propiedadDeGasto(gasto: Gasto): PropiedadReferencia | null {
@@ -193,6 +195,7 @@ export default function GastosPanel({
   esInquilino,
   esAdmin,
   embedded = false,
+  idAgrupamiento = '',
 }: GastosPanelProps) {
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
@@ -217,6 +220,7 @@ export default function GastosPanel({
     setError('');
     try {
       const params = new URLSearchParams();
+      if (idAgrupamiento) params.set('id_agrupamiento', idAgrupamiento);
       if (filtroPropiedad) params.set('id_propiedad', filtroPropiedad);
       if (desde) params.set('desde', desde);
       if (hasta) params.set('hasta', hasta);
@@ -225,7 +229,9 @@ export default function GastosPanel({
       const query = queryString ? `?${queryString}` : '';
       const [gastosData, propiedadesData] = await Promise.all([
         apiGet<Gasto[]>(`/api/gastos${query}`, token),
-        puedeGestionar ? apiGet<Propiedad[]>('/api/propiedades', token) : Promise.resolve([] as Propiedad[]),
+        puedeGestionar
+          ? apiGet<Propiedad[]>(conAgrupamiento('/api/propiedades', idAgrupamiento), token)
+          : Promise.resolve([] as Propiedad[]),
       ]);
       if (!Array.isArray(gastosData) || !Array.isArray(propiedadesData)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
@@ -239,7 +245,7 @@ export default function GastosPanel({
     } finally {
       setCargando(false);
     }
-  }, [token, puedeGestionar, filtroPropiedad, desde, hasta, filtroEstado]);
+  }, [token, puedeGestionar, filtroPropiedad, desde, hasta, filtroEstado, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(cargar, 0);

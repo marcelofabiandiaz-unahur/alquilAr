@@ -1,4 +1,5 @@
 const ESTADO_STYLES: Record<string, string> = {
+  ACTIVO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   DISPONIBLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   BORRADOR: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   ALQUILADA: 'bg-sky-50 text-sky-700 border-sky-200',

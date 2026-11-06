@@ -13,7 +13,9 @@ const {
   construirFiltroContratosMixto,
   propiedadPermiteContratoVigente,
   esErrorCast,
+  esObjectIdValido,
 } = require('../utils/recursosHelpers');
+const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
 const {
   validarIdParam,
   validarObjectIdBody,
@@ -82,10 +84,47 @@ const obtenerPropiedadConPermiso = async (idPropiedad, usuarioId, roles) => {
 const listarContratos = async (req, res) => {
   try {
     const { roles, id: usuarioId } = req.usuario;
+    const query = req.query || {};
+    const ESTADOS_CONTRATO = [
+      'BORRADOR',
+      'VIGENTE',
+      'FINALIZADO',
+      'CANCELADO',
+    ];
+
+    let alcanceAgrupamiento = null;
+    if (query.id_agrupamiento !== undefined) {
+      if (!esObjectIdValido(String(query.id_agrupamiento))) {
+        return res.status(400).json({ mensaje: 'id_agrupamiento inválido.' });
+      }
+      const { propiedades, error } = await resolverAlcanceAgrupamiento(
+        query.id_agrupamiento,
+        req.usuario,
+      );
+      if (error) return res.status(error.status).json({ mensaje: error.mensaje });
+      alcanceAgrupamiento = { ids: propiedades.map((propiedad) => propiedad._id) };
+    }
+
+    if (query.estado !== undefined && !ESTADOS_CONTRATO.includes(query.estado)) {
+      return res.status(400).json({ mensaje: 'estado inválido.' });
+    }
+
+    const conFiltros = (filtro) => {
+      let resultado = filtro;
+      if (query.estado !== undefined) resultado = { ...resultado, estado: query.estado };
+      if (alcanceAgrupamiento) {
+        const filtroAgrupamiento = { id_propiedad: { $in: alcanceAgrupamiento.ids } };
+        resultado = Object.keys(resultado).length > 0
+          ? { $and: [resultado, filtroAgrupamiento] }
+          : filtroAgrupamiento;
+      }
+      return resultado;
+    };
+
     let contratos;
 
     if (esAdmin(roles)) {
-      contratos = await Contrato.find()
+      contratos = await Contrato.find(conFiltros({}))
         .populate('id_propiedad', 'direccion tipo estado id_propietario')
         .populate('id_inquilino', 'nombre apellido email dni')
         .sort({ createdAt: -1 });
@@ -94,7 +133,7 @@ const listarContratos = async (req, res) => {
         id_propietario: usuarioId,
       }).select('_id');
       const ids = propiedades.map((p) => p._id);
-      contratos = await Contrato.find(construirFiltroContratosMixto(usuarioId, ids))
+      contratos = await Contrato.find(conFiltros(construirFiltroContratosMixto(usuarioId, ids)))
         .populate('id_propiedad', 'direccion tipo estado')
         .populate('id_inquilino', 'nombre apellido email dni')
         .sort({ createdAt: -1 });
@@ -103,12 +142,12 @@ const listarContratos = async (req, res) => {
         id_propietario: usuarioId,
       }).select('_id');
       const ids = propiedades.map((p) => p._id);
-      contratos = await Contrato.find({ id_propiedad: { $in: ids } })
+      contratos = await Contrato.find(conFiltros({ id_propiedad: { $in: ids } }))
         .populate('id_propiedad', 'direccion tipo estado')
         .populate('id_inquilino', 'nombre apellido email dni')
         .sort({ createdAt: -1 });
     } else if (esInquilino(roles)) {
-      contratos = await Contrato.find({ id_inquilino: usuarioId })
+      contratos = await Contrato.find(conFiltros({ id_inquilino: usuarioId }))
         .populate('id_propiedad', 'direccion tipo estado id_propietario')
         .sort({ createdAt: -1 });
     } else {

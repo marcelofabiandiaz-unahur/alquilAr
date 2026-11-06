@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../lib/apiClient';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import { formatMoneda } from '../../lib/estadoStyles';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
@@ -12,6 +13,7 @@ import type { Contrato, Pago, Reclamo, RolesDashboard } from '../../types';
 interface HistorialPanelProps {
   token: string;
   roles: RolesDashboard;
+  idAgrupamiento?: string;
 }
 
 type PestañaDetalle = 'realizados' | 'cuotas' | 'reclamos';
@@ -112,7 +114,11 @@ function ListaPagos({ pagos, titulo }: { pagos: Pago[]; titulo: string }) {
   );
 }
 
-export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
+export default function HistorialPanel({
+  token,
+  roles,
+  idAgrupamiento = '',
+}: HistorialPanelProps) {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [reclamos, setReclamos] = useState<Reclamo[]>([]);
@@ -126,9 +132,9 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
     setError('');
     try {
       const [contratosData, pagosData, reclamosData] = await Promise.all([
-        apiGet<Contrato[]>('/api/contratos', token),
-        apiGet<Pago[]>('/api/pagos', token),
-        apiGet<Reclamo[]>('/api/reclamos', token),
+        apiGet<Contrato[]>(conAgrupamiento('/api/contratos', idAgrupamiento), token),
+        apiGet<Pago[]>(conAgrupamiento('/api/pagos', idAgrupamiento), token),
+        apiGet<Reclamo[]>(conAgrupamiento('/api/reclamos', idAgrupamiento), token),
       ]);
       if (![contratosData, pagosData, reclamosData].every(Array.isArray)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
@@ -144,7 +150,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
     } finally {
       setCargando(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(() => void cargar(), 0);

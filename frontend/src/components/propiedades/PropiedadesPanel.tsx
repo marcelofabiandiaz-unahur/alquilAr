@@ -18,7 +18,11 @@ import {
   btnGhostClass,
 } from '../layout/dashboardStyles';
 import type { FormEvent } from 'react';
-import type { Contrato, Propiedad } from '../../types';
+import type { Agrupamiento, Contrato, Propiedad } from '../../types';
+import {
+  conAgrupamiento,
+  obtenerIdAgrupamiento,
+} from '../../lib/agrupamientos';
 
 interface PropiedadForm {
   direccion: string;
@@ -28,6 +32,8 @@ interface PropiedadForm {
   descripcion: string;
   estado: string;
   fotos: string[];
+  id_agrupamiento: string;
+  unidad: string;
 }
 
 const FORM_VACIO: PropiedadForm = {
@@ -38,16 +44,25 @@ const FORM_VACIO: PropiedadForm = {
   descripcion: '',
   estado: 'DISPONIBLE',
   fotos: [],
+  id_agrupamiento: '',
+  unidad: '',
 };
 
 interface PropiedadesPanelProps {
   token: string;
   esPropietario: boolean;
   esAdmin: boolean;
+  idAgrupamiento?: string;
 }
 
-export default function PropiedadesPanel({ token, esPropietario, esAdmin }: PropiedadesPanelProps) {
+export default function PropiedadesPanel({
+  token,
+  esPropietario,
+  esAdmin,
+  idAgrupamiento = '',
+}: PropiedadesPanelProps) {
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
+  const [agrupamientos, setAgrupamientos] = useState<Agrupamiento[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
@@ -64,23 +79,38 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
     setCargando(true);
     setError('');
     try {
-      const data = await apiGet<Propiedad[]>('/api/propiedades', token);
+      const data = await apiGet<Propiedad[]>(
+        conAgrupamiento('/api/propiedades', idAgrupamiento),
+        token,
+      );
       setPropiedades(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar las propiedades.');
     } finally {
       setCargando(false);
     }
+  }, [token, idAgrupamiento]);
+
+  const cargarAgrupamientos = useCallback(async () => {
+    try {
+      const data = await apiGet<Agrupamiento[]>('/api/agrupamientos', token);
+      setAgrupamientos(Array.isArray(data) ? data : []);
+    } catch {
+      setAgrupamientos([]);
+    }
   }, [token]);
 
   useEffect(() => {
-    const timer = setTimeout(cargar, 0);
+    const timer = setTimeout(() => {
+      void cargar();
+      void cargarAgrupamientos();
+    }, 0);
     return () => clearTimeout(timer);
-  }, [cargar]);
+  }, [cargar, cargarAgrupamientos]);
 
   const abrirNueva = () => {
     setEditando(null);
-    setForm(FORM_VACIO);
+    setForm({ ...FORM_VACIO, id_agrupamiento: idAgrupamiento });
     setModalAbierto(true);
   };
 
@@ -94,6 +124,8 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
       descripcion: prop.descripcion || '',
       estado: prop.estado,
       fotos: Array.isArray(prop.fotos) ? [...prop.fotos] : [],
+      id_agrupamiento: obtenerIdAgrupamiento(prop.id_agrupamiento),
+      unidad: prop.unidad?.identificador || '',
     });
     setModalAbierto(true);
   };
@@ -104,6 +136,13 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
     setError('');
     setAviso('');
     try {
+      const agrupamientoSeleccionado = form.id_agrupamiento.trim();
+      const unidad = form.unidad.trim();
+      if (agrupamientoSeleccionado && !unidad) {
+        setError('Indicá el identificador de la unidad del agrupamiento.');
+        return;
+      }
+
       const body: {
         direccion: string;
         tipo: string;
@@ -112,6 +151,8 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
         descripcion: string;
         fotos: string[];
         estado?: string;
+        id_agrupamiento?: string | null;
+        unidad?: { identificador: string };
       } = {
         direccion: form.direccion,
         tipo: form.tipo,
@@ -121,6 +162,13 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
         fotos: form.fotos,
       };
       if (editando) {
+        const idOriginal = obtenerIdAgrupamiento(editando.id_agrupamiento);
+        if (agrupamientoSeleccionado !== idOriginal) {
+          body.id_agrupamiento = agrupamientoSeleccionado || null;
+        }
+        if (agrupamientoSeleccionado && unidad) {
+          body.unidad = { identificador: unidad };
+        }
         if (form.estado !== 'ALQUILADA' && form.estado !== 'INACTIVA') {
           body.estado = form.estado;
         }
@@ -131,6 +179,10 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
         );
         setAviso(actualizada.advertencias?.join(' ') || '');
       } else {
+        if (agrupamientoSeleccionado) {
+          body.id_agrupamiento = agrupamientoSeleccionado;
+          body.unidad = { identificador: unidad };
+        }
         await apiPost('/api/propiedades', token, body);
         setAviso('');
       }
@@ -210,6 +262,17 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
                   <p className="text-slate-500 text-xs mt-1">
                     {prop.tipo} · {prop.ambientes} amb.
                   </p>
+                  {(() => {
+                    const id = obtenerIdAgrupamiento(prop.id_agrupamiento);
+                    if (!id) return null;
+                    const agrupamiento = agrupamientos.find((item) => item._id === id);
+                    return (
+                      <p className="text-fuchsia-600 text-xs mt-1 font-medium">
+                        {agrupamiento?.nombre || 'Agrupamiento'}
+                        {prop.unidad?.identificador ? ` · Unidad ${prop.unidad.identificador}` : ''}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <StatBadge estado={prop.estado} />
               </div>
@@ -296,6 +359,46 @@ export default function PropiedadesPanel({ token, esPropietario, esAdmin }: Prop
               value={form.descripcion}
               onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
             />
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Agrupamiento</label>
+              <select
+                className={inputClass}
+                value={form.id_agrupamiento}
+                onChange={(e) => setForm({
+                  ...form,
+                  id_agrupamiento: e.target.value,
+                  unidad: e.target.value ? form.unidad : '',
+                })}
+              >
+                <option value="">Sin agrupamiento</option>
+                {form.id_agrupamiento
+                  && !agrupamientos.some((item) => item._id === form.id_agrupamiento) && (
+                    <option value={form.id_agrupamiento}>Agrupamiento actual</option>
+                  )}
+                {agrupamientos.map((agrupamiento) => (
+                  <option key={agrupamiento._id} value={agrupamiento._id}>
+                    {agrupamiento.nombre} ({agrupamiento.codigo})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Unidad dentro del agrupamiento</label>
+              <input
+                className={inputClass}
+                placeholder="Ej. 4B, PB-2"
+                disabled={!form.id_agrupamiento}
+                value={form.unidad}
+                onChange={(e) => setForm({ ...form, unidad: e.target.value })}
+              />
+              {form.id_agrupamiento && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Identificador único dentro del agrupamiento.
+                </p>
+              )}
+            </div>
           </div>
           <PhotoDropzone
             fotos={form.fotos}

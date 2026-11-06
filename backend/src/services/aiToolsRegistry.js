@@ -1,5 +1,15 @@
-const { consultarDatosAlquiler } = require('./aiConsultaDatosService');
+const { consultarDatosAlquiler, CAMPOS_PERMITIDOS } = require('./aiConsultaDatosService');
 const aiReclamosService = require('./aiReclamosService');
+const aiFinanzasService = require('./aiFinanzasService');
+const aiAgrupamientoService = require('./aiAgrupamientoService');
+const { CODIGOS_IA, esAiError } = require('../utils/aiErrors');
+
+const CAMPOS_PROHIBIDOS = ['id_usuario', 'id_inquilino', 'id_propietario', 'usuario', 'roles'];
+
+const CAMPOS_POR_TOOL = {
+  consultarDatosAlquiler: [...CAMPOS_PERMITIDOS],
+  consultarResumenAgrupamiento: [...aiAgrupamientoService.CAMPOS],
+};
 
 const toolsEsquemas = [
   {
@@ -17,15 +27,20 @@ const toolsEsquemas = [
               enum: ['CONTRATOS', 'PAGOS', 'AMBOS'],
               description: 'Qué información devolver. Por defecto AMBOS.',
             },
+            id_agrupamiento: {
+              type: 'STRING',
+              description: 'ID opcional de un agrupamiento visible para el usuario autenticado.',
+            },
           },
         },
       },
       {
         name: 'gestionarReclamos',
         description:
-          'Gestiona los reclamos del usuario autenticado. Usá LISTAR_CONTRATOS para ver sus contratos vigentes, '
-          + 'LISTAR_RECLAMOS para consultar sus reclamos, CLASIFICAR para proponer categoría y prioridad a partir '
-          + 'de la descripción, y CREAR solo cuando el usuario confirme explícitamente. '
+          'Gestiona los reclamos del usuario autenticado. Usá LISTAR_CONTRATOS solo si el usuario es INQUILINO, '
+          + 'para ver sus contratos vigentes; LISTAR_RECLAMOS para consultar los reclamos visibles según su rol; '
+          + 'CLASIFICAR para proponer categoría, prioridad y primeros auxilios a partir de la descripción; y CREAR '
+          + 'solo cuando el usuario sea INQUILINO y confirme explícitamente. '
           + 'La identidad se obtiene solo del token de sesión; nunca accede a datos de otra cuenta.',
         parameters: {
           type: 'OBJECT',
@@ -49,39 +64,134 @@ const toolsEsquemas = [
             },
             categoria: {
               type: 'STRING',
-              enum: aiReclamosService.CATEGORIAS_RECLAMO,
+              enum: aiReclamosService.CATEGORIAS_IA,
               description: 'Categoría propuesta. Si no se envía, se usa la clasificación del servidor.',
             },
             prioridad: {
               type: 'STRING',
-              enum: aiReclamosService.PRIORIDADES_RECLAMO,
+              enum: aiReclamosService.PRIORIDADES_IA,
               description: 'Prioridad propuesta. Si no se envía, se usa la clasificación del servidor.',
+            },
+            id_agrupamiento: {
+              type: 'STRING',
+              description: 'ID opcional de un agrupamiento visible. Acota consultas y valida el contrato al crear.',
             },
           },
           required: ['accion'],
+        },
+      },
+      {
+        name: 'consultarFinanzas',
+        description:
+          'Consulta saldos y vencimientos del usuario autenticado, extrae monto y fecha del texto de un comprobante, '
+          + 'o redacta un recordatorio de mora. No envía mensajes ni modifica datos.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            accion: {
+              type: 'STRING',
+              enum: aiFinanzasService.ACCIONES,
+              description: 'Operación financiera a ejecutar.',
+            },
+            id_agrupamiento: {
+              type: 'STRING',
+              description: 'ID opcional de un agrupamiento visible para acotar los saldos.',
+            },
+            texto: {
+              type: 'STRING',
+              description: 'Texto del comprobante para ANALIZAR_COMPROBANTE.',
+            },
+          },
+          required: ['accion'],
+        },
+      },
+      {
+        name: 'consultarResumenAgrupamiento',
+        description:
+          'Devuelve métricas consolidadas de cobros, deuda, ocupación y reclamos urgentes, acotadas al rol del '
+          + 'usuario autenticado y, opcionalmente, a un agrupamiento visible.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            id_agrupamiento: {
+              type: 'STRING',
+              description: 'ID opcional de un agrupamiento visible. Si es ajeno, la consulta se rechaza.',
+            },
+            periodo: {
+              type: 'STRING',
+              description: 'Período opcional con formato YYYY-MM.',
+            },
+          },
         },
       },
     ],
   },
 ];
 
+const validarArgumentos = (name, args) => {
+  if (args === undefined || args === null) return {};
+  if (typeof args !== 'object' || Array.isArray(args)) {
+    throw new Error('Los argumentos de la herramienta deben ser un objeto.');
+  }
+
+  const prohibidos = Object.keys(args).filter((campo) => CAMPOS_PROHIBIDOS.includes(campo));
+  if (prohibidos.length > 0) {
+    throw new Error(`La herramienta recibió campos no autorizados: ${prohibidos.join(', ')}.`);
+  }
+
+  const permitidos = CAMPOS_POR_TOOL[name];
+  if (permitidos) {
+    const invalidos = Object.keys(args).filter((campo) => !permitidos.includes(campo));
+    if (invalidos.length > 0) {
+      throw new Error(`La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`);
+    }
+  }
+
+  return args;
+};
+
 const ejecutarToolSegura = async (name, args = {}, usuarioAutenticado) => {
   const usuario = usuarioAutenticado || {};
   const userId = usuario.id || usuario._id;
+  if (!userId) throw new Error('Se requiere una sesión autenticada.');
+
+  const argsSeguros = validarArgumentos(name, args);
 
   switch (name) {
     case 'consultarDatosAlquiler':
-      if (!userId) throw new Error('Se requiere una sesión autenticada.');
-      return consultarDatosAlquiler(usuario, args);
+      return consultarDatosAlquiler(usuario, argsSeguros);
     case 'gestionarReclamos':
-      if (!userId) throw new Error('Se requiere una sesión autenticada.');
-      return aiReclamosService.gestionarReclamos(usuario, args);
+      return aiReclamosService.gestionarReclamos(usuario, argsSeguros);
+    case 'consultarFinanzas':
+      return aiFinanzasService.gestionarFinanzas(usuario, argsSeguros);
+    case 'consultarResumenAgrupamiento':
+      return aiAgrupamientoService.consultarResumenAgrupamiento(usuario, argsSeguros);
     default:
       throw new Error(`La herramienta ${name} no está autorizada o registrada.`);
   }
 };
 
+/**
+ * Variante que usa el bucle de conversación: nunca lanza, devuelve un
+ * resultado estructurado para que el modelo pueda explicar el problema en
+ * lugar de romper todo el request.
+ */
+const ejecutarToolParaModelo = async (name, args = {}, usuarioAutenticado) => {
+  try {
+    const resultado = await ejecutarToolSegura(name, args, usuarioAutenticado);
+    return { ok: true, resultado };
+  } catch (error) {
+    const codigo = esAiError(error) ? error.codigo : CODIGOS_IA.INTERNO;
+    const mensaje = esAiError(error)
+      ? error.message
+      : 'No se pudo ejecutar la consulta solicitada.';
+    return { ok: false, codigo, mensaje };
+  }
+};
+
 module.exports = {
+  CAMPOS_PROHIBIDOS,
   toolsEsquemas,
   ejecutarToolSegura,
+  ejecutarToolParaModelo,
 };
