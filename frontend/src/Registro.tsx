@@ -7,6 +7,7 @@ import Alert from './components/ui/Alert';
 import AuthField from './components/auth/AuthField';
 import PasswordField from './components/auth/PasswordField';
 import { btnPrimaryClass, linkClass } from './components/auth/authStyles';
+import { mensajeErrorConexion } from './lib/networkErrors';
 
 type CampoRegistro = 'nombre' | 'apellido' | 'dni' | 'email' | 'telefono' | 'password';
 type DatosRegistro = Record<CampoRegistro, string>;
@@ -80,6 +81,8 @@ export default function Registro() {
   const [errores, setErrores] = useState<ErroresRegistro>({});
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
+  const [aceptoTerminos, setAceptoTerminos] = useState(false);
+  const [errorTerminos, setErrorTerminos] = useState('');
   const [cargando, setCargando] = useState(false);
 
   const actualizarCampo = (campo: CampoRegistro, valor: string) => {
@@ -130,8 +133,13 @@ export default function Registro() {
       return;
     }
     if (!validarPasoActual()) return;
+    if (!aceptoTerminos) {
+      setErrorTerminos('Para crear tu cuenta, aceptá los términos y políticas indicados.');
+      return;
+    }
 
     setError('');
+    setErrorTerminos('');
     setMensaje('');
     setCargando(true);
     try {
@@ -162,9 +170,9 @@ export default function Registro() {
       }
 
       setMensaje('¡Registro exitoso! Redirigiendo al inicio de sesión...');
-      window.setTimeout(() => navigate('/'), 2500);
+      window.setTimeout(() => navigate('/', { state: { mostrarFormularioMovil: true } }), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo registrar el usuario.');
+      setError(mensajeErrorConexion(err, 'No se pudo registrar el usuario.'));
     } finally {
       setCargando(false);
     }
@@ -214,7 +222,7 @@ export default function Registro() {
       subtitle="Completá tus datos para registrarte en AlquilAR"
     >
       <div className="space-y-5">
-        {error && <Alert type="error" theme="light">{error}</Alert>}
+        {error && <p role="alert" className="text-xs font-medium text-red-300">{error}</p>}
         {mensaje && (
           <Alert type="success" theme="light" onClose={() => setMensaje('')}>
             {mensaje}
@@ -244,6 +252,52 @@ export default function Registro() {
               <div key={campo}>{renderizarCampo(campo)}</div>
             ))}
           </div>
+
+          {paso === PASOS.length - 1 && (
+            <div className="space-y-1.5">
+              <label className="flex items-start gap-2.5 text-sm leading-relaxed text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={aceptoTerminos}
+                  aria-invalid={Boolean(errorTerminos)}
+                  aria-describedby={errorTerminos ? 'registro-terminos-error' : undefined}
+                  onChange={(event) => {
+                    setAceptoTerminos(event.target.checked);
+                    if (event.target.checked) setErrorTerminos('');
+                  }}
+                  className={`mt-1 h-4 w-4 shrink-0 rounded border-slate-400 bg-white accent-violet-500 ${
+                    errorTerminos ? 'outline outline-1 outline-red-500' : ''
+                  }`}
+                />
+                <span>
+                  He leído y acepto los{' '}
+                  <a
+                    href="/documentos/terminos-y-condiciones.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-violet-300 underline underline-offset-2 hover:text-violet-200"
+                  >
+                    Términos y Condiciones de Uso
+                  </a>{' '}
+                  y la{' '}
+                  <a
+                    href="/documentos/politicas-de-privacidad.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-violet-300 underline underline-offset-2 hover:text-violet-200"
+                  >
+                    Política de Privacidad
+                  </a>{' '}
+                  de AlquilAR.
+                </span>
+              </label>
+              {errorTerminos && (
+                <p id="registro-terminos-error" role="alert" className="pl-6 text-xs font-medium text-red-300">
+                  {errorTerminos}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3">
             {paso > 0 && (
@@ -280,7 +334,11 @@ export default function Registro() {
         )}
 
         <p className="border-t border-slate-700 pt-4 text-center">
-          <button type="button" onClick={() => navigate('/')} className={linkClass}>
+          <button
+            type="button"
+            onClick={() => navigate('/', { state: { mostrarFormularioMovil: true } })}
+            className={linkClass}
+          >
             ¿Ya tenés cuenta? Iniciá sesión
           </button>
         </p>

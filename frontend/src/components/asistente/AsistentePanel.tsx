@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { ApiError, apiPost } from '../../lib/apiClient';
 import Card from '../ui/Card';
-import Alert from '../ui/Alert';
 
 const MAX_MENSAJES = 10;
 const MAX_CARACTERES = 4000;
@@ -48,6 +47,26 @@ interface MensajeChat {
 
 interface RespuestaChat {
   resultado: MensajeChat;
+}
+
+export function RobotIcon() {
+  return (
+    <svg
+      className="block"
+      width="28"
+      height="28"
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path d="M16 4v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16" cy="3" r="2" fill="currentColor" />
+      <rect x="5" y="9" width="22" height="18" rx="6" stroke="currentColor" strokeWidth="2" />
+      <path d="M10 15h.01M22 15h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <path d="M11 20c1.2 1.5 2.8 2.25 5 2.25s3.8-.75 5-2.25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M2 15v6m28-6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function recortarHistorial(mensajes: MensajeChat[]): MensajeChat[] {
@@ -227,15 +246,15 @@ export default function AsistentePanel({
         </div>
       )}
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <Card className="assistant-chat-panel flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite" aria-busy={cargando}>
           {mensajes.length === 0 && (
             <div className="mx-auto mt-12 max-w-md text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-2xl" aria-hidden>
-                ✨
+              <div className="assistant-chat__welcome-icon mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" aria-hidden>
+                <RobotIcon />
               </div>
-              <h2 className="font-semibold text-slate-800">¿En qué te puedo ayudar?</h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <h2 className="assistant-chat__title font-semibold">¿En qué te puedo ayudar?</h2>
+              <p className="assistant-chat__secondary mt-2 text-sm">
                 Elegí una consulta o escribí la tuya. Las opciones usan tus datos reales según tu rol.
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -245,7 +264,7 @@ export default function AsistentePanel({
                     type="button"
                     onClick={() => usarSugerencia(sugerencia)}
                     disabled={cargando}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                   >
                     {sugerencia.etiqueta}
                   </button>
@@ -257,52 +276,52 @@ export default function AsistentePanel({
           {mensajes.map((mensaje, indice) => (
             <div
               key={`${indice}-${mensaje.role}`}
-              className={`flex ${mensaje.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex flex-col ${mensaje.role === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`assistant-chat__bubble max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   mensaje.role === 'user'
-                    ? 'rounded-br-md bg-[var(--brand-navy)] text-white'
-                    : 'rounded-bl-md bg-slate-100 text-slate-800'
-                } ${mensaje.error ? 'ring-2 ring-red-400' : ''}`}
+                    ? 'assistant-chat__bubble--user rounded-br-md'
+                    : 'assistant-chat__bubble--assistant rounded-bl-md'
+                }`}
               >
                 {mensaje.content}
-                {mensaje.error && (
-                  <div className="mt-2 flex items-center gap-2 border-t border-white/20 pt-2 text-xs text-red-200">
-                    <span>
-                      {mensaje.cancelado
-                        ? 'Cancelada'
-                        : mensaje.reintentable === false ? 'Sin confirmar' : 'No enviado'}
-                    </span>
-                    {mensaje.reintentable === false ? (
-                      <span>Revisá “Mis reclamos” antes de volver a intentar.</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => reintentar(indice)}
-                        disabled={cargando}
-                        className="font-semibold underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Reintentar
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
+              {mensaje.error && (
+                <p role="alert" className="chat-error mt-1 flex max-w-[85%] items-center gap-1 text-xs font-medium">
+                  <span>
+                    {mensaje.cancelado
+                      ? 'Cancelada.'
+                      : mensaje.reintentable === false
+                        ? 'Sin confirmar. Revisá “Mis reclamos” antes de volver a intentar.'
+                        : 'No enviado.'}
+                  </span>
+                  {mensaje.reintentable !== false && (
+                    <button
+                      type="button"
+                      onClick={() => reintentar(indice)}
+                      disabled={cargando}
+                      className="font-semibold underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Reintentar
+                    </button>
+                  )}
+                </p>
+              )}
             </div>
           ))}
 
           {cargando && (
             <div className="flex justify-start">
               <div
-                className="flex items-center gap-3 rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 text-sm text-slate-500"
+                className="assistant-chat__typing flex items-center gap-3 rounded-2xl rounded-bl-md px-4 py-3 text-sm"
                 role="status"
               >
-                <span>El asistente está pensando…</span>
+                <span>ALQUI está pensando…</span>
                 <button
                   type="button"
                   onClick={cancelar}
-                  className="rounded-full border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                  className="rounded-full border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800 dark:border-slate-600 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -312,14 +331,14 @@ export default function AsistentePanel({
           <div ref={finalMensajes} />
         </div>
 
-        <div className="space-y-3 border-t border-slate-200 p-3 sm:p-4">
-          {error && <Alert type="error" theme="light">{error}</Alert>}
+        <div className="assistant-chat__composer space-y-3 border-t p-3 sm:p-4">
+          {error && <p role="alert" className="chat-error text-xs font-medium">{error}</p>}
           <form onSubmit={enviar} className="flex items-end gap-2">
             <label className="sr-only" htmlFor="mensaje-asistente">Escribí tu consulta</label>
             <textarea
               id="mensaje-asistente"
               ref={areaTexto}
-              className="max-h-36 min-h-12 flex-1 resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
+              className="assistant-chat__input h-12 min-h-12 max-h-12 flex-1 resize-none overflow-y-auto rounded-xl border px-4 py-3 text-sm outline-none transition disabled:opacity-60"
               placeholder="Escribí tu consulta…"
               value={texto}
               maxLength={MAX_CARACTERES}
@@ -330,13 +349,13 @@ export default function AsistentePanel({
             />
             <button
               type="submit"
-              className="flex h-12 shrink-0 items-center justify-center rounded-xl bg-teal-600 px-5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="assistant-chat__send flex h-12 shrink-0 items-center justify-center rounded-xl px-5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               disabled={cargando || !texto.trim()}
             >
               {cargando ? 'Enviando…' : 'Enviar'}
             </button>
           </form>
-          <p className="text-center text-xs text-slate-400">
+          <p className="assistant-chat__footnote text-center text-xs">
             El asistente puede equivocarse. Confirmá los datos antes de enviar un reclamo.
             {' '}El historial enviado se limita a los últimos {MAX_MENSAJES} mensajes.
           </p>

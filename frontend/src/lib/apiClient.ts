@@ -2,6 +2,10 @@ import { API_URL } from '../config/api';
 
 export const SESION_NO_AUTORIZADA_EVENTO = 'alquilar:sesion-no-autorizada';
 
+function notificarSesionNoAutorizada(token: string | null) {
+  window.dispatchEvent(new CustomEvent(SESION_NO_AUTORIZADA_EVENTO, { detail: { token } }));
+}
+
 export type TipoErrorApi = 'red' | 'timeout' | 'http' | 'respuesta' | 'cancelado';
 
 export class ApiError extends Error {
@@ -156,7 +160,9 @@ const fetchConRed = async (
         tieneAutorizacion
         && (response.status === 401 || (response.status === 403 && desloguearEn403))
       ) {
-        window.dispatchEvent(new Event(SESION_NO_AUTORIZADA_EVENTO));
+        const authorization = new Headers(options.headers).get('Authorization');
+        const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
+        notificarSesionNoAutorizada(token);
       }
       return response;
     } catch (error) {

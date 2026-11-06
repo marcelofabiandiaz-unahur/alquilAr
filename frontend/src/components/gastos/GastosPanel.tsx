@@ -443,7 +443,7 @@ export default function GastosPanel({
               </select>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Fecha de emisión</label>
               <input type="date" required className={inputClass} value={form.fecha_emision} onChange={(event) => setForm({ ...form, fecha_emision: event.target.value })} />
@@ -453,7 +453,7 @@ export default function GastosPanel({
               <input type="number" min="0" step="0.01" required className={inputClass} value={form.monto_total} onChange={(event) => setForm({ ...form, monto_total: event.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Tipo</label>
               <input required maxLength={80} className={inputClass} value={form.tipo} onChange={(event) => setForm({ ...form, tipo: event.target.value })} />

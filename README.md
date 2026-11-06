@@ -111,7 +111,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
 - **Gastos:** `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`, filtros por propiedad, fechas y `estado_pago`.
 - **Reclamos:** `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH …/estado`, `DELETE`. El inquilino abre reclamos sobre contratos vigentes; propietario y administrador gestionan los de sus propiedades.
 
-### Asistente IA
+### ALQUI — asistente IA
 
 - `POST /api/ai/chat` — requiere JWT; body `{ mensajes, contexto?, intencion? }`. `contexto.id_agrupamiento` es opcional y se valida contra los agrupamientos visibles antes de usarlo.
 - Consultas predefinidas deterministas: `intencion: "RESUMEN_EDIFICIO"` o `"MIS_SALDOS"`. No dependen de que el modelo decida ejecutar una herramienta: usan los servicios y datos reales con la identidad del token.
@@ -125,7 +125,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
 - Errores tipados: `SIN_PERMISO`, `VALIDACION`, `NO_ENCONTRADO`, `CONFIGURACION`, `AUTENTICACION_PROVEEDOR`, `MODELO_INEXISTENTE`, `LIMITE_PROVEEDOR`, `PROVEEDOR`, `TIMEOUT`, `PASOS_EXCEDIDOS` e `INTERNO`. Los problemas de permisos se responden dentro de la conversación (HTTP 200) para no cerrar la sesión del usuario; los fallos técnicos devuelven un mensaje comprensible y un código, sin exponer detalles internos.
 - Estilo de respuesta: todas las contestaciones (incluidas las consultas predefinidas y las que usan herramientas) se presentan en texto natural y conversacional, sin JSON, bloques de código, nombres de herramientas, códigos internos ni viñetas. Los datos se traducen a frases con montos, fechas y estados legibles. El backend descarta cualquier salida técnica que el modelo devuelva por error.
 - Seguridad: la identidad y los permisos se resuelven solo con el JWT; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados. Las acciones que crean datos no se reintentan automáticamente.
-- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra el error del backend, permite cancelar la solicitud y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, no ofrece reintento directo y pide revisar “Mis reclamos”. El historial **no** se persiste en MongoDB.
+- UI: chat flotante ALQUI para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra errores del backend, permite cancelar solicitudes y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, pide revisar “Mis reclamos” antes de reintentar. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 

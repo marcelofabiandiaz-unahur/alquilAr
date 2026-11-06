@@ -69,6 +69,64 @@ test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de func
   ]);
 });
 
+test('procesarChat conserva el resultado de clasificación para responder antes de crear un reclamo', async () => {
+  const solicitudes = [];
+  const llamada = {
+    name: 'gestionarReclamos',
+    args: {
+      accion: 'CLASIFICAR',
+      asunto: 'Pérdida de agua',
+      descripcion: 'Hay una cañería rota en la cocina.',
+    },
+  };
+  const resultadoClasificacion = {
+    categoria: 'PLOMERIA',
+    prioridad: 'ALTA',
+    justificacion: 'La descripción indica una pérdida de agua.',
+    primeros_auxilios: ['Cerrá la llave de paso.'],
+  };
+
+  const resultado = await procesarChat([
+    { role: 'system', content: 'Pedí confirmación antes de crear reclamos.' },
+    { role: 'user', content: 'Quiero reportar una pérdida de agua.' },
+  ], { id: 'inquilino-1', roles: ['INQUILINO'] }, {
+    generateContent: async (request) => {
+      solicitudes.push(request);
+      if (solicitudes.length === 1) {
+        return {
+          functionCalls: [llamada],
+          candidates: [{
+            content: {
+              role: 'model',
+              parts: [{ functionCall: llamada }],
+            },
+          }],
+        };
+      }
+      return {
+        text: 'La incidencia se clasifica como PLOMERÍA, con prioridad alta. ¿Confirmás que registre el reclamo?',
+        functionCalls: [],
+      };
+    },
+    executeTool: async () => ({ ok: true, resultado: resultadoClasificacion }),
+  });
+
+  assert.match(resultado.content, /PLOMERÍA.*prioridad alta/i);
+  assert.match(resultado.content, /confirmás/i);
+  assert.deepEqual(solicitudes[1].contents.slice(-2), [
+    { role: 'model', parts: [{ functionCall: llamada }] },
+    {
+      role: 'user',
+      parts: [{
+        functionResponse: {
+          name: 'gestionarReclamos',
+          response: { result: resultadoClasificacion },
+        },
+      }],
+    },
+  ]);
+});
+
 test('procesarChat limita el número de rondas de herramientas y responde con un mensaje final', async () => {
   let llamadasModelo = 0;
   let llamadasTool = 0;

@@ -12,7 +12,7 @@ export default function Modal({ open, title, onClose, children, wide = false }: 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-2 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
@@ -20,7 +20,7 @@ export default function Modal({ open, title, onClose, children, wide = false }: 
         onClick={onClose}
       />
       <div
-        className={`relative bg-white border border-slate-200 rounded-xl shadow-xl w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto`}
+        className={`relative my-auto max-h-[calc(100dvh-1rem)] w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl sm:max-h-[calc(100dvh-2rem)]`}
       >
         <div className="flex items-center justify-between p-5 border-b border-slate-100">
           <h2 className="text-lg font-bold text-[var(--brand-navy)]">{title}</h2>
@@ -32,7 +32,7 @@ export default function Modal({ open, title, onClose, children, wide = false }: 
             ✕
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-4 sm:p-5">{children}</div>
       </div>
     </div>
   );

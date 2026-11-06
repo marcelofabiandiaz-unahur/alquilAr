@@ -4,6 +4,7 @@ import App from './App'
 import './index.css'
 import { AuthProvider } from './AuthProvider'
 import { ThemeProvider } from './theme/ThemeProvider'
+import AppErrorBoundary from './components/ui/AppErrorBoundary'
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,9 +14,11 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ThemeProvider>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <AppErrorBoundary>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </AppErrorBoundary>
     </ThemeProvider>
   </React.StrictMode>,
 )

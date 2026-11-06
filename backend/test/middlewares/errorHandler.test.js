@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const errorHandler = require('../../src/middlewares/errorHandler');
+const notFoundHandler = require('../../src/middlewares/notFoundHandler');
 
 const mockRes = () => ({
   headersSent: false,
@@ -49,4 +50,14 @@ test('delega al siguiente handler cuando la respuesta ya comenzó', () => {
   });
   assert.equal(errorDelegado, error);
   assert.equal(res.statusCode, null);
+});
+
+test('notFoundHandler responde JSON con 404 y la ruta solicitada', () => {
+  const res = mockRes();
+  notFoundHandler({ method: 'GET', originalUrl: '/api/ruta-inexistente' }, res);
+
+  assert.equal(res.statusCode, 404);
+  assert.deepEqual(res.body, {
+    mensaje: 'Ruta no encontrada: GET /api/ruta-inexistente',
+  });
 });
