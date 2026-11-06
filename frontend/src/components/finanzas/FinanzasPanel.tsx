@@ -5,6 +5,7 @@ import LoadingRow from '../ui/LoadingRow';
 import CobrosPanel from '../pagos/CobrosPanel';
 import GastosPanel from '../gastos/GastosPanel';
 import { apiGet } from '../../lib/apiClient';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import { formatMoneda } from '../../lib/estadoStyles';
 import type { Gasto, Pago } from '../../types';
 
@@ -16,6 +17,7 @@ interface FinanzasPanelProps {
   esInquilino: boolean;
   esAdmin: boolean;
   tabInicial?: TabFinanzas;
+  idAgrupamiento?: string;
 }
 
 export default function FinanzasPanel({
@@ -24,6 +26,7 @@ export default function FinanzasPanel({
   esInquilino,
   esAdmin,
   tabInicial = 'cobros',
+  idAgrupamiento = '',
 }: FinanzasPanelProps) {
   const [tab, setTab] = useState<TabFinanzas>(tabInicial);
   const [pagos, setPagos] = useState<Pago[]>([]);
@@ -34,8 +37,8 @@ export default function FinanzasPanel({
     setCargandoKpi(true);
     try {
       const [pagosData, gastosData] = await Promise.all([
-        apiGet<Pago[]>('/api/pagos', token),
-        apiGet<Gasto[]>('/api/gastos', token),
+        apiGet<Pago[]>(conAgrupamiento('/api/pagos', idAgrupamiento), token),
+        apiGet<Gasto[]>(conAgrupamiento('/api/gastos', idAgrupamiento), token),
       ]);
       setPagos(Array.isArray(pagosData) ? pagosData : []);
       setGastos(Array.isArray(gastosData) ? gastosData : []);
@@ -45,7 +48,7 @@ export default function FinanzasPanel({
     } finally {
       setCargandoKpi(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(() => void cargarKpis(), 0);
@@ -99,13 +102,14 @@ export default function FinanzasPanel({
       </div>
 
       {tab === 'cobros' ? (
-        <CobrosPanel token={token} embedded />
+        <CobrosPanel token={token} idAgrupamiento={idAgrupamiento} embedded />
       ) : (
         <GastosPanel
           token={token}
           esPropietario={esPropietario}
           esInquilino={esInquilino}
           esAdmin={esAdmin}
+          idAgrupamiento={idAgrupamiento}
           embedded
         />
       )}

@@ -6,12 +6,14 @@ import LoadingRow from '../ui/LoadingRow';
 import Alert from '../ui/Alert';
 import { btnSecondaryClass } from '../layout/dashboardStyles';
 import { apiGet } from '../../lib/apiClient';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import { formatMoneda } from '../../lib/estadoStyles';
 import type { Gasto, Pago } from '../../types';
 
 interface ReportesPanelProps {
   token: string;
   onIrAFinanzas?: () => void;
+  idAgrupamiento?: string;
 }
 
 function mesClave(fecha: string): string {
@@ -20,7 +22,11 @@ function mesClave(fecha: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelProps) {
+export default function ReportesPanel({
+  token,
+  onIrAFinanzas,
+  idAgrupamiento = '',
+}: ReportesPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -31,8 +37,8 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
     setError('');
     try {
       const [pagosData, gastosData] = await Promise.all([
-        apiGet<Pago[]>('/api/pagos', token),
-        apiGet<Gasto[]>('/api/gastos', token),
+        apiGet<Pago[]>(conAgrupamiento('/api/pagos', idAgrupamiento), token),
+        apiGet<Gasto[]>(conAgrupamiento('/api/gastos', idAgrupamiento), token),
       ]);
       setPagos(Array.isArray(pagosData) ? pagosData : []);
       setGastos(Array.isArray(gastosData) ? gastosData : []);
@@ -43,7 +49,7 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
     } finally {
       setCargando(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(() => void cargar(), 0);
@@ -106,14 +112,15 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
             <MetricCard label="Gastos" value={formatMoneda(resumen.totalGastos)} icon="comprobante" variant="amber" />
           </div>
 
-          <Card className="overflow-hidden">
+          <Card className="max-w-full overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100">
               <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">Últimos meses</h2>
             </div>
             {porMes.length === 0 ? (
               <p className="p-6 text-sm text-slate-500 text-center">No hay movimientos para mostrar.</p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[32rem] text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider text-slate-400 border-b border-slate-100">
                     <th className="px-5 py-3 font-semibold">Período</th>
@@ -131,6 +138,7 @@ export default function ReportesPanel({ token, onIrAFinanzas }: ReportesPanelPro
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </Card>
 

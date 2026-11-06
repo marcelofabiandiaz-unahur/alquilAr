@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from 'react';
 import type { MouseEvent } from 'react';
 import { miniatura } from '../../lib/cloudinary';

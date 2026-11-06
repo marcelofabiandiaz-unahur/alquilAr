@@ -15,7 +15,7 @@ export default function DataTable<T>({ columns, rows, renderRow, emptyMessage }:
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+    <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full text-left border-collapse min-w-[640px]">
         <thead>
           <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-200">

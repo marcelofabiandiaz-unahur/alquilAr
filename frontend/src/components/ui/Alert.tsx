@@ -23,7 +23,10 @@ export default function Alert({ type = 'error', theme = 'dark', children, onClos
   const styles = theme === 'light' ? lightStyles : darkStyles;
 
   return (
-    <div className={`flex items-start justify-between gap-3 p-3 rounded-lg border text-sm ${styles[type] || styles.error}`}>
+    <div
+      role={type === 'error' ? 'alert' : 'status'}
+      className={`flex items-start justify-between gap-3 p-3 rounded-lg border text-sm ${styles[type] || styles.error}`}
+    >
       <span>{children}</span>
       {onClose && (
         <button type="button" onClick={onClose} className="opacity-70 hover:opacity-100 shrink-0">

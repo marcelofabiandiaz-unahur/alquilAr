@@ -1,5 +1,6 @@
 const Propiedad = require('../models/propiedad');
 const Contrato = require('../models/contrato');
+const Agrupamiento = require('../models/agrupamiento');
 const cloudinaryConfig = require('../config/cloudinary');
 const { parsePropiedadImageUrl } = require('../utils/cloudinaryAssets');
 const {
@@ -8,7 +9,12 @@ const {
   perteneceAlPropietario,
   puedeCambiarEstadoPropiedad,
   esErrorCast,
+  esObjectIdValido,
 } = require('../utils/recursosHelpers');
+const {
+  puedeGestionarAgrupamiento,
+  resolverAlcanceAgrupamiento,
+} = require('../utils/agrupamientoHelpers');
 const { validarIdParam, responderErrorServidor } = require('../utils/controllerHelpers');
 
 const FOTOS_MAX = 5;
@@ -26,12 +32,138 @@ function validarFotos(fotos, res) {
   return true;
 }
 
+const normalizarUnidad = (unidad) => {
+  if (unidad === undefined) return undefined;
+  if (unidad === null) return { identificador: '' };
+  if (typeof unidad !== 'object' || Array.isArray(unidad)) return null;
+  return {
+    identificador: typeof unidad.identificador === 'string' ? unidad.identificador.trim() : '',
+  };
+};
+
+const resolverAsociacionAgrupamiento = async (body, usuario, propiedadActual, res) => {
+  const tieneAgrupamiento = Object.prototype.hasOwnProperty.call(body, 'id_agrupamiento');
+  if (!tieneAgrupamiento && body.unidad === undefined) return {};
+
+  const unidad = normalizarUnidad(body.unidad);
+  if (unidad === null) {
+    res.status(400).json({ mensaje: 'unidad debe ser un objeto.' });
+    return null;
+  }
+
+  if (body.id_agrupamiento === null || body.id_agrupamiento === '') {
+    return { id_agrupamiento: null, unidad: { identificador: '' } };
+  }
+
+  const idSolicitado = body.id_agrupamiento;
+  if (idSolicitado === undefined) {
+    if (!propiedadActual || !propiedadActual.id_agrupamiento) {
+      res.status(400).json({ mensaje: 'Para asignar una unidad, indicá id_agrupamiento.' });
+      return null;
+    }
+    const identificador = unidad?.identificador
+      || String(propiedadActual.unidad?.identificador || '').trim();
+    if (!identificador) {
+      res.status(400).json({ mensaje: 'unidad.identificador es obligatorio.' });
+      return null;
+    }
+    const duplicada = await Propiedad.findOne({
+      id_agrupamiento: propiedadActual.id_agrupamiento,
+      'unidad.identificador': identificador,
+      _id: { $ne: propiedadActual._id },
+    });
+    if (duplicada) {
+      res.status(409).json({ mensaje: 'Ya existe una propiedad con esa unidad en el agrupamiento.' });
+      return null;
+    }
+    return { unidad: { identificador } };
+  }
+
+  if (!esObjectIdValido(String(idSolicitado))) {
+    res.status(400).json({ mensaje: 'id_agrupamiento inválido.' });
+    return null;
+  }
+
+  const agrupamiento = await Agrupamiento.findById(idSolicitado);
+  if (!agrupamiento) {
+    res.status(404).json({ mensaje: 'Agrupamiento no encontrado.' });
+    return null;
+  }
+  if (agrupamiento.estado !== 'ACTIVO') {
+    res.status(409).json({ mensaje: 'El agrupamiento no está activo para recibir propiedades.' });
+    return null;
+  }
+  if (!puedeGestionarAgrupamiento(agrupamiento, usuario)) {
+    res.status(403).json({ mensaje: 'No tenés permiso para asociar propiedades a este agrupamiento.' });
+    return null;
+  }
+  if (
+    propiedadActual?.id_agrupamiento
+    && String(propiedadActual.id_agrupamiento) !== String(agrupamiento._id)
+  ) {
+    res.status(409).json({ mensaje: 'La propiedad ya pertenece a otro agrupamiento.' });
+    return null;
+  }
+
+  const identificador = unidad?.identificador
+    || String(propiedadActual?.unidad?.identificador || '').trim();
+  if (!identificador) {
+    res.status(400).json({ mensaje: 'unidad.identificador es obligatorio al asociar un agrupamiento.' });
+    return null;
+  }
+
+  const duplicada = await Propiedad.findOne({
+    id_agrupamiento: agrupamiento._id,
+    'unidad.identificador': identificador,
+    ...(propiedadActual ? { _id: { $ne: propiedadActual._id } } : {}),
+  });
+  if (duplicada) {
+    res.status(409).json({ mensaje: 'Ya existe una propiedad con esa unidad en el agrupamiento.' });
+    return null;
+  }
+
+  return { id_agrupamiento: agrupamiento._id, unidad: { identificador } };
+};
+
+
 const listarPropiedades = async (req, res) => {
   try {
     const { roles, id: usuarioId } = req.usuario;
+    const query = req.query || {};
+    const filtraAgrupamiento = query.id_agrupamiento !== undefined;
+    const sinAgrupamiento = query.sin_agrupamiento === true || query.sin_agrupamiento === 'true';
+
+    if (filtraAgrupamiento && sinAgrupamiento) {
+      return res.status(400).json({ mensaje: 'Usá id_agrupamiento o sin_agrupamiento, no ambos.' });
+    }
+
     const filtro = { estado: { $ne: 'INACTIVA' } };
 
-    if (esAdmin(roles)) {
+    if (query.estado !== undefined) {
+      const estadosValidos = ['DISPONIBLE', 'ALQUILADA', 'EN_MANTENIMIENTO', 'INACTIVA'];
+      if (!estadosValidos.includes(query.estado)) {
+        return res.status(400).json({ mensaje: 'estado inválido.' });
+      }
+      filtro.estado = query.estado;
+    }
+
+    if (filtraAgrupamiento) {
+      if (!esObjectIdValido(String(query.id_agrupamiento))) {
+        return res.status(400).json({ mensaje: 'id_agrupamiento inválido.' });
+      }
+      const { propiedades, error } = await resolverAlcanceAgrupamiento(
+        query.id_agrupamiento,
+        req.usuario,
+      );
+      if (error) return res.status(error.status).json({ mensaje: error.mensaje });
+      filtro._id = { $in: propiedades.map((propiedad) => propiedad._id) };
+    } else if (sinAgrupamiento) {
+      if (!esAdmin(roles) && !esPropietario(roles)) {
+        return res.status(403).json({ mensaje: 'No tienes permiso para listar propiedades.' });
+      }
+      filtro.id_agrupamiento = null;
+      if (esPropietario(roles) && !esAdmin(roles)) filtro.id_propietario = usuarioId;
+    } else if (esAdmin(roles)) {
       // Admin ve todas las activas
     } else if (esPropietario(roles)) {
       filtro.id_propietario = usuarioId;
@@ -85,6 +217,9 @@ const crearPropiedad = async (req, res) => {
       return res.status(400).json({ mensaje: 'descripcion es obligatoria.' });
     }
 
+    const asociacion = await resolverAsociacionAgrupamiento(req.body, req.usuario, null, res);
+    if (asociacion === null) return;
+
     const propiedad = new Propiedad({
       id_propietario: idPropietario,
       direccion: req.body.direccion,
@@ -94,6 +229,7 @@ const crearPropiedad = async (req, res) => {
       estado: 'DISPONIBLE',
       valor_base: req.body.valor_base,
       fotos: req.body.fotos || [],
+      ...asociacion,
     });
 
     await propiedad.save();
@@ -137,6 +273,9 @@ const actualizarPropiedad = async (req, res) => {
     }
 
     if (!validarFotos(req.body.fotos, res)) return;
+    const asociacion = await resolverAsociacionAgrupamiento(req.body, req.usuario, propiedad, res);
+    if (asociacion === null) return;
+
     const fotosEliminadas = Array.isArray(req.body.fotos)
       ? (propiedad.fotos || []).filter((url) => !req.body.fotos.includes(url))
       : [];
@@ -147,6 +286,7 @@ const actualizarPropiedad = async (req, res) => {
         propiedad[campo] = req.body[campo];
       }
     }
+    Object.assign(propiedad, asociacion);
 
     await propiedad.save();
 

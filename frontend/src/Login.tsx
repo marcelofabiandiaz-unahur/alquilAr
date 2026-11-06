@@ -3,14 +3,20 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from './authContext';
 import type { AuthUsuario } from './types';
-import { API_URL } from './config/api';
+import { ApiError, apiPostPublico } from './lib/apiClient';
 import AuthLayout from './components/auth/AuthLayout';
-import Alert from './components/ui/Alert';
 import { btnPrimaryClass, linkClass } from './components/auth/authStyles';
 import AuthField from './components/auth/AuthField';
 import PasswordField from './components/auth/PasswordField';
+import { mensajeErrorConexion } from './lib/networkErrors';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface RespuestaLogin {
+  mensaje?: string;
+  token: string;
+  usuario: AuthUsuario;
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -30,15 +36,14 @@ export default function Login() {
   }, [cargandoSesion, token, usuario, navigate]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
+  const [avisoServidor, setAvisoServidor] = useState('');
   const [erroresCampos, setErroresCampos] = useState({ email: '', password: '' });
   const [cargando, setCargando] = useState(false);
 
   const manejarLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
-    setMensaje('');
     limpiarErrorSesion();
 
     const errores = {
@@ -53,39 +58,46 @@ export default function Login() {
     if (errores.email || errores.password) return;
 
     setCargando(true);
+    setAvisoServidor('');
 
     try {
-      const respuesta = await fetch(`${API_URL}/api/usuarios/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const datos = await apiPostPublico<RespuestaLogin>(
+        '/api/usuarios/login',
+        { email, password },
+        {
+          reintentos: 1,
+          onReintento: () => {
+            setAvisoServidor(
+              'El servidor está iniciando. En Render el primer acceso puede demorar hasta un minuto; '
+              + 'estamos reintentando automáticamente…',
+            );
+          },
+        },
+      );
 
-      const datos = await respuesta.json() as {
-        mensaje?: string;
-        token: string;
-        usuario: AuthUsuario;
-      };
-
-      if (!respuesta.ok) {
-        if (respuesta.status === 401) {
-          setErroresCampos((actuales) => ({
-            ...actuales,
-            password: 'El correo o la contraseña no son correctos.',
-          }));
-        } else {
-          throw new Error(datos.mensaje || 'No se pudo iniciar sesión.');
-        }
-        return;
+      if (!datos?.token || !datos?.usuario) {
+        throw new ApiError(
+          'El servidor devolvió una respuesta de login inválida. Reintentá en unos segundos.',
+          { tipo: 'respuesta' },
+        );
       }
 
+      setAvisoServidor('');
       loginGlobal(datos.usuario, datos.token);
-    
+
       setTimeout(() => {
         navigate('/dashboard');
       }, 1000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
+      setAvisoServidor('');
+      if (err instanceof ApiError && err.status === 401) {
+        setErroresCampos((actuales) => ({
+          ...actuales,
+          password: 'El correo o la contraseña no son correctos.',
+        }));
+        return;
+      }
+      setError(mensajeErrorConexion(err, 'No se pudo iniciar sesión.'));
     } finally {
       setCargando(false);
     }
@@ -97,22 +109,6 @@ export default function Login() {
       subtitle="Ingresá con tu email y contraseña"
     >
       <div className="space-y-4">
-        {errorSesion && (
-          <Alert type="error" theme="light">
-            {errorSesion}
-          </Alert>
-        )}
-        {error && (
-          <Alert type="error" theme="light" onClose={() => setError('')}>
-            {error}
-          </Alert>
-        )}
-        {mensaje && (
-          <Alert type="success" theme="light" onClose={() => setMensaje('')}>
-            {mensaje}
-          </Alert>
-        )}
-
         <form onSubmit={manejarLogin} noValidate className="space-y-5">
           <AuthField
             id="email"
@@ -166,13 +162,21 @@ export default function Login() {
             autoComplete="current-password"
           />
 
+          {errorSesion && <p role="alert" className="text-xs font-medium text-red-300">{errorSesion}</p>}
+          {avisoServidor && <p role="status" className="text-xs font-medium text-amber-700">{avisoServidor}</p>}
+          {error && <p role="alert" className="text-xs font-medium text-red-300">{error}</p>}
+
           <button type="submit" disabled={cargando} className={btnPrimaryClass}>
-            {cargando ? 'Ingresando...' : 'Ingresar'}
+            {cargando ? (avisoServidor ? 'Conectando…' : 'Ingresando...') : 'Ingresar'}
           </button>
         </form>
 
         <p className="text-center pt-2">
-          <button type="button" onClick={() => navigate('/registro')} className={linkClass}>
+          <button
+            type="button"
+            onClick={() => navigate('/registro', { state: { mostrarFormularioMovil: true } })}
+            className={linkClass}
+          >
             ¿No tenés cuenta? Registrate aquí
           </button>
         </p>

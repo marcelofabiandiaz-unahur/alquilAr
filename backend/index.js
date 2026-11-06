@@ -5,26 +5,21 @@ getJwtSecret();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { crearOpcionesCors } = require('./src/config/corsOptions');
 const authRoutes = require('./src/routes/authRoutes');
 const propiedadRoutes = require('./src/routes/propiedadRoutes');
 const contratoRoutes = require('./src/routes/contratoRoutes');
 const pagoRoutes = require('./src/routes/pagoRoutes');
 const gastoRoutes = require('./src/routes/gastoRoutes');
 const reclamoRoutes = require('./src/routes/reclamoRoutes');
+const agrupamientoRoutes = require('./src/routes/agrupamientoRoutes');
 const notFoundHandler = require('./src/middlewares/notFoundHandler');
 const errorHandler = require('./src/middlewares/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'https://alquilar-app.onrender.com',
-  ],
-  credentials: true,
-}));
+app.use(cors(crearOpcionesCors().opciones));
 
 app.use(express.json());
 
@@ -42,6 +37,7 @@ app.use('/api/contratos', contratoRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/gastos', gastoRoutes);
 app.use('/api/reclamos', reclamoRoutes);
+app.use('/api/agrupamientos', agrupamientoRoutes);
 app.use('/api/ai', require('./src/routes/aiRoutes'));
 app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));
 

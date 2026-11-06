@@ -1,10 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const Contrato = require('../../../src/models/contrato');
 const contratoController = require('../../../src/controllers/contratoController');
 const reclamoController = require('../../../src/controllers/reclamoController');
+const agrupamientoHelpers = require('../../../src/utils/agrupamientoHelpers');
 const {
   ACCIONES,
+  CATEGORIAS_IA,
   CATEGORIAS_RECLAMO,
+  PRIORIDADES_IA,
   PRIORIDADES_RECLAMO,
   clasificarReclamo,
   gestionarReclamos,
@@ -14,20 +18,25 @@ const USUARIO_INQUILINO = { id: 'inquilino-1', roles: ['INQUILINO'] };
 
 test('el servicio define las acciones y los enums completos de reclamos', () => {
   assert.deepEqual(ACCIONES, ['LISTAR_CONTRATOS', 'LISTAR_RECLAMOS', 'CLASIFICAR', 'CREAR']);
+  assert.deepEqual(CATEGORIAS_IA, ['PLOMERIA', 'ELECTRICIDAD', 'ESTRUCTURAL', 'EDIFICIO', 'OTRO']);
   assert.deepEqual(CATEGORIAS_RECLAMO, [
     'PLOMERIA',
     'ELECTRICIDAD',
-    'GAS',
     'ESTRUCTURAL',
+    'EDIFICIO',
+    'OTRO',
+    'GAS',
     'MANTENIMIENTO',
     'SERVICIOS',
     'SEGURIDAD',
-    'OTRO',
   ]);
+  assert.deepEqual(PRIORIDADES_IA, ['BAJA', 'MEDIA', 'ALTA']);
   assert.deepEqual(PRIORIDADES_RECLAMO, ['BAJA', 'MEDIA', 'ALTA', 'URGENTE']);
+  assert.equal(CATEGORIAS_RECLAMO.includes('GAS'), true);
+  assert.equal(PRIORIDADES_IA.includes('URGENTE'), false);
 });
 
-test('clasifica una pérdida de agua como PLOMERIA y prioridad ALTA', () => {
+test('clasifica una pérdida de agua como PLOMERIA y prioridad ALTA con primeros auxilios', () => {
   const resultado = clasificarReclamo({
     asunto: 'Pérdida de agua',
     descripcion: 'Pierde agua bajo la pileta de la cocina.',
@@ -35,24 +44,27 @@ test('clasifica una pérdida de agua como PLOMERIA y prioridad ALTA', () => {
   assert.equal(resultado.categoria, 'PLOMERIA');
   assert.equal(resultado.prioridad, 'ALTA');
   assert.match(resultado.justificacion, /plomeria/i);
+  assert.ok(Array.isArray(resultado.primeros_auxilios));
+  assert.ok(resultado.primeros_auxilios.some((auxilio) => /llave/i.test(auxilio)));
 });
 
-test('clasifica una pérdida de gas como GAS urgente', () => {
+test('clasifica una pérdida de gas como PLOMERIA ALTA y ofrece primeros auxilios de gas', () => {
   const resultado = clasificarReclamo({
     asunto: 'Olor a gas',
     descripcion: 'Hay olor a gas en la cocina y no puedo cerrar la llave.',
   });
-  assert.equal(resultado.categoria, 'GAS');
-  assert.equal(resultado.prioridad, 'URGENTE');
+  assert.equal(resultado.categoria, 'PLOMERIA');
+  assert.equal(resultado.prioridad, 'ALTA');
+  assert.ok(resultado.primeros_auxilios.some((auxilio) => /gas/i.test(auxilio)));
 });
 
-test('clasifica un cortocircuito como ELECTRICIDAD urgente', () => {
+test('clasifica un cortocircuito como ELECTRICIDAD ALTA', () => {
   const resultado = clasificarReclamo({
     asunto: 'Cortocircuito',
     descripcion: 'Saltó el disyuntor y hay chispas en el tablero.',
   });
   assert.equal(resultado.categoria, 'ELECTRICIDAD');
-  assert.equal(resultado.prioridad, 'URGENTE');
+  assert.equal(resultado.prioridad, 'ALTA');
 });
 
 test('clasifica una grieta como ESTRUCTURAL y una consulta de factura como BAJA', () => {
@@ -67,17 +79,24 @@ test('clasifica una grieta como ESTRUCTURAL y una consulta de factura como BAJA'
     asunto: 'Factura de gas',
     descripcion: 'Quiero consultar el importe de la factura de gas.',
   });
-  assert.equal(consulta.categoria, 'GAS');
+  assert.equal(consulta.categoria, 'PLOMERIA');
   assert.equal(consulta.prioridad, 'BAJA');
 });
 
-test('clasifica mantenimiento menor como BAJA y texto sin pistas como OTRO', () => {
+test('clasifica pintura como OTRO y los problemas de edificio como EDIFICIO', () => {
   const pintura = clasificarReclamo({
     asunto: 'Pintura',
     descripcion: 'Quiero pintar el living.',
   });
-  assert.equal(pintura.categoria, 'MANTENIMIENTO');
+  assert.equal(pintura.categoria, 'OTRO');
   assert.equal(pintura.prioridad, 'BAJA');
+
+  const edificio = clasificarReclamo({
+    asunto: 'Ascensor detenido',
+    descripcion: 'El ascensor no anda desde ayer.',
+  });
+  assert.equal(edificio.categoria, 'EDIFICIO');
+  assert.equal(edificio.prioridad, 'ALTA');
 
   const otro = clasificarReclamo({
     asunto: 'Consulta',
@@ -180,8 +199,9 @@ test('CLASIFICAR no consulta datos y devuelve una propuesta', async () => {
     asunto: 'No anda el ascensor',
     descripcion: 'El ascensor está detenido desde ayer.',
   });
-  assert.equal(resultado.categoria, 'SERVICIOS');
+  assert.equal(resultado.categoria, 'EDIFICIO');
   assert.equal(resultado.prioridad, 'ALTA');
+  assert.ok(resultado.primeros_auxilios.length > 0);
 });
 
 test('CREAR usa la clasificación del servidor cuando no llega categoría ni prioridad', async () => {
@@ -223,8 +243,49 @@ test('CREAR usa la clasificación del servidor cuando no llega categoría ni pri
     assert.equal(resultado.creado, true);
     assert.equal(resultado.reclamo.id, 'reclamo-1');
     assert.equal(resultado.mensaje, 'Reclamo registrado.');
+    assert.ok(Array.isArray(resultado.primeros_auxilios));
+    assert.ok(resultado.primeros_auxilios.length > 0);
   } finally {
     reclamoController.crearReclamo = original;
+  }
+});
+
+test('CREAR valida que el contrato pertenezca al agrupamiento indicado', async () => {
+  const originalCrear = reclamoController.crearReclamo;
+  const originalResolver = agrupamientoHelpers.resolverAlcanceAgrupamiento;
+  const originalExists = Contrato.exists;
+  const idAgrupamiento = '507f1f77bcf86cd799439011';
+  try {
+    agrupamientoHelpers.resolverAlcanceAgrupamiento = async () => ({
+      agrupamiento: { _id: idAgrupamiento },
+      propiedades: [{ _id: 'propiedad-1' }],
+      error: null,
+    });
+    Contrato.exists = async (filtro) => {
+      assert.deepEqual(filtro, {
+        _id: 'contrato-1',
+        id_propiedad: { $in: ['propiedad-1'] },
+      });
+      return null;
+    };
+    reclamoController.crearReclamo = async () => {
+      throw new Error('No debería llamarse al controlador con un contrato ajeno.');
+    };
+
+    await assert.rejects(
+      gestionarReclamos(USUARIO_INQUILINO, {
+        accion: 'CREAR',
+        id_contrato: 'contrato-1',
+        asunto: 'Reclamo',
+        descripcion: 'Descripción',
+        id_agrupamiento: idAgrupamiento,
+      }),
+      /no pertenece al agrupamiento/i,
+    );
+  } finally {
+    reclamoController.crearReclamo = originalCrear;
+    agrupamientoHelpers.resolverAlcanceAgrupamiento = originalResolver;
+    Contrato.exists = originalExists;
   }
 });
 

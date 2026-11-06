@@ -19,7 +19,7 @@ const ROLES_ASIGNABLES: { rol: Extract<Role, 'INQUILINO' | 'PROPIETARIO'>; label
   {
     rol: 'PROPIETARIO',
     label: '+ Propietario',
-    className: 'text-xs px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-semibold disabled:opacity-50 transition-colors',
+    className: 'text-xs px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold disabled:opacity-50 transition-colors',
   },
 ];
 

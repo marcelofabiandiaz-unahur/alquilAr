@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../lib/apiClient';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import { formatMoneda } from '../../lib/estadoStyles';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
@@ -12,6 +13,7 @@ import type { Contrato, Pago, Reclamo, RolesDashboard } from '../../types';
 interface HistorialPanelProps {
   token: string;
   roles: RolesDashboard;
+  idAgrupamiento?: string;
 }
 
 type PestañaDetalle = 'realizados' | 'cuotas' | 'reclamos';
@@ -112,7 +114,11 @@ function ListaPagos({ pagos, titulo }: { pagos: Pago[]; titulo: string }) {
   );
 }
 
-export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
+export default function HistorialPanel({
+  token,
+  roles,
+  idAgrupamiento = '',
+}: HistorialPanelProps) {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [reclamos, setReclamos] = useState<Reclamo[]>([]);
@@ -126,9 +132,9 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
     setError('');
     try {
       const [contratosData, pagosData, reclamosData] = await Promise.all([
-        apiGet<Contrato[]>('/api/contratos', token),
-        apiGet<Pago[]>('/api/pagos', token),
-        apiGet<Reclamo[]>('/api/reclamos', token),
+        apiGet<Contrato[]>(conAgrupamiento('/api/contratos', idAgrupamiento), token),
+        apiGet<Pago[]>(conAgrupamiento('/api/pagos', idAgrupamiento), token),
+        apiGet<Reclamo[]>(conAgrupamiento('/api/reclamos', idAgrupamiento), token),
       ]);
       if (![contratosData, pagosData, reclamosData].every(Array.isArray)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
@@ -144,7 +150,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
     } finally {
       setCargando(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(() => void cargar(), 0);
@@ -221,7 +227,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
                 </div>
                 <StatBadge estado={contrato.estado} />
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-sm">
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
                 <div>
                   <p className="text-xs text-slate-400">Inicio</p>
                   <p className="mt-1 font-medium text-slate-700">{fechaVisible(contrato.fecha_inicio)}</p>
@@ -310,7 +316,7 @@ export default function HistorialPanel({ token, roles }: HistorialPanelProps) {
                   <h3 className="font-semibold text-[var(--brand-navy)]">Duración del contrato</h3>
                   <StatBadge estado={contratoSeleccionado.estado} />
                 </div>
-                <dl className="grid grid-cols-2 gap-4 text-sm">
+                <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-slate-500">Fecha de inicio</dt>
                     <dd className="mt-1 font-semibold text-slate-800">{fechaVisible(contratoSeleccionado.fecha_inicio)}</dd>

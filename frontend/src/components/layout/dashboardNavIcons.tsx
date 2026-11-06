@@ -10,6 +10,12 @@ function Svg({ children, className = iconClass }: { children: ReactNode; classNa
   );
 }
 
+const DOLLAR_ICON = (
+  <Svg>
+    <path d="M15.5 8.5c-.7-.7-1.7-1.1-3.1-1.1-1.8 0-3 .9-3 2.2 0 3 6.2 1.5 6.2 4.8 0 1.4-1.2 2.4-3.2 2.4-1.4 0-2.6-.4-3.5-1.3M12.4 4.5v15" strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
 const ICONS: Record<string, ReactNode> = {
   inicio: (
     <Svg>
@@ -28,17 +34,19 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M9 8h6M9 12h6M9 16h4" strokeLinecap="round" />
     </Svg>
   ),
+  agrupamientos: (
+    <Svg>
+      <path d="M4 21V7l8-4 8 4v14" strokeLinejoin="round" />
+      <path d="M9 21v-4h6v4M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01" strokeLinecap="round" />
+    </Svg>
+  ),
   pagos: (
     <Svg>
       <rect x="3" y="6" width="18" height="12" rx="2" />
       <path d="M3 10h18" />
     </Svg>
   ),
-  finanzas: (
-    <Svg>
-      <path d="M12 3v18M7 8h6a3 3 0 010 6H7a3 3 0 000 6h10" strokeLinecap="round" />
-    </Svg>
-  ),
+  finanzas: DOLLAR_ICON,
   reportes: (
     <Svg>
       <path d="M5 19V5M5 19h14M9 15v-4M13 15V9M17 15v-2" strokeLinecap="round" strokeLinejoin="round" />
@@ -46,8 +54,8 @@ const ICONS: Record<string, ReactNode> = {
   ),
   reclamos: (
     <Svg>
-      <path d="M12 3a7 7 0 017 7c0 5-7 11-7 11S5 15 5 10a7 7 0 017-7z" />
-      <circle cx="12" cy="10" r="2" fill="currentColor" stroke="none" />
+      <path d="M12 3 2.8 19h18.4L12 3z" strokeLinejoin="round" />
+      <path d="M12 9v4m0 3h.01" strokeLinecap="round" />
     </Svg>
   ),
   historial: (
@@ -75,11 +83,7 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" strokeLinecap="round" />
     </Svg>
   ),
-  efectivo: (
-    <Svg>
-      <path d="M12 3v18M7 8h6a3 3 0 010 6H7a3 3 0 000 6h10" strokeLinecap="round" />
-    </Svg>
-  ),
+  efectivo: DOLLAR_ICON,
   tendencia: (
     <Svg>
       <path d="M4 18l6-6 4 3 6-8" strokeLinecap="round" strokeLinejoin="round" />

@@ -8,6 +8,7 @@ import { brandClasses } from '../../theme/alquilar';
 import { useTheme } from '../../theme/themeContext';
 import { NavIcon } from './dashboardNavIcons';
 import AsistenteFlotante from '../asistente/AsistenteFlotante';
+import AgrupamientoSelector from '../agrupamientos/AgrupamientoSelector';
 
 interface Notificacion {
   id: string;
@@ -34,6 +35,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Operación',
     items: [
       { id: 'propiedades', label: 'Propiedades', show: (r) => r.esPropietario || r.esAdministrador },
+      { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
       { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario || r.esAdministrador },
@@ -181,6 +183,8 @@ interface DashboardLayoutProps {
   setSeccionActiva: (id: string) => void;
   roles: RolesDashboard;
   token: string;
+  idAgrupamiento: string;
+  onAgrupamientoChange: (id: string) => void;
   children: ReactNode;
 }
 
@@ -191,15 +195,19 @@ export default function DashboardLayout({
   setSeccionActiva,
   roles,
   token,
+  idAgrupamiento,
+  onAgrupamientoChange,
   children,
 }: DashboardLayoutProps) {
   const [usuarioExpandido, setUsuarioExpandido] = useState(false);
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [notificacionesAbiertas, setNotificacionesAbiertas] = useState(false);
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [errorNotificaciones, setErrorNotificaciones] = useState('');
   const { theme, toggleTheme } = useTheme();
   const panelRef = useRef<HTMLDivElement>(null);
   const notificacionesRef = useRef<HTMLDivElement>(null);
+  const menuMovilButtonRef = useRef<HTMLButtonElement>(null);
   const iniciales = `${usuario.nombre[0]}${usuario.apellido[0]}`.toUpperCase();
 
   useEffect(() => {
@@ -345,17 +353,47 @@ export default function DashboardLayout({
     };
   }, [usuarioExpandido]);
 
+  useEffect(() => {
+    if (!menuMovilAbierto) return undefined;
+    const cerrarConEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuMovilAbierto(false);
+        menuMovilButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', cerrarConEscape);
+    return () => document.removeEventListener('keydown', cerrarConEscape);
+  }, [menuMovilAbierto]);
+
+  const cerrarMenuMovil = () => {
+    if (menuMovilAbierto) menuMovilButtonRef.current?.focus();
+    setMenuMovilAbierto(false);
+  };
+
   const manejarLogout = () => {
     setUsuarioExpandido(false);
+    setMenuMovilAbierto(false);
     logoutGlobal();
   };
 
   return (
     <>
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
-      <aside className="w-[17.5rem] bg-gradient-to-b from-violet-50 via-fuchsia-50/30 to-violet-50/80 border-r border-violet-100 flex flex-col shrink-0">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-slate-50 font-sans text-slate-900">
+      {menuMovilAbierto && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-slate-950/40 backdrop-blur-[1px] lg:hidden"
+          aria-label="Cerrar menú"
+          onClick={cerrarMenuMovil}
+        />
+      )}
+      <aside id="dashboard-navigation" aria-label="Navegación principal" className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(17.5rem,calc(100vw-2.5rem))] shrink-0 flex-col border-r border-violet-200/80 bg-violet-50/90 shadow-2xl shadow-violet-950/20 backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-200 lg:static lg:z-auto lg:w-[17.5rem] lg:translate-x-0 lg:border-violet-100 lg:bg-gradient-to-b lg:from-violet-50 lg:via-fuchsia-50/30 lg:to-violet-50/80 lg:shadow-none lg:backdrop-blur-none lg:backdrop-saturate-100 ${
+        menuMovilAbierto ? 'translate-x-0' : '-translate-x-full'
+      }`}>
         <div className="px-4 py-4">
-          <img src={logoAlquilar} alt="AlquilAR" className="h-20 w-24 object-contain object-left" />
+          <div className="dashboard-sidebar__brand w-fit rounded-xl px-2 py-1">
+            <img src={logoAlquilar} alt="AlquilAR" className="h-20 w-24 object-contain object-left" />
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
@@ -378,7 +416,10 @@ export default function DashboardLayout({
                         seccionActiva === item.id
                         || (item.id === 'finanzas' && (seccionActiva === 'cobros' || seccionActiva === 'gastos'))
                       }
-                      onClick={setSeccionActiva}
+                      onClick={(id) => {
+                        setSeccionActiva(id);
+                        cerrarMenuMovil();
+                      }}
                     />
                   ))}
                 </div>
@@ -480,8 +521,31 @@ export default function DashboardLayout({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex h-14 shrink-0 items-center justify-end bg-transparent px-6">
-          <div className="flex items-center gap-3">
+        <header className="flex h-14 shrink-0 items-center justify-between bg-transparent px-3 sm:h-16 sm:px-6 lg:justify-end lg:px-8">
+          <div className="flex min-w-0 items-center gap-2 lg:hidden">
+            <button
+              ref={menuMovilButtonRef}
+              type="button"
+              onClick={() => setMenuMovilAbierto(true)}
+              aria-label="Abrir menú de navegación"
+              aria-expanded={menuMovilAbierto}
+              aria-controls="dashboard-navigation"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-200 bg-white text-violet-700 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+            <img src={logoAlquilar} alt="AlquilAR" className="h-10 w-12 object-contain" />
+          </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+            {(roles.esPropietario || roles.esAdministrador) && (
+              <AgrupamientoSelector
+                token={token}
+                value={idAgrupamiento}
+                onChange={onAgrupamientoChange}
+              />
+            )}
             {(roles.esAdministrador || roles.esInquilino || roles.esUsuarioBase) && (
               <div ref={notificacionesRef} className="relative">
                 <button
@@ -566,7 +630,7 @@ export default function DashboardLayout({
             <div className="flex-1">{children}</div>
             <footer className="mt-12 border-t border-slate-200/80 py-5 text-center text-xs text-slate-500 sm:flex sm:items-center sm:justify-between sm:text-left">
               <p>© {new Date().getFullYear()} AlquilAR. Todos los derechos reservados.</p>
-              <nav aria-label="Enlaces legales" className="mt-3 flex justify-center gap-5 sm:mt-0">
+              <nav aria-label="Enlaces legales" className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 sm:mt-0">
                 <a
                   href="/documentos/terminos-y-condiciones.pdf"
                   target="_blank"
@@ -590,7 +654,7 @@ export default function DashboardLayout({
       </div>
     </div>
       {(roles.esInquilino || roles.esPropietario || roles.esAdministrador) && (
-        <AsistenteFlotante token={token} />
+        <AsistenteFlotante token={token} idAgrupamiento={idAgrupamiento} />
       )}
     </>
   );
