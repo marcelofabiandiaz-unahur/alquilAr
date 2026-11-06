@@ -5,6 +5,7 @@ const { obtenerIdentidad, esInquilino, resolverId } = require('../utils/operacio
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const agrupamientoHelpers = require('../utils/agrupamientoHelpers');
 const { ejecutarControlador } = require('../utils/controllerInvoker');
+const { AiError, CODIGOS_IA } = require('../utils/aiErrors');
 
 // Taxonomía estricta para la IA. El modelo Mongoose acepta además valores legacy.
 const CATEGORIAS_IA = ['PLOMERIA', 'ELECTRICIDAD', 'ESTRUCTURAL', 'EDIFICIO', 'OTRO'];
@@ -256,7 +257,11 @@ const calcularPrimerosAuxilios = (categoria, texto, prioridad) => {
 
 const clasificarReclamo = ({ asunto = '', descripcion = '' } = {}) => {
   const texto = normalizar(`${asunto} ${descripcion}`);
-  if (!texto) throw new Error('Describí la incidencia para poder clasificarla.');
+  if (!texto) {
+    throw new AiError(CODIGOS_IA.VALIDACION, 'Describí la incidencia para poder clasificarla.', {
+      status: 400,
+    });
+  }
 
   const coincidencias = REGLAS_CATEGORIA
     .map((regla) => {
@@ -330,7 +335,9 @@ const listarReclamos = async (usuarioAutenticado, args = {}) => {
     body: {},
   });
   if (!Array.isArray(respuesta?.data)) {
-    throw new Error('La consulta de reclamos devolvió una respuesta inesperada.');
+    throw new AiError(CODIGOS_IA.INTERNO, 'La consulta de reclamos devolvió una respuesta inesperada.', {
+      status: 500,
+    });
   }
   return respuesta.data.map(serializarReclamo);
 };
@@ -339,19 +346,29 @@ const validarCampos = (accion, args) => {
   const permitidos = new Set(['accion', ...CAMPOS_POR_ACCION[accion]]);
   const invalidos = Object.keys(args).filter((campo) => !permitidos.has(campo));
   if (invalidos.length > 0) {
-    throw new Error(`La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`);
+    throw new AiError(
+      CODIGOS_IA.VALIDACION,
+      `La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`,
+      { status: 400 },
+    );
   }
 };
 
 const validarAgrupamientoDelContrato = async (usuarioAutenticado, idContrato, idAgrupamiento) => {
   if (!esObjectIdValido(String(idAgrupamiento))) {
-    throw new Error('id_agrupamiento inválido.');
+    throw new AiError(CODIGOS_IA.VALIDACION, 'id_agrupamiento inválido.', { status: 400 });
   }
   const { propiedades, error } = await agrupamientoHelpers.resolverAlcanceAgrupamiento(
     idAgrupamiento,
     usuarioAutenticado,
   );
-  if (error) throw new Error(error.mensaje);
+  if (error) {
+    throw new AiError(
+      error.status === 404 ? CODIGOS_IA.NO_ENCONTRADO : CODIGOS_IA.SIN_PERMISO,
+      error.mensaje,
+      { status: error.status || 403 },
+    );
+  }
 
   const idsPropiedades = propiedades.map((propiedad) => resolverId(propiedad._id));
   const pertenece = await Contrato.exists({
@@ -359,15 +376,23 @@ const validarAgrupamientoDelContrato = async (usuarioAutenticado, idContrato, id
     id_propiedad: { $in: idsPropiedades },
   });
   if (!pertenece) {
-    throw new Error('El contrato no pertenece al agrupamiento indicado.');
+    throw new AiError(CODIGOS_IA.VALIDACION, 'El contrato no pertenece al agrupamiento indicado.', {
+      status: 400,
+    });
   }
 };
 
 const crearReclamo = async (usuarioAutenticado, args) => {
   const { id, roles } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
   if (!esInquilino(roles)) {
-    throw new Error('Solo un inquilino autenticado puede crear un reclamo.');
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Solo un inquilino autenticado puede crear un reclamo.', {
+      status: 403,
+    });
   }
 
   const {
@@ -379,13 +404,21 @@ const crearReclamo = async (usuarioAutenticado, args) => {
     id_agrupamiento,
   } = args;
   if (!id_contrato || !asunto || !descripcion) {
-    throw new Error('id_contrato, asunto y descripcion son obligatorios para crear un reclamo.');
+    throw new AiError(
+      CODIGOS_IA.VALIDACION,
+      'id_contrato, asunto y descripcion son obligatorios para crear un reclamo.',
+      { status: 400 },
+    );
   }
   if (categoria !== undefined && !CATEGORIAS_RECLAMO.includes(categoria)) {
-    throw new Error('La categoría del reclamo no es válida.');
+    throw new AiError(CODIGOS_IA.VALIDACION, 'La categoría del reclamo no es válida.', {
+      status: 400,
+    });
   }
   if (prioridad !== undefined && !PRIORIDADES_RECLAMO.includes(prioridad)) {
-    throw new Error('La prioridad del reclamo no es válida.');
+    throw new AiError(CODIGOS_IA.VALIDACION, 'La prioridad del reclamo no es válida.', {
+      status: 400,
+    });
   }
   if (id_agrupamiento !== undefined) {
     await validarAgrupamientoDelContrato(usuarioAutenticado, id_contrato, id_agrupamiento);
@@ -407,7 +440,9 @@ const crearReclamo = async (usuarioAutenticado, args) => {
     body: cuerpo,
   });
   if (!respuesta?.data) {
-    throw new Error('El reclamo no pudo confirmarse en el servidor.');
+    throw new AiError(CODIGOS_IA.INTERNO, 'El reclamo no pudo confirmarse en el servidor.', {
+      status: 500,
+    });
   }
 
   return {
@@ -420,11 +455,17 @@ const crearReclamo = async (usuarioAutenticado, args) => {
 
 const gestionarReclamos = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
 
   const accion = typeof args.accion === 'string' ? args.accion.trim().toUpperCase() : '';
   if (!ACCIONES.includes(accion)) {
-    throw new Error('La acción de reclamos no es válida.');
+    throw new AiError(CODIGOS_IA.VALIDACION, 'La acción de reclamos no es válida.', {
+      status: 400,
+    });
   }
   validarCampos(accion, args);
 
@@ -432,7 +473,11 @@ const gestionarReclamos = async (usuarioAutenticado, args = {}) => {
     case 'LISTAR_CONTRATOS': {
       const { roles } = obtenerIdentidad(usuarioAutenticado);
       if (!esInquilino(roles)) {
-        throw new Error('Solo un inquilino autenticado puede consultar sus contratos vigentes.');
+        throw new AiError(
+          CODIGOS_IA.SIN_PERMISO,
+          'Solo un inquilino autenticado puede consultar sus contratos vigentes.',
+          { status: 403 },
+        );
       }
       return listarContratosVigentes(usuarioAutenticado, args);
     }
@@ -443,7 +488,9 @@ const gestionarReclamos = async (usuarioAutenticado, args = {}) => {
     case 'CREAR':
       return crearReclamo(usuarioAutenticado, args);
     default:
-      throw new Error('La acción de reclamos no es válida.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'La acción de reclamos no es válida.', {
+        status: 400,
+      });
   }
 };
 

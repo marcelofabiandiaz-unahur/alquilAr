@@ -113,14 +113,19 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
 
 ### Asistente IA
 
-- `POST /api/ai/chat` — requiere JWT; body `{ mensajes, contexto? }`. `contexto.id_agrupamiento` es opcional y se valida contra los agrupamientos visibles antes de usarlo.
-- Modelo: `gemini-3.8-flash` (`GEMINI_API_KEY` solo en backend).
-- Límites: hasta **20** mensajes por request y **4000** caracteres por mensaje; el último mensaje debe ser del usuario.
-- Herramientas (`aiToolsRegistry.js`): exactamente dos.
+- `POST /api/ai/chat` — requiere JWT; body `{ mensajes, contexto?, intencion? }`. `contexto.id_agrupamiento` es opcional y se valida contra los agrupamientos visibles antes de usarlo.
+- Consultas predefinidas deterministas: `intencion: "RESUMEN_EDIFICIO"` o `"MIS_SALDOS"`. No dependen de que el modelo decida ejecutar una herramienta: usan los servicios y datos reales con la identidad del token.
+- Modelo: `GEMINI_MODEL` (opcional; por defecto `gemini-3.8-flash`). Si el proveedor responde 404, el backend consulta los modelos disponibles y reintenta una vez con un modelo alternativo.
+- Límites: hasta **10** mensajes por request y **4000** caracteres por mensaje; el último mensaje debe ser del usuario. El turno completo tiene timeout de 50 s (20 s por llamada) y hasta 3 rondas de herramientas.
+- Herramientas (`aiToolsRegistry.js`): cuatro.
   - `consultarDatosAlquiler`: consulta contratos y pagos visibles según el rol.
-  - `gestionarReclamos`: lista contratos vigentes del inquilino, lista reclamos visibles, clasifica una incidencia (categoría y prioridad propuestas por el servidor) y crea el reclamo con validación en los controladores existentes.
-- Seguridad: la identidad y los permisos se resuelven solo con el JWT; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados.
-- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **20** mensajes y limita cada mensaje a **4000** caracteres. Si la API falla, muestra el error sin confirmar ninguna acción y permite reintentar el mensaje. El historial **no** se persiste en MongoDB.
+  - `consultarFinanzas`: saldos, análisis de comprobantes y borrador de recordatorio de mora.
+  - `consultarResumenAgrupamiento`: métricas consolidadas de un edificio o agrupamiento.
+  - `gestionarReclamos`: lista contratos vigentes del inquilino, lista reclamos visibles, clasifica una incidencia y crea el reclamo con validación en los controladores existentes.
+- Errores tipados: `SIN_PERMISO`, `VALIDACION`, `NO_ENCONTRADO`, `CONFIGURACION`, `AUTENTICACION_PROVEEDOR`, `MODELO_INEXISTENTE`, `LIMITE_PROVEEDOR`, `PROVEEDOR`, `TIMEOUT`, `PASOS_EXCEDIDOS` e `INTERNO`. Los problemas de permisos se responden dentro de la conversación (HTTP 200) para no cerrar la sesión del usuario; los fallos técnicos devuelven un mensaje comprensible y un código, sin exponer detalles internos.
+- Estilo de respuesta: todas las contestaciones (incluidas las consultas predefinidas y las que usan herramientas) se presentan en texto natural y conversacional, sin JSON, bloques de código, nombres de herramientas, códigos internos ni viñetas. Los datos se traducen a frases con montos, fechas y estados legibles. El backend descarta cualquier salida técnica que el modelo devuelva por error.
+- Seguridad: la identidad y los permisos se resuelven solo con el JWT; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados. Las acciones que crean datos no se reintentan automáticamente.
+- UI: `AsistentePanel` en el dashboard para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra el error del backend, permite cancelar la solicitud y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, no ofrece reintento directo y pide revisar “Mis reclamos”. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 
@@ -142,6 +147,7 @@ Variables de entorno (nombres):
 - `MONGODB_URI`
 - `JWT_SECRET`
 - `GEMINI_API_KEY`
+- `GEMINI_MODEL` (opcional; si se omite se usa `gemini-3.8-flash` y, ante un 404, se descubre un modelo disponible)
 - `PORT` (opcional, default 3000)
 - `SEED_PASSWORD` (opcional, default `ClaveTest123` para seeds)
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
@@ -262,7 +268,7 @@ intentar. Para evitarlo, usar una instancia always-on o el plan pago de Render.
 Variables a configurar en Render:
 
 - **Backend**: `MONGODB_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `NODE_ENV=production`,
-  `CLOUDINARY_*` y, si hace falta, `CORS_ORIGINS`.
+  `CLOUDINARY_*`, opcionalmente `GEMINI_MODEL` y, si hace falta, `CORS_ORIGINS`.
 - **Frontend** (build): `VITE_API_URL=https://alquilar-pmdp.onrender.com` y los
   `VITE_CLOUDINARY_*`. En Vite las variables `VITE_*` se leen al compilar: hay que
   redeployar después de cambiarlas.

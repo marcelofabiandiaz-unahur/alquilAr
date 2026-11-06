@@ -7,6 +7,7 @@ const {
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
 const { ejecutarControlador } = require('../utils/controllerInvoker');
+const { AiError, CODIGOS_IA } = require('../utils/aiErrors');
 
 const ALCANCES_VALIDOS = new Set(['CONTRATOS', 'PAGOS', 'AMBOS']);
 const CAMPOS_PERMITIDOS = new Set(['alcance', 'id_agrupamiento']);
@@ -14,7 +15,11 @@ const CAMPOS_PERMITIDOS = new Set(['alcance', 'id_agrupamiento']);
 const validarCampos = (args) => {
   const invalidos = Object.keys(args || {}).filter((campo) => !CAMPOS_PERMITIDOS.has(campo));
   if (invalidos.length > 0) {
-    throw new Error(`La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`);
+    throw new AiError(
+      CODIGOS_IA.VALIDACION,
+      `La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`,
+      { status: 400 },
+    );
   }
 };
 
@@ -35,11 +40,17 @@ const serializarContrato = (contrato) => ({
 
 const consultarContratos = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
 
   const consulta = await obtenerContratosVisibles(usuarioAutenticado);
   if (!consulta) {
-    throw new Error('No tenés permiso para consultar contratos.');
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'No tenés permiso para consultar contratos.', {
+      status: 403,
+    });
   }
 
   let contratos = await consulta
@@ -49,13 +60,19 @@ const consultarContratos = async (usuarioAutenticado, args = {}) => {
 
   if (args.id_agrupamiento !== undefined) {
     if (!esObjectIdValido(String(args.id_agrupamiento))) {
-      throw new Error('id_agrupamiento inválido.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'id_agrupamiento inválido.', { status: 400 });
     }
     const { propiedades, error } = await resolverAlcanceAgrupamiento(
       args.id_agrupamiento,
       usuarioAutenticado,
     );
-    if (error) throw new Error(error.mensaje);
+    if (error) {
+      throw new AiError(
+        error.status === 404 ? CODIGOS_IA.NO_ENCONTRADO : CODIGOS_IA.SIN_PERMISO,
+        error.mensaje,
+        { status: error.status || 403 },
+      );
+    }
     const ids = new Set(propiedades.map((propiedad) => resolverId(propiedad._id)));
     contratos = contratos.filter((contrato) =>
       ids.has(resolverId(contrato.id_propiedad)));
@@ -82,12 +99,16 @@ const serializarPago = (pago) => {
 
 const consultarPagos = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
 
   const query = {};
   if (args.id_agrupamiento !== undefined) {
     if (!esObjectIdValido(String(args.id_agrupamiento))) {
-      throw new Error('id_agrupamiento inválido.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'id_agrupamiento inválido.', { status: 400 });
     }
     query.id_agrupamiento = args.id_agrupamiento;
   }

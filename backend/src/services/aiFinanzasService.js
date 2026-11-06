@@ -2,6 +2,7 @@ const pagoController = require('../controllers/pagoController');
 const { obtenerIdentidad } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { ejecutarControlador } = require('../utils/controllerInvoker');
+const { AiError, CODIGOS_IA } = require('../utils/aiErrors');
 
 const ACCIONES = ['SALDOS', 'ANALIZAR_COMPROBANTE', 'RECORDATORIO_MORA'];
 
@@ -106,18 +107,26 @@ const validarCampos = (accion, args) => {
   const permitidos = new Set(['accion', ...CAMPOS_POR_ACCION[accion]]);
   const invalidos = Object.keys(args).filter((campo) => !permitidos.has(campo));
   if (invalidos.length > 0) {
-    throw new Error(`La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`);
+    throw new AiError(
+      CODIGOS_IA.VALIDACION,
+      `La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`,
+      { status: 400 },
+    );
   }
 };
 
 const consultarSaldos = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
 
   const query = {};
   if (args.id_agrupamiento !== undefined) {
     if (!esObjectIdValido(String(args.id_agrupamiento))) {
-      throw new Error('id_agrupamiento inválido.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'id_agrupamiento inválido.', { status: 400 });
     }
     query.id_agrupamiento = args.id_agrupamiento;
   }
@@ -167,7 +176,11 @@ const consultarSaldos = async (usuarioAutenticado, args = {}) => {
 
 const analizarComprobante = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
 
   const texto = typeof args.texto === 'string' ? args.texto.trim() : '';
   if (!texto) {
@@ -181,7 +194,11 @@ const analizarComprobante = async (usuarioAutenticado, args = {}) => {
     };
   }
   if (texto.length > MAX_TEXTO_COMPROBANTE) {
-    throw new Error(`El texto del comprobante no puede superar los ${MAX_TEXTO_COMPROBANTE} caracteres.`);
+    throw new AiError(
+      CODIGOS_IA.VALIDACION,
+      `El texto del comprobante no puede superar los ${MAX_TEXTO_COMPROBANTE} caracteres.`,
+      { status: 400 },
+    );
   }
 
   return extraerDatosComprobante(texto);
@@ -223,11 +240,17 @@ const redactarRecordatorioMora = async (usuarioAutenticado, args = {}) => {
 
 const gestionarFinanzas = async (usuarioAutenticado, args = {}) => {
   const { id } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
 
   const accion = typeof args.accion === 'string' ? args.accion.trim().toUpperCase() : '';
   if (!ACCIONES.includes(accion)) {
-    throw new Error('La acción de finanzas no es válida.');
+    throw new AiError(CODIGOS_IA.VALIDACION, 'La acción de finanzas no es válida.', {
+      status: 400,
+    });
   }
   validarCampos(accion, args);
 
@@ -239,7 +262,9 @@ const gestionarFinanzas = async (usuarioAutenticado, args = {}) => {
     case 'RECORDATORIO_MORA':
       return redactarRecordatorioMora(usuarioAutenticado, args);
     default:
-      throw new Error('La acción de finanzas no es válida.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'La acción de finanzas no es válida.', {
+        status: 400,
+      });
   }
 };
 

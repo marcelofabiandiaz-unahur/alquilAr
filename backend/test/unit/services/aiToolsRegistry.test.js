@@ -7,8 +7,10 @@ const aiReclamosService = require('../../../src/services/aiReclamosService');
 const aiFinanzasService = require('../../../src/services/aiFinanzasService');
 const aiAgrupamientoService = require('../../../src/services/aiAgrupamientoService');
 const { toolsEsquemas, ejecutarToolSegura } = require('../../../src/services/aiToolsRegistry');
+const { CODIGOS_IA } = require('../../../src/utils/aiErrors');
 
 const USUARIO_INQUILINO = { id: 'inquilino-1', roles: ['INQUILINO'] };
+const USUARIO_SIN_ROL_OPERATIVO = { id: 'usuario-1', roles: ['USUARIO'] };
 
 test('el registro expone exactamente las cuatro herramientas del asistente', () => {
   const declaraciones = toolsEsquemas.flatMap((grupo) => grupo.functionDeclarations);
@@ -143,6 +145,18 @@ test('consultarDatosAlquiler rechaza usuarios sin permiso operativo', async () =
   await assert.rejects(
     ejecutarToolSegura('consultarDatosAlquiler', {}, { id: 'usuario-1', roles: ['USUARIO'] }),
     /permiso para consultar contratos/i,
+  );
+});
+
+test('finanzas y resumen clasifican la falta de rol como SIN_PERMISO', async () => {
+  await assert.rejects(
+    ejecutarToolSegura('consultarFinanzas', { accion: 'SALDOS' }, USUARIO_SIN_ROL_OPERATIVO),
+    (error) => error.codigo === CODIGOS_IA.SIN_PERMISO && error.status === 403,
+  );
+
+  await assert.rejects(
+    ejecutarToolSegura('consultarResumenAgrupamiento', {}, USUARIO_SIN_ROL_OPERATIVO),
+    (error) => error.codigo === CODIGOS_IA.SIN_PERMISO && error.status === 403,
   );
 });
 

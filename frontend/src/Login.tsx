@@ -67,6 +67,7 @@ export default function Login() {
         '/api/usuarios/login',
         { email, password },
         {
+          reintentos: 1,
           onReintento: () => {
             setAvisoServidor(
               'El servidor está iniciando. En Render el primer acceso puede demorar hasta un minuto; '

@@ -2,20 +2,26 @@ import { API_URL } from '../config/api';
 
 export const SESION_NO_AUTORIZADA_EVENTO = 'alquilar:sesion-no-autorizada';
 
-export type TipoErrorApi = 'red' | 'timeout' | 'http' | 'respuesta';
+export type TipoErrorApi = 'red' | 'timeout' | 'http' | 'respuesta' | 'cancelado';
 
 export class ApiError extends Error {
   readonly status: number | null;
   readonly tipo: TipoErrorApi;
+  readonly codigo: string | null;
 
   constructor(
     message: string,
-    opciones: { status?: number | null; tipo?: TipoErrorApi } = {},
+    opciones: {
+      status?: number | null;
+      tipo?: TipoErrorApi;
+      codigo?: string | null;
+    } = {},
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = opciones.status ?? null;
     this.tipo = opciones.tipo ?? 'http';
+    this.codigo = opciones.codigo ?? null;
   }
 }
 
@@ -23,6 +29,13 @@ export interface OpcionesRed {
   timeoutMs?: number;
   reintentos?: number;
   onReintento?: (intento: number, totalReintentos: number) => void;
+  /** Permite cancelar la solicitud (por ejemplo, al desmontar el chat). */
+  signal?: AbortSignal;
+  /**
+   * Por defecto, un 403 con Authorization dispara el cierre de sesión global.
+   * El asistente lo desactiva: un 403 de alcance no significa sesión vencida.
+   */
+  desloguearEn403?: boolean;
 }
 
 const TIEMPO_LIMITE_MS = 45_000;
@@ -40,6 +53,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function mensajeParaEstado(status: number, mensajeBackend?: string): string {
+  const mensajeSeguro = typeof mensajeBackend === 'string' ? mensajeBackend.trim() : '';
+  if (mensajeSeguro && mensajeSeguro.length <= 300) return mensajeSeguro;
+
   if (status === 502 || status === 503 || status === 504) {
     return 'El servidor no está disponible en este momento. '
       + 'Puede estar iniciando en Render; esperá unos segundos y volvé a intentar.';
@@ -47,7 +63,6 @@ function mensajeParaEstado(status: number, mensajeBackend?: string): string {
   if (status >= 500) {
     return 'El servidor tuvo un error interno. Reintentá en unos segundos.';
   }
-  if (mensajeBackend) return mensajeBackend;
   if (status === 401) return 'Tu sesión venció o las credenciales no son válidas.';
   if (status === 403) return 'No tenés permisos para realizar esta acción.';
   if (status === 404) return 'No encontramos el recurso solicitado.';
@@ -71,9 +86,12 @@ async function parseResponse<T>(res: Response): Promise<T> {
     const mensajeBackend = isRecord(data)
       ? data.message || data.mensaje || data.error
       : undefined;
+    const codigoBackend = isRecord(data) && typeof data.codigo === 'string'
+      ? data.codigo
+      : null;
     throw new ApiError(
       mensajeParaEstado(res.status, typeof mensajeBackend === 'string' ? mensajeBackend : undefined),
-      { status: res.status, tipo: 'http' },
+      { status: res.status, tipo: 'http', codigo: codigoBackend },
     );
   }
 
@@ -104,28 +122,47 @@ const fetchConRed = async (
   options: RequestInit,
   config: OpcionesRed = {},
 ): Promise<Response> => {
+  const metodo = (options.method || 'GET').toUpperCase();
   const timeoutMs = config.timeoutMs ?? TIEMPO_LIMITE_MS;
-  const reintentos = config.reintentos ?? REINTENTOS_RED;
+  // Los POST/PUT/PATCH/DELETE no se reintentan solos: pueden crear reclamos,
+  // pagos o duplicar cualquier acción. Solo GET reintenta por defecto.
+  const reintentos = config.reintentos ?? (metodo === 'GET' ? REINTENTOS_RED : 0);
   let ultimoError: ApiError | null = null;
 
   for (let intento = 0; intento <= reintentos; intento += 1) {
+    if (config.signal?.aborted) {
+      throw new ApiError('La solicitud fue cancelada.', { tipo: 'cancelado' });
+    }
     if (intento > 0) {
       config.onReintento?.(intento, reintentos);
       await esperar(ESPERA_REINTENTO_MS);
     }
 
     const controller = new AbortController();
+    let canceladoPorUsuario = false;
+    const alCancelar = () => {
+      canceladoPorUsuario = true;
+      controller.abort();
+    };
+    config.signal?.addEventListener('abort', alCancelar, { once: true });
     const temporizador = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       const tieneAutorizacion = new Headers(options.headers).has('Authorization');
+      const desloguearEn403 = config.desloguearEn403 !== false;
 
-      if (tieneAutorizacion && (response.status === 401 || response.status === 403)) {
+      if (
+        tieneAutorizacion
+        && (response.status === 401 || (response.status === 403 && desloguearEn403))
+      ) {
         window.dispatchEvent(new Event(SESION_NO_AUTORIZADA_EVENTO));
       }
       return response;
     } catch (error) {
+      if (canceladoPorUsuario) {
+        throw new ApiError('La solicitud fue cancelada.', { tipo: 'cancelado' });
+      }
       const esTimeout = esErrorPorTimeout(error);
       ultimoError = new ApiError(
         esTimeout ? MENSAJE_TIMEOUT : MENSAJE_RED,
@@ -133,6 +170,7 @@ const fetchConRed = async (
       );
     } finally {
       clearTimeout(temporizador);
+      config.signal?.removeEventListener('abort', alCancelar);
     }
   }
 

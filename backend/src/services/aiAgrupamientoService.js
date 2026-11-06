@@ -3,13 +3,18 @@ const reclamoController = require('../controllers/reclamoController');
 const { obtenerIdentidad } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { ejecutarControlador } = require('../utils/controllerInvoker');
+const { CODIGOS_IA, esAiError } = require('../utils/aiErrors');
 
 const CAMPOS = ['id_agrupamiento', 'periodo'];
 
 const validarCampos = (args) => {
   const invalidos = Object.keys(args || {}).filter((campo) => !CAMPOS.includes(campo));
   if (invalidos.length > 0) {
-    throw new Error(`La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`);
+    throw new AiError(
+      CODIGOS_IA.VALIDACION,
+      `La herramienta recibió campos no autorizados: ${invalidos.join(', ')}.`,
+      { status: 400 },
+    );
   }
 };
 
@@ -26,32 +31,46 @@ const contarReclamosUrgentes = async (usuarioAutenticado, idAgrupamiento) => {
       body: {},
     });
     const reclamos = Array.isArray(respuesta?.data) ? respuesta.data : [];
-    return reclamos.filter((reclamo) => (
+    const total = reclamos.filter((reclamo) => (
       !['RESUELTO', 'CANCELADO'].includes(reclamo.estado)
       && ['ALTA', 'URGENTE'].includes(reclamo.prioridad)
     )).length;
-  } catch {
-    // El resumen financiero sigue siendo útil aunque no se puedan contar los reclamos.
-    return 0;
+    return { total, advertencia: null };
+  } catch (error) {
+    // Un problema de permisos no se puede disimular como "0 reclamos":
+    // sería información incorrecta. Se propaga para explicarlo en el chat.
+    if (esAiError(error) && error.codigo === CODIGOS_IA.SIN_PERMISO) throw error;
+
+    console.error('[IA] No se pudieron contar los reclamos urgentes:', error?.message || error);
+    return {
+      total: null,
+      advertencia: 'No se pudo obtener el conteo de reclamos urgentes.',
+    };
   }
 };
 
 const consultarResumenAgrupamiento = async (usuarioAutenticado, args = {}) => {
   const { id, roles } = obtenerIdentidad(usuarioAutenticado);
-  if (!id) throw new Error('Se requiere una sesión autenticada.');
+  if (!id) {
+    throw new AiError(CODIGOS_IA.SIN_PERMISO, 'Se requiere una sesión autenticada.', {
+      status: 401,
+    });
+  }
   validarCampos(args);
 
   const query = {};
   if (args.id_agrupamiento !== undefined) {
     if (!esObjectIdValido(String(args.id_agrupamiento))) {
-      throw new Error('id_agrupamiento inválido.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'id_agrupamiento inválido.', { status: 400 });
     }
     query.id_agrupamiento = args.id_agrupamiento;
   }
   if (args.periodo !== undefined) {
     const periodo = String(args.periodo).trim();
     if (!validarPeriodo(periodo)) {
-      throw new Error('periodo debe tener formato YYYY-MM.');
+      throw new AiError(CODIGOS_IA.VALIDACION, 'periodo debe tener formato YYYY-MM.', {
+        status: 400,
+      });
     }
     query.periodo = periodo;
   }
@@ -64,16 +83,21 @@ const consultarResumenAgrupamiento = async (usuarioAutenticado, args = {}) => {
   });
 
   const resumen = respuesta?.data;
-  if (!resumen) throw new Error('No se pudo obtener el resumen del agrupamiento.');
+  if (!resumen) {
+    throw new AiError(CODIGOS_IA.INTERNO, 'No se pudo obtener el resumen del agrupamiento.', {
+      status: 500,
+    });
+  }
 
-  const reclamosUrgentes = await contarReclamosUrgentes(usuarioAutenticado, args.id_agrupamiento);
+  const conteo = await contarReclamosUrgentes(usuarioAutenticado, args.id_agrupamiento);
   const alcance = args.id_agrupamiento
     ? 'AGRUPAMIENTO'
     : roles.includes('ADMINISTRADOR') ? 'GLOBAL' : 'PROPIO';
 
   return {
     ...resumen,
-    reclamosUrgentes,
+    reclamosUrgentes: conteo.total,
+    ...(conteo.advertencia ? { advertencia: conteo.advertencia } : {}),
     alcance,
   };
 };

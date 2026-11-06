@@ -2,6 +2,7 @@ const { consultarDatosAlquiler, CAMPOS_PERMITIDOS } = require('./aiConsultaDatos
 const aiReclamosService = require('./aiReclamosService');
 const aiFinanzasService = require('./aiFinanzasService');
 const aiAgrupamientoService = require('./aiAgrupamientoService');
+const { CODIGOS_IA, esAiError } = require('../utils/aiErrors');
 
 const CAMPOS_PROHIBIDOS = ['id_usuario', 'id_inquilino', 'id_propietario', 'usuario', 'roles'];
 
@@ -36,9 +37,10 @@ const toolsEsquemas = [
       {
         name: 'gestionarReclamos',
         description:
-          'Gestiona los reclamos del usuario autenticado. Usá LISTAR_CONTRATOS para ver sus contratos vigentes, '
-          + 'LISTAR_RECLAMOS para consultar sus reclamos, CLASIFICAR para proponer categoría, prioridad y '
-          + 'primeros auxilios a partir de la descripción, y CREAR solo cuando el usuario confirme explícitamente. '
+          'Gestiona los reclamos del usuario autenticado. Usá LISTAR_CONTRATOS solo si el usuario es INQUILINO, '
+          + 'para ver sus contratos vigentes; LISTAR_RECLAMOS para consultar los reclamos visibles según su rol; '
+          + 'CLASIFICAR para proponer categoría, prioridad y primeros auxilios a partir de la descripción; y CREAR '
+          + 'solo cuando el usuario sea INQUILINO y confirme explícitamente. '
           + 'La identidad se obtiene solo del token de sesión; nunca accede a datos de otra cuenta.',
         parameters: {
           type: 'OBJECT',
@@ -169,8 +171,27 @@ const ejecutarToolSegura = async (name, args = {}, usuarioAutenticado) => {
   }
 };
 
+/**
+ * Variante que usa el bucle de conversación: nunca lanza, devuelve un
+ * resultado estructurado para que el modelo pueda explicar el problema en
+ * lugar de romper todo el request.
+ */
+const ejecutarToolParaModelo = async (name, args = {}, usuarioAutenticado) => {
+  try {
+    const resultado = await ejecutarToolSegura(name, args, usuarioAutenticado);
+    return { ok: true, resultado };
+  } catch (error) {
+    const codigo = esAiError(error) ? error.codigo : CODIGOS_IA.INTERNO;
+    const mensaje = esAiError(error)
+      ? error.message
+      : 'No se pudo ejecutar la consulta solicitada.';
+    return { ok: false, codigo, mensaje };
+  }
+};
+
 module.exports = {
   CAMPOS_PROHIBIDOS,
   toolsEsquemas,
   ejecutarToolSegura,
+  ejecutarToolParaModelo,
 };

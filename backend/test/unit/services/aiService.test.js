@@ -69,20 +69,33 @@ test('procesarChat ejecuta herramientas y devuelve a Gemini la respuesta de func
   ]);
 });
 
-test('procesarChat limita el número de rondas de herramientas', async () => {
-  let llamadas = 0;
-  await assert.rejects(
-    procesarChat([{ role: 'user', content: 'Listá mis reclamos' }], { id: 'inquilino-1' }, {
+test('procesarChat limita el número de rondas de herramientas y responde con un mensaje final', async () => {
+  let llamadasModelo = 0;
+  let llamadasTool = 0;
+  const resultado = await procesarChat(
+    [{ role: 'user', content: 'Listá mis reclamos' }],
+    { id: 'inquilino-1' },
+    {
       generateContent: async () => {
-        llamadas += 1;
+        llamadasModelo += 1;
         return {
           functionCalls: [{ name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } }],
-          candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } } }] } }],
+          candidates: [{
+            content: {
+              role: 'model',
+              parts: [{ functionCall: { name: 'gestionarReclamos', args: { accion: 'LISTAR_RECLAMOS' } } }],
+            },
+          }],
         };
       },
-      executeTool: async () => [],
-    }),
-    /máximo de pasos/i,
+      executeTool: async () => {
+        llamadasTool += 1;
+        return { ok: true, resultado: [] };
+      },
+    },
   );
-  assert.equal(llamadas, 6);
+
+  assert.equal(llamadasModelo, 3);
+  assert.equal(llamadasTool, 3);
+  assert.match(resultado.content, /No pude completar la consulta/i);
 });
