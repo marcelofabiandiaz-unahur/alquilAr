@@ -54,7 +54,6 @@ const agrupamientoSchema = new mongoose.Schema(
   { timestamps: true, collection: 'agrupamientos' },
 );
 
-agrupamientoSchema.index({ codigo: 1 }, { unique: true });
 agrupamientoSchema.index({ estado: 1, tipo: 1 });
 agrupamientoSchema.index({ id_administrador: 1 });
 agrupamientoSchema.index({ gestores: 1 });
