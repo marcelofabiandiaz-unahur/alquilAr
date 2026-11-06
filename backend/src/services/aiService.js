@@ -7,11 +7,11 @@ const {
   normalizarErrorProveedor,
 } = require('../utils/aiErrors');
 
-const MODELO_POR_DEFECTO = 'gemini-3.8-flash';
+const MODELO_POR_DEFECTO = 'gemini-3.5-flash-lite';
 const MAX_PASOS_TOOL = 3;
 const MAX_REINTENTOS_PROVEEDOR = 1;
-const TIMEOUT_POR_LLAMADA_MS = 20_000;
-const TIMEOUT_TOTAL_MS = 50_000;
+const TIMEOUT_POR_LLAMADA_MS = 60_000;
+const TIMEOUT_TOTAL_MS = 90_000;
 const ESPERA_REINTENTO_MS = 400;
 
 let clienteGemini;
@@ -256,7 +256,7 @@ const procesarChat = async (historialMensajes, usuarioAutenticado, opciones = {}
     config: {
       systemInstruction: instruccionSistema,
       tools: toolsEsquemas,
-      temperature: 0.3,
+      temperature: 0.0,
       maxOutputTokens: 2048,
     },
   };
