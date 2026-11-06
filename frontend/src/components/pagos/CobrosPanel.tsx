@@ -10,10 +10,12 @@ import Alert from '../ui/Alert';
 import StatBadge from '../ui/StatBadge';
 import ComprobantePagoLink from './ComprobantePagoLink';
 import { btnPrimaryClass } from '../layout/dashboardStyles';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import type { Pago } from '../../types';
 
 interface CobrosPanelProps {
   token: string;
+  idAgrupamiento?: string;
   embedded?: boolean;
 }
 
@@ -33,7 +35,11 @@ function periodoVisible(pago: Pago): string {
   return pago.mes_correspondiente;
 }
 
-export default function CobrosPanel({ token, embedded = false }: CobrosPanelProps) {
+export default function CobrosPanel({
+  token,
+  idAgrupamiento = '',
+  embedded = false,
+}: CobrosPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [cargando, setCargando] = useState(true);
   const [accionId, setAccionId] = useState('');
@@ -44,7 +50,10 @@ export default function CobrosPanel({ token, embedded = false }: CobrosPanelProp
     setCargando(true);
     setError('');
     try {
-      const data = await apiGet<Pago[]>('/api/pagos', token);
+      const data = await apiGet<Pago[]>(
+        conAgrupamiento('/api/pagos', idAgrupamiento),
+        token,
+      );
       if (!Array.isArray(data)) throw new Error('El backend devolvió una respuesta inesperada.');
       setPagos(data);
     } catch (err) {
@@ -53,7 +62,7 @@ export default function CobrosPanel({ token, embedded = false }: CobrosPanelProp
     } finally {
       setCargando(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(() => void cargar(), 0);

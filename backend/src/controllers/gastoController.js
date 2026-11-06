@@ -10,6 +10,7 @@ const {
   buscarPropiedadGestionable,
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
+const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
 
 const responder = (res, status, data, message) =>
   res.status(status).json({ success: status < 400, data, message });
@@ -32,18 +33,40 @@ const obtenerPropiedadesVisibles = async (usuario) => {
 const listarGastos = async (req, res) => {
   try {
     const { roles } = obtenerIdentidad(req.usuario);
+    const query = req.query || {};
     if (!roles.some((rol) => ['ADMINISTRADOR', 'PROPIETARIO', 'INQUILINO'].includes(rol))) {
       return responder(res, 403, null, 'No tenés permiso para consultar gastos.');
     }
     const propiedades = await obtenerPropiedadesVisibles(req.usuario);
     const filtro = propiedades ? { id_propiedad: { $in: propiedades.map((p) => p._id) } } : {};
 
-    if (req.query.id_propiedad) {
-      if (!esObjectIdValido(req.query.id_propiedad)) return responder(res, 400, null, 'id_propiedad inválido.');
-      if (propiedades && !propiedades.some((p) => resolverId(p._id) === req.query.id_propiedad)) {
+    if (query.id_propiedad) {
+      if (!esObjectIdValido(query.id_propiedad)) return responder(res, 400, null, 'id_propiedad inválido.');
+      if (propiedades && !propiedades.some((p) => resolverId(p._id) === query.id_propiedad)) {
         return responder(res, 403, null, 'No tenés permiso para consultar esta propiedad.');
       }
-      filtro.id_propiedad = req.query.id_propiedad;
+      filtro.id_propiedad = query.id_propiedad;
+    }
+
+    if (query.id_agrupamiento !== undefined) {
+      if (!esObjectIdValido(String(query.id_agrupamiento))) {
+        return responder(res, 400, null, 'id_agrupamiento inválido.');
+      }
+      const { propiedades: propiedadesAgrupamiento, error } = await resolverAlcanceAgrupamiento(
+        query.id_agrupamiento,
+        req.usuario,
+      );
+      if (error) return responder(res, error.status, null, error.mensaje);
+
+      const idsAgrupamiento = propiedadesAgrupamiento.map((propiedad) => resolverId(propiedad._id));
+      if (query.id_propiedad) {
+        if (!idsAgrupamiento.includes(query.id_propiedad)) {
+          return responder(res, 403, null, 'No tenés permiso para consultar esta propiedad.');
+        }
+        filtro.id_propiedad = query.id_propiedad;
+      } else {
+        filtro.id_propiedad = { $in: idsAgrupamiento };
+      }
     }
     if (req.query.desde || req.query.hasta) {
       const desde = req.query.desde ? new Date(req.query.desde) : null;

@@ -14,11 +14,13 @@ import PropietariosPanel from './components/admin/PropietariosPanel';
 import ReportesPanel from './components/reportes/ReportesPanel';
 import AsistentePanel from './components/asistente/AsistentePanel';
 import PerfilPanel from './components/profile/PerfilPanel';
+import AgrupamientosPanel from './components/agrupamientos/AgrupamientosPanel';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { usuario, token, logoutGlobal, cargando } = useAuthContext();
   const [seccionActiva, setSeccionActiva] = useState('inicio');
+  const [idAgrupamiento, setIdAgrupamiento] = useState('');
 
   useEffect(() => {
     if (!cargando && (!usuario || !token)) {
@@ -44,13 +46,30 @@ export default function Dashboard() {
   const renderContenido = () => {
     switch (seccionActiva) {
       case 'inicio':
-        return <InicioPanel usuario={usuario} token={token} roles={roles} setSeccionActiva={setSeccionActiva} />;
+        return (
+          <InicioPanel
+            usuario={usuario}
+            token={token}
+            roles={roles}
+            setSeccionActiva={setSeccionActiva}
+            idAgrupamiento={idAgrupamiento}
+          />
+        );
       case 'propiedades':
         return (
           <PropiedadesPanel
             token={token}
             esPropietario={roles.esPropietario}
             esAdmin={roles.esAdministrador}
+            idAgrupamiento={idAgrupamiento}
+          />
+        );
+      case 'agrupamientos':
+        return (
+          <AgrupamientosPanel
+            token={token}
+            esAdmin={roles.esAdministrador}
+            esPropietario={roles.esPropietario}
           />
         );
       case 'contratos':
@@ -59,6 +78,7 @@ export default function Dashboard() {
             token={token}
             esPropietario={roles.esPropietario}
             esInquilino={roles.esInquilino}
+            idAgrupamiento={idAgrupamiento}
           />
         );
       case 'finanzas':
@@ -68,12 +88,14 @@ export default function Dashboard() {
             esPropietario={roles.esPropietario}
             esInquilino={roles.esInquilino}
             esAdmin={roles.esAdministrador}
+            idAgrupamiento={idAgrupamiento}
           />
         );
       case 'reportes':
         return (
           <ReportesPanel
             token={token}
+            idAgrupamiento={idAgrupamiento}
             onIrAFinanzas={() => setSeccionActiva('finanzas')}
           />
         );
@@ -91,6 +113,7 @@ export default function Dashboard() {
             esPropietario={roles.esPropietario}
             esInquilino={roles.esInquilino}
             esAdmin={roles.esAdministrador}
+            idAgrupamiento={idAgrupamiento}
           />
         );
       case 'reclamos':
@@ -100,10 +123,11 @@ export default function Dashboard() {
             esPropietario={roles.esPropietario}
             esInquilino={roles.esInquilino}
             esAdmin={roles.esAdministrador}
+            idAgrupamiento={idAgrupamiento}
           />
         );
       case 'historial':
-        return <HistorialPanel token={token} roles={roles} />;
+        return <HistorialPanel token={token} roles={roles} idAgrupamiento={idAgrupamiento} />;
       case 'usuarios':
         return <UsuariosPanel token={token} />;
       case 'configuracion':
@@ -114,7 +138,7 @@ export default function Dashboard() {
           />
         );
       case 'asistente':
-        return <AsistentePanel token={token} />;
+        return <AsistentePanel token={token} idAgrupamiento={idAgrupamiento} />;
       case 'perfil':
         return <PerfilPanel token={token} />;
       case 'cobros':
@@ -125,6 +149,7 @@ export default function Dashboard() {
             esPropietario={roles.esPropietario}
             esInquilino={roles.esInquilino}
             esAdmin={roles.esAdministrador}
+            idAgrupamiento={idAgrupamiento}
             tabInicial={seccionActiva === 'gastos' ? 'gastos' : 'cobros'}
           />
         );
@@ -141,6 +166,8 @@ export default function Dashboard() {
       setSeccionActiva={setSeccionActiva}
       roles={roles}
       token={token}
+      idAgrupamiento={idAgrupamiento}
+      onAgrupamientoChange={setIdAgrupamiento}
     >
       {renderContenido()}
     </DashboardLayout>

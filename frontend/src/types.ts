@@ -48,9 +48,61 @@ export interface AuthUsuario {
   roles: Role[];
 }
 
+export type TipoAgrupamiento =
+  | 'EDIFICIO'
+  | 'COMPLEJO'
+  | 'CONSORCIO'
+  | 'CONJUNTO'
+  | 'BARRIO_CERRADO'
+  | 'OTRO';
+
+export type EstadoAgrupamiento = 'ACTIVO' | 'INACTIVO';
+
+export interface DireccionAgrupamiento {
+  calle: string;
+  numero: string;
+  ciudad: string;
+  provincia: string;
+  codigo_postal?: string;
+}
+
+export interface ContactoAgrupamiento {
+  nombre?: string;
+  telefono?: string;
+  email?: string;
+}
+
+export interface ConfiguracionAgrupamiento {
+  moneda?: string;
+  dia_vencimiento_default?: number;
+}
+
+export interface Agrupamiento {
+  _id: string;
+  codigo: string;
+  nombre: string;
+  tipo: TipoAgrupamiento;
+  estado: EstadoAgrupamiento;
+  direccion: DireccionAgrupamiento;
+  descripcion?: string;
+  id_administrador?: string | Usuario;
+  gestores?: Array<string | Usuario>;
+  contacto?: ContactoAgrupamiento;
+  servicios?: string[];
+  configuracion?: ConfiguracionAgrupamiento;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UnidadPropiedad {
+  identificador?: string;
+}
+
 export interface Propiedad {
   _id: string;
   id_propietario?: string | Usuario;
+  id_agrupamiento?: string | Agrupamiento | null;
+  unidad?: UnidadPropiedad;
   direccion: string;
   tipo: string;
   ambientes: number;
@@ -166,4 +218,5 @@ export interface DashboardProps {
   token: string;
   roles: RolesDashboard;
   setSeccionActiva: Dispatch<SetStateAction<string>>;
+  idAgrupamiento?: string;
 }

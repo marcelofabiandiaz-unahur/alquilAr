@@ -10,6 +10,7 @@ import StatBadge from '../ui/StatBadge';
 import Modal from '../ui/Modal';
 import ComprobantePagoLink from './ComprobantePagoLink';
 import { btnPrimaryClass, btnGhostClass, inputClass, labelClass } from '../layout/dashboardStyles';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import type { FormEvent } from 'react';
 import type { Pago } from '../../types';
 
@@ -47,9 +48,16 @@ interface PagosPanelProps {
   esPropietario: boolean;
   esInquilino: boolean;
   esAdmin: boolean;
+  idAgrupamiento?: string;
 }
 
-export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin }: PagosPanelProps) {
+export default function PagosPanel({
+  token,
+  esPropietario,
+  esInquilino,
+  esAdmin,
+  idAgrupamiento = '',
+}: PagosPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [cargando, setCargando] = useState(true);
   const [accionId, setAccionId] = useState('');
@@ -63,7 +71,10 @@ export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin 
     setCargando(true);
     setError('');
     try {
-      const pagosData = await apiGet<Pago[]>('/api/pagos', token);
+      const pagosData = await apiGet<Pago[]>(
+        conAgrupamiento('/api/pagos', idAgrupamiento),
+        token,
+      );
       if (!Array.isArray(pagosData)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
       }
@@ -74,7 +85,7 @@ export default function PagosPanel({ token, esPropietario, esInquilino, esAdmin 
     } finally {
       setCargando(false);
     }
-  }, [token]);
+  }, [token, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(cargar, 0);

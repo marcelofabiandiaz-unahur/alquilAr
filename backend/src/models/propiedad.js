@@ -7,6 +7,14 @@ const propiedadSchema = new mongoose.Schema(
       ref: 'Usuario',
       required: true,
     },
+    id_agrupamiento: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Agrupamiento',
+      default: null,
+    },
+    unidad: {
+      identificador: { type: String, trim: true },
+    },
     direccion: { type: String, required: true },
     tipo: { type: String, required: true },
     ambientes: { type: Number, required: true, min: 1 },
@@ -23,5 +31,17 @@ const propiedadSchema = new mongoose.Schema(
 );
 
 propiedadSchema.index({ id_propietario: 1 });
+propiedadSchema.index({ id_agrupamiento: 1, estado: 1 });
+propiedadSchema.index({ id_agrupamiento: 1, id_propietario: 1 });
+propiedadSchema.index(
+  { id_agrupamiento: 1, 'unidad.identificador': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      id_agrupamiento: { $type: 'objectId' },
+      'unidad.identificador': { $type: 'string' },
+    },
+  },
+);
 
 module.exports = mongoose.model('Propiedad', propiedadSchema);

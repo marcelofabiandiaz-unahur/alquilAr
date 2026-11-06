@@ -2,9 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './authContext';
 import type { ReactNode } from 'react';
 import type { AuthUsuario } from './types';
-import { API_URL } from './config/api';
 import { mapearPerfilAAuthUsuario } from './lib/authSession';
-import { SESION_NO_AUTORIZADA_EVENTO } from './lib/apiClient';
+import { ApiError, apiGet, SESION_NO_AUTORIZADA_EVENTO } from './lib/apiClient';
 import { mensajeErrorConexion } from './lib/networkErrors';
 
 function leerTokenGuardado(): string | null {
@@ -78,23 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const validarSesion = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/usuarios/me`, {
-          headers: { Authorization: `Bearer ${tokenGuardado}` },
-        });
+        const perfil = await apiGet<unknown>('/api/usuarios/me', tokenGuardado);
 
         if (!validacionActual()) return;
 
-        if (res.status === 401 || res.status === 403) {
-          logoutGlobal();
-          setErrorSesion('Tu sesión venció o ya no tenés permisos. Iniciá sesión nuevamente.');
-          return;
-        }
-        if (!res.ok) {
-          throw new Error(`No se pudo validar la sesión (error ${res.status}).`);
-        }
-
-        const perfil: unknown = await res.json();
-        if (!validacionActual()) return;
         const authUsuario = mapearPerfilAAuthUsuario(perfil);
 
         if (!authUsuario) {
@@ -108,9 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tokenActual.current = tokenGuardado;
         persistirSesion(authUsuario, tokenGuardado);
       } catch (error) {
-        if (validacionActual()) {
-          setErrorSesion(mensajeErrorConexion(error, 'No se pudo validar la sesión.'));
+        if (!validacionActual()) return;
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          logoutGlobal();
+          setErrorSesion('Tu sesión venció o ya no tenés permisos. Iniciá sesión nuevamente.');
+          return;
         }
+
+        setErrorSesion(mensajeErrorConexion(error, 'No se pudo validar la sesión.'));
       } finally {
         if (validacionActual()) {
           setCargando(false);

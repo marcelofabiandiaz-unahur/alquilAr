@@ -10,6 +10,7 @@ import Modal from '../ui/Modal';
 import { btnPrimaryClass, btnGhostClass, inputClass, labelClass } from '../layout/dashboardStyles';
 import { CATEGORIAS_RECLAMO, PRIORIDADES_RECLAMO } from '../../lib/reclamoOpciones';
 import type { CategoriaReclamo, PrioridadReclamo } from '../../lib/reclamoOpciones';
+import { conAgrupamiento } from '../../lib/agrupamientos';
 import type { FormEvent } from 'react';
 import type { Contrato, Reclamo } from '../../types';
 
@@ -39,9 +40,16 @@ interface ReclamosPanelProps {
   esPropietario: boolean;
   esInquilino: boolean;
   esAdmin: boolean;
+  idAgrupamiento?: string;
 }
 
-export default function ReclamosPanel({ token, esPropietario, esInquilino, esAdmin }: ReclamosPanelProps) {
+export default function ReclamosPanel({
+  token,
+  esPropietario,
+  esInquilino,
+  esAdmin,
+  idAgrupamiento = '',
+}: ReclamosPanelProps) {
   const [reclamos, setReclamos] = useState<Reclamo[]>([]);
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -57,8 +65,10 @@ export default function ReclamosPanel({ token, esPropietario, esInquilino, esAdm
     setError('');
     try {
       const [reclamosData, contratosData] = await Promise.all([
-        apiGet<Reclamo[]>('/api/reclamos', token),
-        esInquilino ? apiGet<Contrato[]>('/api/contratos', token) : Promise.resolve([] as Contrato[]),
+        apiGet<Reclamo[]>(conAgrupamiento('/api/reclamos', idAgrupamiento), token),
+        esInquilino
+          ? apiGet<Contrato[]>(conAgrupamiento('/api/contratos', idAgrupamiento), token)
+          : Promise.resolve([] as Contrato[]),
       ]);
       if (!Array.isArray(reclamosData) || !Array.isArray(contratosData)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
@@ -72,7 +82,7 @@ export default function ReclamosPanel({ token, esPropietario, esInquilino, esAdm
     } finally {
       setCargando(false);
     }
-  }, [token, esInquilino]);
+  }, [token, esInquilino, idAgrupamiento]);
 
   useEffect(() => {
     const timer = setTimeout(cargar, 0);

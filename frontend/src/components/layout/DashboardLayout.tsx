@@ -8,6 +8,7 @@ import { brandClasses } from '../../theme/alquilar';
 import { useTheme } from '../../theme/themeContext';
 import { NavIcon } from './dashboardNavIcons';
 import AsistenteFlotante from '../asistente/AsistenteFlotante';
+import AgrupamientoSelector from '../agrupamientos/AgrupamientoSelector';
 
 interface Notificacion {
   id: string;
@@ -34,6 +35,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Operación',
     items: [
       { id: 'propiedades', label: 'Propiedades', show: (r) => r.esPropietario || r.esAdministrador },
+      { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
       { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario || r.esAdministrador },
@@ -181,6 +183,8 @@ interface DashboardLayoutProps {
   setSeccionActiva: (id: string) => void;
   roles: RolesDashboard;
   token: string;
+  idAgrupamiento: string;
+  onAgrupamientoChange: (id: string) => void;
   children: ReactNode;
 }
 
@@ -191,6 +195,8 @@ export default function DashboardLayout({
   setSeccionActiva,
   roles,
   token,
+  idAgrupamiento,
+  onAgrupamientoChange,
   children,
 }: DashboardLayoutProps) {
   const [usuarioExpandido, setUsuarioExpandido] = useState(false);
@@ -532,7 +538,14 @@ export default function DashboardLayout({
             </button>
             <img src={logoAlquilar} alt="AlquilAR" className="h-10 w-12 object-contain" />
           </div>
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+            {(roles.esPropietario || roles.esAdministrador) && (
+              <AgrupamientoSelector
+                token={token}
+                value={idAgrupamiento}
+                onChange={onAgrupamientoChange}
+              />
+            )}
             {(roles.esAdministrador || roles.esInquilino || roles.esUsuarioBase) && (
               <div ref={notificacionesRef} className="relative">
                 <button
@@ -641,7 +654,7 @@ export default function DashboardLayout({
       </div>
     </div>
       {(roles.esInquilino || roles.esPropietario || roles.esAdministrador) && (
-        <AsistenteFlotante token={token} />
+        <AsistenteFlotante token={token} idAgrupamiento={idAgrupamiento} />
       )}
     </>
   );

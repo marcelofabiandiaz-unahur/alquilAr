@@ -34,6 +34,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M9 8h6M9 12h6M9 16h4" strokeLinecap="round" />
     </Svg>
   ),
+  agrupamientos: (
+    <Svg>
+      <path d="M4 21V7l8-4 8 4v14" strokeLinejoin="round" />
+      <path d="M9 21v-4h6v4M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01" strokeLinecap="round" />
+    </Svg>
+  ),
   pagos: (
     <Svg>
       <rect x="3" y="6" width="18" height="12" rx="2" />
