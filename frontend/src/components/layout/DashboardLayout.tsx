@@ -37,6 +37,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { id: 'propiedades', label: 'Propiedades', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
+      { id: 'disponibilidad', label: 'Buscar alquileres', show: (r) => !r.esAdministrador && (r.esInquilino || r.esUsuarioBase) },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
       { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'reportes', label: 'Reportes', show: (r) => r.esPropietario || r.esAdministrador },

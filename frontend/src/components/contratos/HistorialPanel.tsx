@@ -32,6 +32,11 @@ function fechaVisible(fecha?: string): string {
   return fechaConvertida ? fechaConvertida.toLocaleDateString('es-AR') : 'Sin fecha';
 }
 
+function fechaFinVisible(fecha?: string): string {
+  const fechaConvertida = convertirFecha(fecha);
+  return fechaConvertida ? fechaConvertida.toLocaleDateString('es-AR') : 'Sin fecha de fin';
+}
+
 function inquilinoLabel(contrato: Contrato): string {
   const inquilino = contrato.id_inquilino;
   if (typeof inquilino === 'string') return '';
@@ -191,8 +196,9 @@ export default function HistorialPanel({
     ? Math.min(duracionMeses || mesesEntre(inicio, fechaReferencia), mesesEntre(inicio, fechaReferencia))
     : 0;
   const progreso = duracionMeses > 0 ? Math.min(100, (mesesTranscurridos / duracionMeses) * 100) : 0;
+  const puedeVerInquilino = roles.esPropietario || roles.esAdministrador;
   const pestañas: { id: PestañaDetalle; label: string; cantidad: number }[] = [
-    { id: 'realizados', label: roles.esPropietario ? 'Cobranzas' : 'Pagos realizados', cantidad: pagosRealizados.length },
+    { id: 'realizados', label: puedeVerInquilino ? 'Cobranzas' : 'Pagos realizados', cantidad: pagosRealizados.length },
     { id: 'cuotas', label: 'Cuotas futuras', cantidad: cuotasFuturas.length },
     { id: 'reclamos', label: 'Reclamos', cantidad: reclamosContrato.length },
   ];
@@ -221,20 +227,24 @@ export default function HistorialPanel({
                   {obtenerDetallePropiedad(contrato) && (
                     <p className="mt-1 text-sm text-slate-500">{obtenerDetallePropiedad(contrato)}</p>
                   )}
-                  {roles.esPropietario && inquilinoLabel(contrato) && (
+                  {puedeVerInquilino && inquilinoLabel(contrato) && (
                     <p className="mt-2 text-sm text-slate-600">Inquilino: {inquilinoLabel(contrato)}</p>
                   )}
                 </div>
                 <StatBadge estado={contrato.estado} />
               </div>
-              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-xs text-slate-400">Inicio</p>
                   <p className="mt-1 font-medium text-slate-700">{fechaVisible(contrato.fecha_inicio)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Finalización</p>
-                  <p className="mt-1 font-medium text-slate-700">{fechaVisible(contrato.fecha_fin)}</p>
+                  <p className="mt-1 font-medium text-slate-700">{fechaFinVisible(contrato.fecha_fin)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Monto mensual</p>
+                  <p className="mt-1 font-semibold text-emerald-700">{formatMoneda(contrato.monto_mensual)}</p>
                 </div>
               </div>
               <p className="mt-4 text-xs font-semibold text-emerald-700">Ver detalle del alquiler →</p>
@@ -248,7 +258,7 @@ export default function HistorialPanel({
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Historial de alquileres"
+        title={roles.esAdministrador ? 'Historial de contratos' : 'Historial de alquileres'}
         subtitle="Consultá los alquileres vigentes y finalizados y sus movimientos asociados"
       />
 
@@ -296,7 +306,7 @@ export default function HistorialPanel({
                 <h2 id="detalle-alquiler-titulo" className="mt-1 text-xl font-bold text-[var(--brand-navy)]">
                   {obtenerDireccion(contratoSeleccionado)}
                 </h2>
-                {roles.esPropietario && inquilinoLabel(contratoSeleccionado) && (
+                {puedeVerInquilino && inquilinoLabel(contratoSeleccionado) && (
                   <p className="mt-1 text-sm text-slate-500">Inquilino: {inquilinoLabel(contratoSeleccionado)}</p>
                 )}
               </div>
@@ -323,7 +333,7 @@ export default function HistorialPanel({
                   </div>
                   <div>
                     <dt className="text-slate-500">Fecha de finalización</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">{fechaVisible(contratoSeleccionado.fecha_fin)}</dd>
+                    <dd className="mt-1 font-semibold text-slate-800">{fechaFinVisible(contratoSeleccionado.fecha_fin)}</dd>
                   </div>
                   <div>
                     <dt className="text-slate-500">Duración</dt>
@@ -380,7 +390,7 @@ export default function HistorialPanel({
                   {pestaña === 'realizados' && (
                     <ListaPagos
                       pagos={pagosRealizados}
-                      titulo={roles.esPropietario ? 'Todavía no hay cobranzas confirmadas.' : 'Todavía no hay pagos realizados.'}
+                      titulo={puedeVerInquilino ? 'Todavía no hay cobranzas confirmadas.' : 'Todavía no hay pagos realizados.'}
                     />
                   )}
                   {pestaña === 'cuotas' && (

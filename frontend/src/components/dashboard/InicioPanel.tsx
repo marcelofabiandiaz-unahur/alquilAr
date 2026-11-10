@@ -28,6 +28,7 @@ const ACCESO_STYLES: Partial<Record<string, string>> = {
   propietarios: 'bg-violet-50 text-violet-700',
   pagos: 'bg-sky-50 text-sky-600',
   reclamos: 'bg-amber-50 text-amber-600',
+  disponibilidad: 'bg-indigo-50 text-indigo-600',
 };
 
 function fechaLocal(fecha?: string): Date | null {
@@ -203,6 +204,14 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
   }
   if (roles.esInquilino) {
     accesos.push({ id: 'pagos', label: 'Mis pagos', desc: 'Cuotas y comprobantes', icon: 'pagos' });
+  }
+  if (!roles.esAdministrador && (roles.esInquilino || roles.esUsuarioBase)) {
+    accesos.push({
+      id: 'disponibilidad',
+      label: 'Buscar alquileres',
+      desc: 'Propiedades disponibles',
+      icon: 'disponibilidad',
+    });
   }
   if (tieneAccesoFinanzas) {
     accesos.push({ id: 'finanzas', label: 'Finanzas', desc: 'Cobros y gastos', icon: 'finanzas' });

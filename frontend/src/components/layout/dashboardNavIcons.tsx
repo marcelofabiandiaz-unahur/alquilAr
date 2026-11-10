@@ -64,6 +64,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M12 8v4l3 2" strokeLinecap="round" />
     </Svg>
   ),
+  disponibilidad: (
+    <Svg>
+      <circle cx="11" cy="11" r="6" />
+      <path d="m16 16 4 4" strokeLinecap="round" />
+    </Svg>
+  ),
   propietarios: (
     <Svg>
       <circle cx="9" cy="8" r="3" />

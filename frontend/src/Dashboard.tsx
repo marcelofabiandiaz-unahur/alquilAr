@@ -15,6 +15,7 @@ import ReportesPanel from './components/reportes/ReportesPanel';
 import AsistentePanel from './components/asistente/AsistentePanel';
 import PerfilPanel from './components/profile/PerfilPanel';
 import AgrupamientosPanel from './components/agrupamientos/AgrupamientosPanel';
+import DisponibilidadPanel from './components/propiedades/DisponibilidadPanel';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -128,6 +129,8 @@ export default function Dashboard() {
         );
       case 'historial':
         return <HistorialPanel token={token} roles={roles} idAgrupamiento={idAgrupamiento} />;
+      case 'disponibilidad':
+        return <DisponibilidadPanel token={token} />;
       case 'usuarios':
         return <UsuariosPanel token={token} />;
       case 'configuracion':
