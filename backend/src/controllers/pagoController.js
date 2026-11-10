@@ -17,9 +17,7 @@ const {
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
 const { construirOperacionesCuotas } = require('../utils/cuotasContrato');
-
-const responder = (res, status, data, message) =>
-  res.status(status).json({ success: status < 400, data, message });
+const { responder, responderError } = require('../utils/controllerHelpers');
 
 const obtenerComprobantes = (pago) => [
   ...new Set([
@@ -149,7 +147,7 @@ const listarPagos = async (req, res) => {
       .sort({ fecha_vencimiento: 1 });
     return responder(res, 200, pagos, 'Pagos consultados.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -168,7 +166,7 @@ const obtenerPago = async (req, res) => {
     if (!contrato || !permitido) return responder(res, 403, null, 'No tenés permiso para ver este pago.');
     return responder(res, 200, pago, 'Pago consultado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -212,31 +210,7 @@ const crearPago = async (req, res) => {
   } catch (error) {
     if (error.code === 11000) return responder(res, 409, null, 'Ya existe un pago para ese contrato y período.');
     if (error.name === 'ValidationError') return responder(res, 400, null, error.message);
-    return responder(res, 500, null, error.message);
-  }
-};
-
-const registrarComprobante = async (req, res) => {
-  try {
-    if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
-    const { comprobante_url } = req.body || {};
-    if (!parsePagoAssetUrl(comprobante_url)) {
-      return responder(res, 400, null, 'El comprobante debe pertenecer a la carpeta segura de pagos.');
-    }
-    const pago = await Pago.findById(req.params.id);
-    if (!pago) return responder(res, 404, null, 'Pago no encontrado.');
-    const { contrato } = await buscarContratoGestionable(resolverId(pago.id_contrato), req.usuario);
-    const { id, roles } = obtenerIdentidad(req.usuario);
-    if (!contrato || !esInquilino(roles) || resolverId(contrato.id_inquilino) !== resolverId(id)) {
-      return responder(res, 403, null, 'Solo el inquilino del contrato puede cargar el comprobante.');
-    }
-    if (pago.estado === 'PAGADO') return responder(res, 409, null, 'No se puede cambiar el comprobante de un pago confirmado.');
-    const comprobantes = obtenerComprobantes(pago);
-    actualizarEstadoPorComprobantes(pago, [...new Set([...comprobantes, comprobante_url])]);
-    await pago.save();
-    return responder(res, 200, pago, 'Comprobante registrado.');
-  } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -453,7 +427,7 @@ const marcarComoPagado = async (req, res) => {
     await pago.save();
     return responder(res, 200, pago, 'Pago confirmado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -479,7 +453,7 @@ const actualizarPago = async (req, res) => {
     await pago.save();
     return responder(res, 200, pago, 'Pago actualizado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -497,7 +471,7 @@ const eliminarPago = async (req, res) => {
     await pago.deleteOne();
     return responder(res, 200, null, 'Pago eliminado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -506,7 +480,6 @@ module.exports = {
   obtenerPago,
   crearPago,
   actualizarPago,
-  registrarComprobante,
   subirComprobantes,
   eliminarComprobante,
   verComprobante,

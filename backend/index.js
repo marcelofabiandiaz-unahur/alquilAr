@@ -5,6 +5,7 @@ getJwtSecret();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const { crearOpcionesCors } = require('./src/config/corsOptions');
 const authRoutes = require('./src/routes/authRoutes');
 const propiedadRoutes = require('./src/routes/propiedadRoutes');
@@ -19,9 +20,16 @@ const errorHandler = require('./src/middlewares/errorHandler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.disable('x-powered-by');
+if (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') {
+  // Render expone la IP real del cliente en X-Forwarded-For.
+  app.set('trust proxy', 1);
+}
+
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors(crearOpcionesCors().opciones));
 
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 app.get('/health', (req, res) => {
   const mongoConectado = mongoose.connection.readyState === 1;

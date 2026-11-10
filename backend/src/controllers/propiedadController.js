@@ -126,6 +126,33 @@ const resolverAsociacionAgrupamiento = async (body, usuario, propiedadActual, re
 };
 
 
+const CAMPOS_PROPIEDAD_DISPONIBLE = [
+  'direccion',
+  'tipo',
+  'ambientes',
+  'descripcion',
+  'estado',
+  'valor_base',
+  'fotos',
+  'id_agrupamiento',
+  'unidad',
+  'createdAt',
+].join(' ');
+
+const listarPropiedadesDisponibles = async (req, res) => {
+  try {
+    // Catálogo acotado a unidades disponibles. No expone id_propietario ni
+    // datos de contacto/bancarios: cualquier usuario autenticado puede verlo.
+    const propiedades = await Propiedad.find({ estado: 'DISPONIBLE' })
+      .select(CAMPOS_PROPIEDAD_DISPONIBLE)
+      .sort({ createdAt: -1 });
+
+    res.json(propiedades);
+  } catch (error) {
+    responderErrorServidor(res, error);
+  }
+};
+
 const listarPropiedades = async (req, res) => {
   try {
     const { roles, id: usuarioId } = req.usuario;
@@ -400,6 +427,7 @@ const listarContratosPorPropiedad = async (req, res) => {
 
 module.exports = {
   listarPropiedades,
+  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,

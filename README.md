@@ -78,7 +78,9 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
   - `GET` / `POST /solicitud-propietario` — consulta y envío de solicitud de rol propietario
   - `PATCH /:id/solicitud-propietario/aprobar` — aprobación administrativa (asigna `PROPIETARIO`)
   - `PATCH /:id/roles` — agregar roles (admin)
-- Middleware: `verificarToken`, `verificarRol`.
+- Middleware: `verificarToken`, `verificarRol` y `verificarPermiso`. Los permisos por rol se declaran en `backend/src/config/permisos.js`.
+- `verificarToken` valida el JWT contra MongoDB en cada request: si el usuario fue dado de baja o cambió de rol, el cambio impacta sin esperar a que expire el token. Sin token o con usuario inválido responde `401`.
+- Registro con validación de nombre, apellido, DNI, email, contraseña (9–128 caracteres) y teléfono. Login con mensaje genérico para no revelar si el email existe; rate limit en login y registro.
 - Frontend: al recargar la app, si hay token en `localStorage` se valida con `GET /me`; un `401`/`403` limpia la sesión y un error transitorio conserva el token y muestra un aviso.
 - Perfil: vista dedicada dentro del panel; permite editar teléfono, alias/CBU y CUIT/CUIL mediante `PATCH /api/usuarios/me`.
 - Los errores autenticados HTTP 401/403 cierran la sesión y eliminan el token local; los errores de conexión no eliminan credenciales.
@@ -87,6 +89,7 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 
 - CRUD de propiedades y contratos con permisos por rol; cuotas de pago al activar contratos; historial y garantes.
 - `GET /api/propiedades` — listado con JWT: **propietario** ve sus inmuebles; **administrador** ve todos. Usuarios e inquilinos sin rol de gestión reciben 403.
+- `GET /api/propiedades/disponibles` — catálogo para cualquier usuario autenticado. Devuelve solo unidades `DISPONIBLE` con datos públicos de la propiedad (sin `id_propietario` ni datos bancarios).
 - No hay catálogo público ni ingreso anónimo: login o registro obligatorio para usar la app.
 
 ### Agrupamientos de viviendas
@@ -105,7 +108,7 @@ Permiten reunir unidades bajo un mismo edificio, complejo o consorcio. Una propi
 
 ### Pagos, gastos y reclamos
 
-Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene del JWT.
+Los endpoints requieren `Authorization: Bearer <token>`. La identidad y los roles se resuelven con el JWT y se validan contra MongoDB.
 
 - **Pagos:** `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, comprobantes (`POST/GET/DELETE …/comprobantes`), `PATCH …/confirmar`. Cuotas automáticas al activar contrato (depósito `DEPOSITO` + mensuales `YYYYMM`). Estados `PENDIENTE`, `ATRASADO`, `INGRESADO`, `PAGADO`.
 - **Gastos:** `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`, filtros por propiedad, fechas y `estado_pago`.
@@ -124,7 +127,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad se obtiene
   - `gestionarReclamos`: lista contratos vigentes del inquilino, lista reclamos visibles, clasifica una incidencia y crea el reclamo con validación en los controladores existentes.
 - Errores tipados: `SIN_PERMISO`, `VALIDACION`, `NO_ENCONTRADO`, `CONFIGURACION`, `AUTENTICACION_PROVEEDOR`, `MODELO_INEXISTENTE`, `LIMITE_PROVEEDOR`, `PROVEEDOR`, `TIMEOUT`, `PASOS_EXCEDIDOS` e `INTERNO`. Los problemas de permisos se responden dentro de la conversación (HTTP 200) para no cerrar la sesión del usuario; los fallos técnicos devuelven un mensaje comprensible y un código, sin exponer detalles internos.
 - Estilo de respuesta: todas las contestaciones (incluidas las consultas predefinidas y las que usan herramientas) se presentan en texto natural y conversacional, sin JSON, bloques de código, nombres de herramientas, códigos internos ni viñetas. Los datos se traducen a frases con montos, fechas y estados legibles. El backend descarta cualquier salida técnica que el modelo devuelva por error.
-- Seguridad: la identidad y los permisos se resuelven solo con el JWT; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados. Las acciones que crean datos no se reintentan automáticamente.
+- Seguridad: la identidad y los permisos se resuelven con el JWT validado contra MongoDB; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados. Las acciones que crean datos no se reintentan automáticamente.
 - UI: chat flotante ALQUI para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra errores del backend, permite cancelar solicitudes y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, pide revisar “Mis reclamos” antes de reintentar. El historial **no** se persiste en MongoDB.
 
 ## Requisitos

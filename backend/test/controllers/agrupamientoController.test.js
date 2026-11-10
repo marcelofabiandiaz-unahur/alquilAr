@@ -2,6 +2,7 @@ const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Agrupamiento = require('../../src/models/agrupamiento');
 const Propiedad = require('../../src/models/propiedad');
+const Contrato = require('../../src/models/contrato');
 const {
   listarAgrupamientos,
   obtenerAgrupamiento,
@@ -38,6 +39,7 @@ describe('agrupamientoController', () => {
       propiedadFind: Propiedad.find,
       propiedadExists: Propiedad.exists,
       propiedadCount: Propiedad.countDocuments,
+      contratoFind: Contrato.find,
     };
     Agrupamiento.find = () => ({
       populate() { return this; },
@@ -53,6 +55,7 @@ describe('agrupamientoController', () => {
     Propiedad.find = originales.propiedadFind;
     Propiedad.exists = originales.propiedadExists;
     Propiedad.countDocuments = originales.propiedadCount;
+    Contrato.find = originales.contratoFind;
   });
 
   it('lista todos los agrupamientos para un administrador', async () => {
@@ -97,6 +100,30 @@ describe('agrupamientoController', () => {
         { _id: { $in: [agrupamientoId] } },
       ],
     });
+  });
+
+  it('para inquilinos solo considera contratos vigentes', async () => {
+    let filtroContrato;
+    Contrato.find = (filtro) => {
+      filtroContrato = filtro;
+      return { select: async () => [{ id_propiedad: propiedadId }] };
+    };
+    Propiedad.find = () => ({
+      select: async () => [{ id_agrupamiento: agrupamientoId }],
+    });
+    Agrupamiento.find = () => ({
+      populate() { return this; },
+      sort: async () => [],
+    });
+    const res = mockRes();
+
+    await listarAgrupamientos({
+      query: {},
+      usuario: { id: usuarioId, roles: ['INQUILINO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(filtroContrato, { id_inquilino: usuarioId, estado: 'VIGENTE' });
   });
 
   it('valida los filtros de listado', async () => {

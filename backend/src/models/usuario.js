@@ -1,16 +1,23 @@
 const mongoose = require("mongoose");
 const argon2 = require("argon2");
+const { ROLES } = require("../config/permisos");
 
 const usuarioSchema = new mongoose.Schema(
   {
-    nombre: { type: String, required: true },
-    apellido: { type: String, required: true },
-    dni: { type: String, required: true, unique: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
-    password: { type: String, required: true },
+    nombre: { type: String, required: true, trim: true },
+    apellido: { type: String, required: true, trim: true },
+    dni: { type: String, required: true, unique: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: {
+      type: String,
+      required: true,
+      select: false,
+      minlength: 9,
+      maxlength: 128,
+    },
     roles: {
       type: [String],
-      enum: ["USUARIO", "INQUILINO", "PROPIETARIO", "ADMINISTRADOR"],
+      enum: Object.values(ROLES),
       required: true,
       validate: {
         validator: (v) => Array.isArray(v) && v.length > 0,

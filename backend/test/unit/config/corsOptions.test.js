@@ -87,9 +87,9 @@ describe('corsOptions', () => {
     );
   });
 
-  it('mantiene credentials habilitado', () => {
+  it('no habilita credentials porque la autenticación usa Bearer', () => {
     const { opciones } = crearOpcionesCors({});
-    assert.equal(opciones.credentials, true);
+    assert.equal(opciones.credentials, undefined);
   });
 
   it('detecta producción por NODE_ENV o por RENDER', () => {

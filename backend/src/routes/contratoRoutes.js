@@ -14,7 +14,7 @@ const {
   eliminarReciboGarante,
   verReciboGarante,
 } = require('../controllers/garanteAssetController');
-const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
+const { verificarToken, verificarPermiso } = require('../middlewares/authMiddleware');
 
 const recibirArchivo = multer({
   storage: multer.memoryStorage(),
@@ -46,21 +46,21 @@ router.use(verificarToken);
 
 router.post(
   '/garantes/recibos',
-  verificarRol(['PROPIETARIO', 'ADMINISTRADOR']),
+  verificarPermiso('GESTIONAR_CONTRATOS'),
   manejarArchivo,
   uploadGarante,
 );
 router.delete(
   '/garantes/recibos',
-  verificarRol(['PROPIETARIO', 'ADMINISTRADOR']),
+  verificarPermiso('GESTIONAR_CONTRATOS'),
   eliminarReciboGarante,
 );
 router.get('/:id/garante/recibo', verReciboGarante);
-router.get('/', listarContratos);
-router.post('/', crearContrato);
+router.get('/', verificarPermiso('VER_CONTRATOS'), listarContratos);
+router.post('/', verificarPermiso('GESTIONAR_CONTRATOS'), crearContrato);
 router.get('/:id', obtenerContrato);
-router.put('/:id', actualizarContrato);
-router.patch('/:id/finalizar', finalizarContrato);
-router.delete('/:id', cancelarContrato);
+router.put('/:id', verificarPermiso('GESTIONAR_CONTRATOS'), actualizarContrato);
+router.patch('/:id/finalizar', verificarPermiso('GESTIONAR_CONTRATOS'), finalizarContrato);
+router.delete('/:id', verificarPermiso('GESTIONAR_CONTRATOS'), cancelarContrato);
 
 module.exports = router;

@@ -5,6 +5,7 @@ const Contrato = require('../../src/models/contrato');
 const cloudinaryConfig = require('../../src/config/cloudinary');
 const {
   listarPropiedades,
+  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,
@@ -46,6 +47,40 @@ describe('propiedadController', () => {
     cloudinaryConfig.getCloudinary = origGetCloudinary;
     if (origCloudName === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
     else process.env.CLOUDINARY_CLOUD_NAME = origCloudName;
+  });
+
+  it('listarPropiedadesDisponibles devuelve solo disponibles con proyeccion segura', async () => {
+    let filtro;
+    let proyeccion;
+    let ordenamiento;
+    Propiedad.find = (consulta) => {
+      filtro = consulta;
+      return {
+        select(campos) {
+          proyeccion = campos;
+          return {
+            sort: async (orden) => {
+              ordenamiento = orden;
+              return [{ _id: propiedadId, direccion: 'Test 1', estado: 'DISPONIBLE' }];
+            },
+          };
+        },
+      };
+    };
+
+    const res = mockRes();
+    await listarPropiedadesDisponibles(
+      { usuario: { id: usuarioId, roles: ['USUARIO'] } },
+      res,
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(filtro, { estado: 'DISPONIBLE' });
+    assert.match(proyeccion, /direccion/);
+    assert.match(proyeccion, /valor_base/);
+    assert.equal(proyeccion.includes('id_propietario'), false);
+    assert.deepEqual(ordenamiento, { createdAt: -1 });
+    assert.equal(res.body.length, 1);
   });
 
   it('obtenerPropiedad responde 400 con id invalido', async () => {

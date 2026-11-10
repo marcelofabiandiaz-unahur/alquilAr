@@ -41,7 +41,6 @@ function crearOpcionesCors(env = process.env) {
 
       return callback(null, false);
     },
-    credentials: true,
   };
 
   return { opciones, origenes: [...origenes], produccion };
