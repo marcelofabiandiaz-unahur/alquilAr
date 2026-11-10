@@ -41,7 +41,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'reportes', label: 'Reportes', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
-      { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario },
+      { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
     ],
   },
   {
