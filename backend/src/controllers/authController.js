@@ -2,9 +2,15 @@ const Usuario = require('../models/usuario');
 const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('../config/jwtSecret');
+const { ROLES, ROLES_VALIDOS } = require('../config/permisos');
 
-const ROLES_VALIDOS = ['USUARIO', 'INQUILINO', 'PROPIETARIO', 'ADMINISTRADOR'];
 const CAMPOS_PERFIL_EDITABLES = ['telefono', 'cbu_alias', 'cuit_cuil'];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NOMBRE_REGEX = /^\p{L}+(?:\s+\p{L}+)*$/u;
+const DNI_REGEX = /^\d{1,8}$/;
+const TELEFONO_REGEX = /^\d{1,15}$/;
+const PASSWORD_MIN = 9;
+const PASSWORD_MAX = 128;
 
 const serializarUsuario = (usuario) => {
   const respuesta = usuario.toObject ? usuario.toObject() : { ...usuario };
@@ -12,45 +18,101 @@ const serializarUsuario = (usuario) => {
   return respuesta;
 };
 
+const texto = (valor) => (typeof valor === 'string' ? valor.trim() : '');
+
 const registrarUsuario = async (req, res) => {
   try {
-    const datos = { ...(req.body || {}), roles: ['USUARIO'] };
+    const body = req.body || {};
+    const nombre = texto(body.nombre);
+    const apellido = texto(body.apellido);
+    const dni = texto(body.dni);
+    const email = texto(body.email).toLowerCase();
+    const telefono = texto(body.telefono);
+    const password = typeof body.password === 'string' ? body.password : '';
 
-    const nuevoUsuario = new Usuario(datos);
+    if (!nombre || nombre.length > 20 || !NOMBRE_REGEX.test(nombre)) {
+      return res.status(400).json({ mensaje: 'Ingresá un nombre válido de hasta 20 letras.' });
+    }
+    if (!apellido || apellido.length > 20 || !NOMBRE_REGEX.test(apellido)) {
+      return res.status(400).json({ mensaje: 'Ingresá un apellido válido de hasta 20 letras.' });
+    }
+    if (!DNI_REGEX.test(dni)) {
+      return res.status(400).json({ mensaje: 'Ingresá un DNI válido de hasta 8 números.' });
+    }
+    if (email.length > 254 || !EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ mensaje: 'Ingresá un correo electrónico válido.' });
+    }
+    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+      return res.status(400).json({
+        mensaje: `La contraseña debe tener entre ${PASSWORD_MIN} y ${PASSWORD_MAX} caracteres.`,
+      });
+    }
+    if (telefono && !TELEFONO_REGEX.test(telefono)) {
+      return res.status(400).json({ mensaje: 'Ingresá un teléfono de hasta 15 dígitos.' });
+    }
+
+    // Solo se aceptan los campos del alta: estado, roles, solicitud y datos
+    // bancarios quedan fuera del alcance del cliente.
+    const nuevoUsuario = new Usuario({
+      nombre,
+      apellido,
+      dni,
+      email,
+      password,
+      telefono,
+      roles: [ROLES.USUARIO],
+    });
     await nuevoUsuario.save();
 
     res.status(201).json(serializarUsuario(nuevoUsuario));
   } catch (error) {
-    res.status(400).json({ mensaje: 'Error al crear usuario', error: error.message });
+    if (error.code === 11000) {
+      return res.status(409).json({ mensaje: 'El email o DNI ya está registrado.' });
+    }
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ mensaje: 'Los datos de registro no son válidos.' });
+    }
+    console.error('Error al registrar usuario:', error);
+    return res.status(500).json({ mensaje: 'No se pudo crear la cuenta.' });
   }
 };
 
 const loginUsuario = async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (typeof email !== 'string' || !email.trim() || !password) {
+    if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
       return res.status(400).json({ mensaje: 'Email y contraseña son obligatorios' });
     }
 
     const emailNormalizado = email.trim().toLowerCase();
-    const usuario = await Usuario.findOne({ email: emailNormalizado });
-    if (!usuario) {
-      return res.status(401).json({ mensaje: 'Credenciales inválidas (Email no encontrado)' });
+    if (emailNormalizado.length > 254 || password.length > PASSWORD_MAX) {
+      return res.status(401).json({ mensaje: 'Credenciales inválidas.' });
     }
 
+    const usuario = await Usuario.findOne({ email: emailNormalizado }, '+password');
+    if (!usuario) {
+      return res.status(401).json({ mensaje: 'Credenciales inválidas.' });
+    }
+
+    let passwordValido = false;
+    try {
+      passwordValido = await argon2.verify(usuario.password, password);
+    } catch {
+      passwordValido = false;
+    }
+    if (!passwordValido) {
+      return res.status(401).json({ mensaje: 'Credenciales inválidas.' });
+    }
+
+    // La contraseña se valida antes de revelar el estado de la cuenta.
     if (usuario.estado && usuario.estado !== 'ACTIVO') {
       return res.status(403).json({ mensaje: 'Usuario inactivo. Contactá al administrador.' });
-    }
-
-    const passwordValido = await argon2.verify(usuario.password, password);
-    if (!passwordValido) {
-      return res.status(401).json({ mensaje: 'Credenciales inválidas (Contraseña incorrecta)' });
     }
 
     const token = jwt.sign(
       { id: usuario._id, roles: usuario.roles },
       getJwtSecret(),
-      { expiresIn: '24h' },
+      { expiresIn: '24h', algorithm: 'HS256' },
     );
 
     res.json({
@@ -65,7 +127,8 @@ const loginUsuario = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ mensaje: error.message });
+    console.error('Error al iniciar sesión:', error);
+    res.status(500).json({ mensaje: 'No se pudo iniciar sesión.' });
   }
 };
 
@@ -77,7 +140,8 @@ const obtenerMiPerfil = async (req, res) => {
     }
     res.json(usuario);
   } catch (error) {
-    res.status(500).json({ mensaje: error.message });
+    console.error('Error al obtener el perfil:', error);
+    res.status(500).json({ mensaje: 'No se pudo obtener el perfil.' });
   }
 };
 
@@ -97,7 +161,11 @@ const actualizarMiPerfil = async (req, res) => {
     await usuario.save();
     res.json(serializarUsuario(usuario));
   } catch (error) {
-    res.status(400).json({ mensaje: 'Error al actualizar perfil', error: error.message });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ mensaje: 'Los datos del perfil no son válidos.' });
+    }
+    console.error('Error al actualizar el perfil:', error);
+    res.status(500).json({ mensaje: 'No se pudo actualizar el perfil.' });
   }
 };
 
@@ -106,7 +174,8 @@ const listarUsuarios = async (req, res) => {
     const lista = await Usuario.find().select('-password');
     res.json(lista);
   } catch (error) {
-    res.status(500).json({ mensaje: error.message });
+    console.error('Error al listar usuarios:', error);
+    res.status(500).json({ mensaje: 'No se pudieron listar los usuarios.' });
   }
 };
 
@@ -116,7 +185,8 @@ const obtenerSolicitudPropietario = async (req, res) => {
     if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     return res.json({ solicitud: usuario.solicitud_propietario || null });
   } catch (error) {
-    return res.status(500).json({ mensaje: error.message });
+    console.error('Error al obtener la solicitud de propietario:', error);
+    return res.status(500).json({ mensaje: 'No se pudo consultar la solicitud.' });
   }
 };
 
@@ -134,12 +204,12 @@ const solicitarRolPropietario = async (req, res) => {
     const usuario = await Usuario.findById(req.usuario.id);
     if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     if (
-      usuario.roles.includes('ADMINISTRADOR')
-      || (!usuario.roles.includes('USUARIO') && !usuario.roles.includes('INQUILINO'))
+      usuario.roles.includes(ROLES.ADMINISTRADOR)
+      || (!usuario.roles.includes(ROLES.USUARIO) && !usuario.roles.includes(ROLES.INQUILINO))
     ) {
       return res.status(403).json({ mensaje: 'Esta cuenta no puede solicitar el rol Propietario.' });
     }
-    if (usuario.roles.includes('PROPIETARIO')) {
+    if (usuario.roles.includes(ROLES.PROPIETARIO)) {
       return res.status(409).json({ mensaje: 'El usuario ya tiene el rol Propietario.' });
     }
     if (usuario.solicitud_propietario?.estado === 'PENDIENTE') {
@@ -155,7 +225,11 @@ const solicitarRolPropietario = async (req, res) => {
     await usuario.save();
     return res.status(201).json({ solicitud: usuario.solicitud_propietario });
   } catch (error) {
-    return res.status(400).json({ mensaje: 'No se pudo crear la solicitud.', error: error.message });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ mensaje: 'Los datos de la solicitud no son válidos.' });
+    }
+    console.error('Error al crear la solicitud de propietario:', error);
+    return res.status(500).json({ mensaje: 'No se pudo crear la solicitud.' });
   }
 };
 
@@ -167,17 +241,19 @@ const aprobarSolicitudPropietario = async (req, res) => {
       return res.status(409).json({ mensaje: 'El usuario no tiene una solicitud pendiente.' });
     }
 
-    if (!usuario.roles.includes('PROPIETARIO')) usuario.roles.push('PROPIETARIO');
+    if (!usuario.roles.includes(ROLES.PROPIETARIO)) usuario.roles.push(ROLES.PROPIETARIO);
     usuario.cbu_alias = usuario.solicitud_propietario.cbu_alias;
     usuario.cuit_cuil = usuario.solicitud_propietario.cuit_cuil;
     usuario.solicitud_propietario.estado = 'APROBADA';
     await usuario.save();
 
-    const respuesta = usuario.toObject();
-    delete respuesta.password;
-    return res.json(respuesta);
+    return res.json(serializarUsuario(usuario));
   } catch (error) {
-    return res.status(400).json({ mensaje: 'No se pudo aprobar la solicitud.', error: error.message });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ mensaje: 'Los datos de la solicitud no son válidos.' });
+    }
+    console.error('Error al aprobar la solicitud de propietario:', error);
+    return res.status(500).json({ mensaje: 'No se pudo aprobar la solicitud.' });
   }
 };
 
@@ -205,7 +281,11 @@ const agregarRolesUsuario = async (req, res) => {
     await usuario.save();
     res.json(serializarUsuario(usuario));
   } catch (error) {
-    res.status(400).json({ mensaje: 'Error al actualizar roles', error: error.message });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ mensaje: 'Los roles indicados no son válidos.' });
+    }
+    console.error('Error al actualizar roles:', error);
+    res.status(500).json({ mensaje: 'No se pudieron actualizar los roles.' });
   }
 };
 

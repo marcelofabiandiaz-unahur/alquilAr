@@ -50,7 +50,10 @@ const buscarAgrupamientosVisibles = async (usuario) => {
     if (idsPropios.length > 0) condiciones.push({ _id: { $in: idsPropios } });
   }
   if (esInquilino(roles)) {
-    const contratos = await Contrato.find({ id_inquilino: id }).select('id_propiedad');
+    const contratos = await Contrato.find({
+      id_inquilino: id,
+      estado: 'VIGENTE',
+    }).select('id_propiedad');
     const idsPropiedades = [...new Set(
       contratos.map((contrato) => resolverId(contrato.id_propiedad)).filter(Boolean),
     )];

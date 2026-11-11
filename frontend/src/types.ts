@@ -8,6 +8,7 @@ export interface Usuario {
   apellido: string;
   email: string;
   roles: Role[];
+  estado?: 'ACTIVO' | 'INACTIVO' | 'PENDIENTE';
   dni?: string;
   cbu_alias?: string;
   cuit_cuil?: string;
@@ -187,6 +188,9 @@ export interface RolesDashboard {
 export interface ResumenDashboard {
   aCobrar: number;
   cobrado: number;
+  aPagar?: number;
+  proximoVencimiento?: string | null;
+  proximoVencimientoMonto?: number;
   cobrosParaValidar: number;
   atrasados: number;
   reclamosAbiertos: number;

@@ -5,14 +5,13 @@ const {
   obtenerPago,
   crearPago,
   actualizarPago,
-  registrarComprobante,
   subirComprobantes,
   eliminarComprobante,
   verComprobante,
   marcarComoPagado,
   eliminarPago,
 } = require('../controllers/pagoController');
-const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
+const { verificarToken, verificarPermiso } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 const recibirComprobantes = multer({
@@ -42,16 +41,23 @@ const manejarComprobantes = (req, res, next) => {
 };
 
 router.use(verificarToken);
-router.get('/', listarPagos);
-router.get('/inquilino', listarPagos);
-router.post('/', crearPago);
+router.get('/', verificarPermiso('VER_PAGOS'), listarPagos);
+router.post('/', verificarPermiso('GESTIONAR_PAGOS'), crearPago);
 router.get('/:id', obtenerPago);
-router.put('/:id', actualizarPago);
-router.patch('/:id/comprobante', registrarComprobante);
-router.post('/:id/comprobantes', verificarRol(['INQUILINO']), manejarComprobantes, subirComprobantes);
-router.delete('/:id/comprobantes', verificarRol(['INQUILINO']), eliminarComprobante);
+router.put('/:id', verificarPermiso('GESTIONAR_PAGOS'), actualizarPago);
+router.post(
+  '/:id/comprobantes',
+  verificarPermiso('SUBIR_COMPROBANTE_PAGO'),
+  manejarComprobantes,
+  subirComprobantes,
+);
+router.delete(
+  '/:id/comprobantes',
+  verificarPermiso('SUBIR_COMPROBANTE_PAGO'),
+  eliminarComprobante,
+);
 router.get('/:id/comprobantes/:indice', verComprobante);
-router.patch('/:id/confirmar', marcarComoPagado);
-router.delete('/:id', eliminarPago);
+router.patch('/:id/confirmar', verificarPermiso('GESTIONAR_PAGOS'), marcarComoPagado);
+router.delete('/:id', verificarPermiso('GESTIONAR_PAGOS'), eliminarPago);
 
 module.exports = router;

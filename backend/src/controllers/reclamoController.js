@@ -11,6 +11,7 @@ const {
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
+const { responder, responderError } = require('../utils/controllerHelpers');
 
 const CATEGORIAS_RECLAMO = [
   'PLOMERIA',
@@ -23,8 +24,6 @@ const CATEGORIAS_RECLAMO = [
   'SERVICIOS',
   'SEGURIDAD',
 ];
-const responder = (res, status, data, message) =>
-  res.status(status).json({ success: status < 400, data, message });
 
 const listarReclamos = async (req, res) => {
   try {
@@ -89,7 +88,7 @@ const listarReclamos = async (req, res) => {
       .sort({ fecha_creacion: -1 });
     return responder(res, 200, reclamos, 'Reclamos consultados.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -102,7 +101,7 @@ const obtenerReclamo = async (req, res) => {
     if (!contrato || !permitido) return responder(res, 403, null, 'No tenés permiso para ver este reclamo.');
     return responder(res, 200, reclamo, 'Reclamo consultado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -156,7 +155,7 @@ const crearReclamo = async (req, res) => {
     return responder(res, 201, reclamo, 'Reclamo registrado.');
   } catch (error) {
     if (error.name === 'ValidationError') return responder(res, 400, null, error.message);
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -178,7 +177,7 @@ const actualizarReclamo = async (req, res) => {
     return responder(res, 200, reclamo, 'Reclamo actualizado.');
   } catch (error) {
     if (error.name === 'ValidationError') return responder(res, 400, null, error.message);
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -195,7 +194,7 @@ const eliminarReclamo = async (req, res) => {
     await reclamo.deleteOne();
     return responder(res, 200, null, 'Reclamo eliminado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 

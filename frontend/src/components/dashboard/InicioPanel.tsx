@@ -26,7 +26,19 @@ const ACCESO_STYLES: Partial<Record<string, string>> = {
   finanzas: 'bg-emerald-50 text-emerald-700',
   reportes: 'bg-slate-100 text-slate-700',
   propietarios: 'bg-violet-50 text-violet-700',
+  pagos: 'bg-sky-50 text-sky-600',
+  reclamos: 'bg-amber-50 text-amber-600',
+  disponibilidad: 'bg-indigo-50 text-indigo-600',
 };
+
+function fechaLocal(fecha?: string): Date | null {
+  if (!fecha) return null;
+  const soloFecha = fecha.slice(0, 10);
+  const resultado = /^\d{4}-\d{2}-\d{2}$/.test(soloFecha)
+    ? new Date(`${soloFecha}T12:00:00`)
+    : new Date(fecha);
+  return Number.isNaN(resultado.getTime()) ? null : resultado;
+}
 
 interface AccesoRapido {
   id: string;
@@ -85,10 +97,36 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
       const mesAnterior = claveMesAnterior();
       const ingresoMesActual = ingresoCobradoEnMes(pagos, mesActual);
       const ingresoMesAnterior = ingresoCobradoEnMes(pagos, mesAnterior);
-      const propietariosActivos = usuarios.filter((u) => u.roles.includes('PROPIETARIO')).length;
+      const propietariosActivos = usuarios.filter(
+        (u) => u.roles.includes('PROPIETARIO') && (!u.estado || u.estado === 'ACTIVO'),
+      ).length;
       const tasaOcupacion = propiedadesActivas.length > 0
         ? (alquiladas / propiedadesActivas.length) * 100
         : 0;
+
+      const idUsuario = usuario._id ? String(usuario._id) : '';
+      const pagosComoInquilino = roles.esInquilino
+        ? pagos.filter((pago) => {
+          if (!idUsuario) return true;
+          if (!pago.id_contrato || typeof pago.id_contrato === 'string') return false;
+          return String(pago.id_contrato.id_inquilino) === idUsuario;
+        })
+        : [];
+      const pagosPendientes = pagosComoInquilino.filter(
+        (pago) => ['PENDIENTE', 'ATRASADO'].includes(pago.estado),
+      );
+      const aPagar = pagosPendientes.reduce((total, pago) => total + pago.monto_total, 0);
+      const proximoPago = [...pagosPendientes]
+        .filter((pago) => {
+          const fecha = fechaLocal(pago.fecha_vencimiento);
+          return Boolean(fecha && fecha >= hoy);
+        })
+        .sort((a, b) =>
+          (fechaLocal(a.fecha_vencimiento)?.getTime() ?? Number.MAX_SAFE_INTEGER)
+          - (fechaLocal(b.fecha_vencimiento)?.getTime() ?? Number.MAX_SAFE_INTEGER))[0];
+      const proximoVencimiento = proximoPago
+        ? fechaLocal(proximoPago.fecha_vencimiento)?.toLocaleDateString('es-AR') ?? null
+        : null;
 
       setResumen({
         aCobrar: pagos
@@ -97,6 +135,9 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
         cobrado: pagos
           .filter((pago) => pago.estado === 'PAGADO')
           .reduce((total, pago) => total + pago.monto_total, 0),
+        aPagar,
+        proximoVencimiento,
+        proximoVencimientoMonto: proximoPago?.monto_total ?? 0,
         cobrosParaValidar: pagos.filter((pago) => pago.estado === 'INGRESADO').length,
         atrasados: pagos.filter((pago) => pago.estado === 'ATRASADO').length,
         reclamosAbiertos: reclamos.filter(
@@ -122,7 +163,15 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
     } finally {
       setCargando(false);
     }
-  }, [esAdministrador, tieneAccesoOperativo, tieneAccesoPropiedades, token, idAgrupamiento]);
+  }, [
+    esAdministrador,
+    tieneAccesoOperativo,
+    tieneAccesoPropiedades,
+    roles.esInquilino,
+    usuario._id,
+    token,
+    idAgrupamiento,
+  ]);
 
   useEffect(() => {
     if (!tieneResumenOperativo) return undefined;
@@ -153,9 +202,23 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
     accesos.push({ id: 'contratos', label: 'Mis Contratos', desc: 'Contratos activos', icon: 'contratos' });
     accesos.push({ id: 'historial', label: 'Historial', desc: 'Alquileres anteriores', icon: 'historial' });
   }
+  if (roles.esInquilino) {
+    accesos.push({ id: 'pagos', label: 'Mis pagos', desc: 'Cuotas y comprobantes', icon: 'pagos' });
+  }
+  if (!roles.esAdministrador && (roles.esInquilino || roles.esUsuarioBase)) {
+    accesos.push({
+      id: 'disponibilidad',
+      label: 'Buscar alquileres',
+      desc: 'Propiedades disponibles',
+      icon: 'disponibilidad',
+    });
+  }
   if (tieneAccesoFinanzas) {
     accesos.push({ id: 'finanzas', label: 'Finanzas', desc: 'Cobros y gastos', icon: 'finanzas' });
     accesos.push({ id: 'reportes', label: 'Reportes', desc: 'Resumen del período', icon: 'reportes' });
+  }
+  if (tieneAccesoOperativo) {
+    accesos.push({ id: 'reclamos', label: 'Reclamos', desc: 'Incidencias y seguimiento', icon: 'reclamos' });
   }
   if (roles.esAdministrador) {
     accesos.push({ id: 'propietarios', label: 'Propietarios', desc: 'Cartera de propietarios', icon: 'propietarios' });
@@ -163,14 +226,24 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
   }
 
   const puedeVerPropiedades = roles.esPropietario || roles.esAdministrador;
+  const subtitulo = esAdministrador
+    ? 'Resumen general de la plataforma y su operación.'
+    : roles.esPropietario
+      ? 'Estado de tus propiedades, contratos y cobros.'
+      : roles.esInquilino
+        ? 'Tus próximos vencimientos, contratos y reclamos.'
+        : 'Esto es lo que está pasando con tus alquileres y contratos hoy.';
+  const onVerPagos = roles.esInquilino ? () => setSeccionActiva('pagos') : undefined;
 
   return (
     <div className="space-y-10">
       <DashboardWelcome
         usuario={usuario}
+        subtitulo={subtitulo}
         onVerFinanzas={tieneAccesoFinanzas ? () => setSeccionActiva('finanzas') : undefined}
         onVerPropiedades={puedeVerPropiedades ? () => setSeccionActiva('propiedades') : undefined}
-        mostrarAcciones={tieneAccesoFinanzas || puedeVerPropiedades}
+        onVerPagos={onVerPagos}
+        mostrarAcciones={tieneAccesoFinanzas || puedeVerPropiedades || roles.esInquilino}
       />
 
       {tieneResumenOperativo && (
@@ -253,7 +326,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
             <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
               {tieneAccesoOperativo && !esAdministrador && (
                 <>
-                  {!roles.esInquilino && (
+                  {roles.esPropietario && (
                     <>
                       <MetricCard
                         label="A cobrar"
@@ -270,6 +343,32 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                         icon="check"
                         variant="emerald"
                         onClick={() => setSeccionActiva(seccionPagos)}
+                        compact
+                      />
+                    </>
+                  )}
+                  {roles.esInquilino && (
+                    <>
+                      <MetricCard
+                        label="Total a pagar"
+                        value={formatMoneda(resumen.aPagar ?? 0)}
+                        icon="efectivo"
+                        variant="violet"
+                        hint={(resumen.aPagar ?? 0) > 0 ? 'Pendiente' : 'Al día'}
+                        onClick={() => setSeccionActiva('pagos')}
+                        compact
+                      />
+                      <MetricCard
+                        label="Próximo vencimiento"
+                        value={resumen.proximoVencimiento
+                          ? formatMoneda(resumen.proximoVencimientoMonto ?? 0)
+                          : 'Sin cuotas'}
+                        icon="calendario"
+                        variant="sky"
+                        trend={resumen.proximoVencimiento
+                          ? { value: resumen.proximoVencimiento, caption: 'Vence' }
+                          : undefined}
+                        onClick={() => setSeccionActiva('pagos')}
                         compact
                       />
                     </>
@@ -306,7 +405,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                     icon="calendario"
                     variant="sky"
                     hint="30 días"
-                    onClick={() => setSeccionActiva('historial')}
+                    onClick={() => setSeccionActiva('contratos')}
                     compact
                   />
                 </>

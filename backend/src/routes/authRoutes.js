@@ -11,16 +11,37 @@ const {
   solicitarRolPropietario,
   aprobarSolicitudPropietario,
 } = require('../controllers/authController');
-const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
+const { verificarToken, verificarPermiso } = require('../middlewares/authMiddleware');
+const { limiteLogin, limiteRegistro } = require('../middlewares/rateLimiters');
 
-router.post('/', registrarUsuario);
-router.post('/login', loginUsuario);
-router.get('/me', verificarToken, obtenerMiPerfil);
-router.patch('/me', verificarToken, actualizarMiPerfil);
-router.get('/solicitud-propietario', verificarToken, obtenerSolicitudPropietario);
-router.post('/solicitud-propietario', verificarToken, solicitarRolPropietario);
-router.get('/', verificarToken, verificarRol(['ADMINISTRADOR']), listarUsuarios);
-router.patch('/:id/solicitud-propietario/aprobar', verificarToken, verificarRol(['ADMINISTRADOR']), aprobarSolicitudPropietario);
-router.patch('/:id/roles', verificarToken, verificarRol(['ADMINISTRADOR']), agregarRolesUsuario);
+router.post('/', limiteRegistro, registrarUsuario);
+router.post('/login', limiteLogin, loginUsuario);
+router.get('/me', verificarToken, verificarPermiso('VER_PERFIL'), obtenerMiPerfil);
+router.patch('/me', verificarToken, verificarPermiso('VER_PERFIL'), actualizarMiPerfil);
+router.get(
+  '/solicitud-propietario',
+  verificarToken,
+  verificarPermiso('VER_PERFIL'),
+  obtenerSolicitudPropietario,
+);
+router.post(
+  '/solicitud-propietario',
+  verificarToken,
+  verificarPermiso('VER_PERFIL'),
+  solicitarRolPropietario,
+);
+router.get('/', verificarToken, verificarPermiso('VER_USUARIOS'), listarUsuarios);
+router.patch(
+  '/:id/solicitud-propietario/aprobar',
+  verificarToken,
+  verificarPermiso('APROBAR_PROPIETARIO'),
+  aprobarSolicitudPropietario,
+);
+router.patch(
+  '/:id/roles',
+  verificarToken,
+  verificarPermiso('GESTIONAR_ROLES'),
+  agregarRolesUsuario,
+);
 
 module.exports = router;

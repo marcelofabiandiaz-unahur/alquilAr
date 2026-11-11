@@ -11,8 +11,11 @@ const errorHandler = (err, req, res, next) => {
     console.error(err);
   }
 
+  // Los errores internos no exponen detalles de Mongoose o del stack.
   res.status(statusCode).json({
-    mensaje: err.message || 'Error interno del servidor.',
+    mensaje: statusCode >= 500
+      ? 'Error interno del servidor.'
+      : (err.message || 'Error al procesar la solicitud.'),
   });
 };
 
