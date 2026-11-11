@@ -11,9 +11,7 @@ const {
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
-
-const responder = (res, status, data, message) =>
-  res.status(status).json({ success: status < 400, data, message });
+const { responder, responderError } = require('../utils/controllerHelpers');
 
 const obtenerPropiedadesVisibles = async (usuario) => {
   const { id, roles } = obtenerIdentidad(usuario);
@@ -92,7 +90,7 @@ const listarGastos = async (req, res) => {
       .sort({ fecha_emision: -1 });
     return responder(res, 200, gastos, 'Gastos consultados.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -114,7 +112,7 @@ const obtenerGasto = async (req, res) => {
     if (!permitido && !puedeLeerComoInquilino) return responder(res, 403, null, 'No tenés permiso para ver este gasto.');
     return responder(res, 200, gasto, 'Gasto consultado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -149,7 +147,7 @@ const crearGasto = async (req, res) => {
     return responder(res, 201, gasto, 'Gasto registrado.');
   } catch (error) {
     if (error.name === 'ValidationError') return responder(res, 400, null, error.message);
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -173,7 +171,7 @@ const actualizarGasto = async (req, res) => {
     return responder(res, 200, gasto, 'Gasto actualizado.');
   } catch (error) {
     if (error.name === 'ValidationError') return responder(res, 400, null, error.message);
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 
@@ -187,7 +185,7 @@ const eliminarGasto = async (req, res) => {
     await gasto.deleteOne();
     return responder(res, 200, null, 'Gasto eliminado.');
   } catch (error) {
-    return responder(res, 500, null, error.message);
+    return responderError(res, error);
   }
 };
 

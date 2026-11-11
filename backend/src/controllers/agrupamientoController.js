@@ -8,6 +8,7 @@ const {
   esPropietario,
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
+const { responder, escaparRegex } = require('../utils/controllerHelpers');
 const {
   buscarAgrupamientosVisibles,
   puedeGestionarAgrupamiento,
@@ -17,9 +18,6 @@ const {
 const TIPOS = ['EDIFICIO', 'COMPLEJO', 'CONSORCIO', 'CONJUNTO', 'BARRIO_CERRADO', 'OTRO'];
 const ESTADOS = ['ACTIVO', 'INACTIVO'];
 const CODIGO_REGEX = /^[A-Z0-9-]{3,20}$/;
-
-const responder = (res, status, data, message) =>
-  res.status(status).json({ success: status < 400, data, message });
 
 const texto = (valor) => (typeof valor === 'string' ? valor.trim() : '');
 
@@ -134,10 +132,12 @@ const construirFiltroListado = async (query, usuario) => {
     condiciones.push({ estado });
   }
   if (query.ciudad !== undefined) {
-    condiciones.push({ 'direccion.ciudad': new RegExp(texto(query.ciudad), 'i') });
+    condiciones.push({
+      'direccion.ciudad': new RegExp(escaparRegex(texto(query.ciudad).slice(0, 80)), 'i'),
+    });
   }
   if (query.q !== undefined) {
-    const patron = new RegExp(texto(query.q), 'i');
+    const patron = new RegExp(escaparRegex(texto(query.q).slice(0, 80)), 'i');
     condiciones.push({
       $or: [
         { nombre: patron },

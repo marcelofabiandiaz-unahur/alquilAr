@@ -9,9 +9,7 @@ const {
 } = require('../utils/operacionHelpers');
 const { esObjectIdValido } = require('../utils/recursosHelpers');
 const { resolverAlcanceAgrupamiento } = require('../utils/agrupamientoHelpers');
-
-const responder = (res, status, data, message) =>
-  res.status(status).json({ success: status < 400, data, message });
+const { responder } = require('../utils/controllerHelpers');
 
 const obtenerResumen = async (req, res) => {
   try {

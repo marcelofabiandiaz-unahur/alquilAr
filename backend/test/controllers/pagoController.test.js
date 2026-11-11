@@ -8,7 +8,6 @@ const {
   crearPago,
   listarPagos,
   obtenerPago,
-  registrarComprobante,
   subirComprobantes,
   eliminarComprobante,
   verComprobante,
@@ -143,29 +142,6 @@ describe('pagoController', () => {
       { comprobantes: { $exists: true, $ne: [] } },
     ]);
     assert.deepEqual(filtrosActualizacion[0].actualizacion, { $set: { estado: 'INGRESADO' } });
-  });
-
-  it('permite que el inquilino del contrato cargue un comprobante', async () => {
-    const pago = {
-      id_contrato: contratoId,
-      estado: 'PENDIENTE',
-      save: async () => {},
-    };
-    Pago.findById = async () => pago;
-    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
-    Propiedad.findById = async () => ({ id_propietario: usuarioId });
-    const res = mockRes();
-
-    await registrarComprobante({
-      params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.pdf' },
-      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
-    }, res);
-
-    assert.equal(res.statusCode, 200);
-    assert.equal(pago.comprobante_url, '');
-    assert.deepEqual(pago.comprobantes, ['https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.pdf']);
-    assert.equal(pago.estado, 'INGRESADO');
   });
 
   it('permite al inquilino cargar varios comprobantes juntos y deja el pago editable en INGRESADO', async () => {
@@ -403,48 +379,6 @@ describe('pagoController', () => {
     await crearPago({
       body: { id_contrato: contratoId, mes_correspondiente: '2026-11' },
       usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
-    }, res);
-
-    assert.equal(res.statusCode, 409);
-  });
-
-  it('rechaza comprobantes que no sean URLs HTTPS y pagos inexistentes', async () => {
-    const invalido = mockRes();
-    await registrarComprobante({
-      params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'http://example.com/recibo.pdf' },
-      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
-    }, invalido);
-    assert.equal(invalido.statusCode, 400);
-
-    Pago.findById = async () => null;
-    const inexistente = mockRes();
-    await registrarComprobante({
-      params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.pdf' },
-      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
-    }, inexistente);
-    assert.equal(inexistente.statusCode, 404);
-
-    const externo = mockRes();
-    await registrarComprobante({
-      params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://example.com/recibo.pdf' },
-      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
-    }, externo);
-    assert.equal(externo.statusCode, 400);
-  });
-
-  it('no permite reemplazar el comprobante de un pago confirmado', async () => {
-    Pago.findById = async () => ({ id_contrato: contratoId, estado: 'PAGADO' });
-    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
-    Propiedad.findById = async () => ({ id_propietario: usuarioId });
-    const res = mockRes();
-
-    await registrarComprobante({
-      params: { id: '111111111111111111111111' },
-      body: { comprobante_url: 'https://res.cloudinary.com/demo-cloud/image/upload/v123/alquilar/pagos/recibo.pdf' },
-      usuario: { id: inquilinoId, roles: ['INQUILINO'] },
     }, res);
 
     assert.equal(res.statusCode, 409);

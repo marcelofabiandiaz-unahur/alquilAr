@@ -46,6 +46,9 @@ describe('authController', () => {
         email: 'admin@alquilar.com',
         password: 'ClaveTest123',
         roles: ['ADMINISTRADOR', 'PROPIETARIO'],
+        estado: 'INACTIVO',
+        cbu_alias: 'alias.inventado',
+        solicitud_propietario: { estado: 'APROBADA' },
       },
     };
     const res = mockRes();
@@ -54,8 +57,33 @@ describe('authController', () => {
 
     assert.equal(res.statusCode, 201);
     assert.deepEqual(usuarioGuardado.roles, ['USUARIO']);
+    assert.equal(usuarioGuardado.estado, 'ACTIVO');
+    assert.equal(usuarioGuardado.cbu_alias, undefined);
+    assert.equal(usuarioGuardado.solicitud_propietario.estado, undefined);
     assert.equal(res.body.roles.includes('ADMINISTRADOR'), false);
     assert.equal('password' in res.body, false);
+  });
+
+  it('registrarUsuario rechaza contraseñas fuera de la política', async () => {
+    let guardado = false;
+    Usuario.prototype.save = async function save() {
+      guardado = true;
+    };
+
+    const res = mockRes();
+    await registrarUsuario({
+      body: {
+        nombre: 'Usuario',
+        apellido: 'Prueba',
+        dni: '12345678',
+        email: 'corto@alquilar.com',
+        password: '12345678',
+      },
+    }, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.mensaje, /contraseña/i);
+    assert.equal(guardado, false);
   });
 
   it('loginUsuario incluye email en la respuesta', async () => {
@@ -447,6 +475,18 @@ describe('authController', () => {
     assert.equal(consulto, false);
   });
 
+  it('loginUsuario no revela si el email existe', async () => {
+    Usuario.findOne = async () => null;
+    const res = mockRes();
+
+    await loginUsuario({
+      body: { email: 'no-existe@alquilar.com', password: 'ClaveTest123' },
+    }, res);
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(res.body.mensaje, 'Credenciales inválidas.');
+  });
+
   it('loginUsuario rechaza cuando la contraseña no coincide', async () => {
     const argon2 = require('argon2');
     const origVerify = argon2.verify;
@@ -463,6 +503,7 @@ describe('authController', () => {
     await loginUsuario(req, res);
     argon2.verify = origVerify;
     assert.equal(res.statusCode, 401);
+    assert.equal(res.body.mensaje, 'Credenciales inválidas.');
   });
 
   it('loginUsuario valida la presencia del correo en la petición', async () => {

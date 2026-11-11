@@ -45,6 +45,20 @@ export default function DisponibilidadPanel({ token }: { token: string }) {
     () => ['TODOS', ...new Set(propiedades.map((propiedad) => propiedad.tipo).filter(Boolean))],
     [propiedades],
   );
+  const hayFiltros = busqueda !== ''
+    || ubicacion !== ''
+    || tipo !== 'TODOS'
+    || ambientes !== 'TODOS'
+    || precioMinimo !== ''
+    || precioMaximo !== '';
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setUbicacion('');
+    setTipo('TODOS');
+    setAmbientes('TODOS');
+    setPrecioMinimo('');
+    setPrecioMaximo('');
+  };
   const preciosValidos = [precioMinimo, precioMaximo].every(
     (valor) => valor === '' || (Number.isFinite(Number(valor)) && Number(valor) >= 0),
   );
@@ -139,9 +153,23 @@ export default function DisponibilidadPanel({ token }: { token: string }) {
 
       {cargando ? <LoadingRow label="Cargando propiedades disponibles..." /> : (
         <>
-          <p className="text-sm text-slate-500">{rangoValido ? resultados.length : 0} propiedades disponibles</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-500" aria-live="polite">
+              {rangoValido ? `${resultados.length} de ${propiedades.length}` : '0'} propiedades disponibles
+            </p>
+            {hayFiltros && (
+              <button type="button" className={btnSecondaryClass} onClick={limpiarFiltros}>
+                Limpiar filtros
+              </button>
+            )}
+          </div>
           {resultados.length === 0 || !rangoValido ? (
-            <EmptyState title="Sin resultados" description="Probá con otros filtros de búsqueda." />
+            <EmptyState
+              title="Sin resultados"
+              description={propiedades.length === 0
+                ? 'Todavía no hay propiedades disponibles para mostrar.'
+                : 'Probá con otros filtros de búsqueda.'}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {resultados.map((propiedad) => (
