@@ -161,30 +161,6 @@ describe('authController', () => {
       }),
     });
 
-    it('lista solo datos básicos de propietarios activos para asignarlos como gestores', async () => {
-      let filtro;
-      let proyeccion;
-      Usuario.find = (consulta) => {
-        filtro = consulta;
-        return {
-          select(campos) {
-            proyeccion = campos;
-            return this;
-          },
-          sort: async () => [{ _id: usuarioId, nombre: 'Ana', apellido: 'Propietaria', email: 'ana@example.com' }],
-        };
-      };
-
-      const res = mockRes();
-      await listarGestoresAsignables({}, res);
-
-      assert.deepEqual(filtro, { roles: 'PROPIETARIO', estado: 'ACTIVO' });
-      assert.equal(proyeccion, '_id nombre apellido email');
-      assert.equal(res.statusCode, 200);
-      assert.equal(res.body[0].email, 'ana@example.com');
-      assert.equal('password' in res.body[0], false);
-    });
-
     const req = { usuario: { _id: usuarioId } };
     const res = mockRes();
     await obtenerMiPerfil(req, res);
@@ -192,6 +168,54 @@ describe('authController', () => {
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.email, 'santiago@alquilar.com');
     assert.equal('password' in res.body, false);
+  });
+
+  it('lista solo datos básicos de propietarios activos para asignarlos como gestores', async () => {
+    let filtro;
+    let proyeccion;
+    let limite;
+    Usuario.find = (consulta) => {
+      filtro = consulta;
+      return {
+        select(campos) {
+          proyeccion = campos;
+          return this;
+        },
+        sort() {
+          return this;
+        },
+        limit(cantidad) {
+          limite = cantidad;
+          return Promise.resolve([
+            { _id: usuarioId, nombre: 'Ana', apellido: 'Propietaria', email: 'ana@example.com' },
+          ]);
+        },
+      };
+    };
+
+    const res = mockRes();
+    await listarGestoresAsignables({ query: { q: ' Ana   Prop ' } }, res);
+
+    assert.deepEqual(filtro, {
+      roles: 'PROPIETARIO',
+      estado: 'ACTIVO',
+      $and: [
+        { $or: [{ nombre: /Ana/i }, { apellido: /Ana/i }] },
+        { $or: [{ nombre: /Prop/i }, { apellido: /Prop/i }] },
+      ],
+    });
+    assert.equal(proyeccion, '_id nombre apellido email');
+    assert.equal(limite, 10);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body[0].email, 'ana@example.com');
+    assert.equal('password' in res.body[0], false);
+  });
+
+  it('requiere al menos dos caracteres para buscar gestores', async () => {
+    const res = mockRes();
+    await listarGestoresAsignables({ query: { q: 'A' } }, res);
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.mensaje, /al menos 2 caracteres/i);
   });
 
   it('actualizarMiPerfil permite editar telefono y cbu_alias', async () => {

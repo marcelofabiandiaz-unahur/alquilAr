@@ -181,15 +181,28 @@ const listarUsuarios = async (req, res) => {
 
 const listarGestoresAsignables = async (req, res) => {
   try {
-    const propietarios = await Usuario.find({
+    const termino = typeof req.query?.q === 'string' ? req.query.q.trim() : '';
+    if (termino.length < 2 || termino.length > 100) {
+      return res.status(400).json({ mensaje: 'Ingresá al menos 2 caracteres del nombre o apellido.' });
+    }
+
+    const partes = termino.split(/\s+/).map((parte) => (
+      new RegExp(parte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    ));
+    const filtro = {
       roles: ROLES.PROPIETARIO,
       estado: 'ACTIVO',
-    })
+      $and: partes.map((parte) => ({
+        $or: [{ nombre: parte }, { apellido: parte }],
+      })),
+    };
+    const propietarios = await Usuario.find(filtro)
       .select('_id nombre apellido email')
-      .sort({ nombre: 1, apellido: 1 });
+      .sort({ nombre: 1, apellido: 1 })
+      .limit(10);
     return res.json(propietarios);
   } catch (error) {
-    console.error('Error al listar propietarios asignables como gestores:', error);
+    console.error('Error al buscar propietarios asignables como gestores:', error);
     return res.status(500).json({ mensaje: 'No se pudieron consultar los propietarios.' });
   }
 };

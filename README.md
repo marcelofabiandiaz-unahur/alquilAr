@@ -108,7 +108,7 @@ Permiten reunir unidades bajo un mismo edificio, complejo o consorcio. Una propi
 
 - Rutas principales (JWT, respuestas `{ success, data, message }`):
   - `GET /api/agrupamientos` — visibles según el rol; filtros opcionales `tipo`, `estado`, `ciudad`, `q`, `id_propietario`.
-  - `GET /api/usuarios/gestores-disponibles` — administradores y propietarios consultan nombre y email de propietarios activos para asignarlos como gestores.
+  - `GET /api/usuarios/gestores-disponibles?q=<nombre>` — administradores y propietarios buscan por nombre o apellido (desde 2 caracteres) a propietarios activos para asignarlos como gestores; devuelve hasta 10 coincidencias.
   - `POST /api/agrupamientos` — `ADMINISTRADOR` o `PROPIETARIO`.
   - `GET /api/agrupamientos/:id`, `PUT /api/agrupamientos/:id` — administrador del agrupamiento o gestor; el `ADMINISTRADOR` puede todo.
   - `DELETE /api/agrupamientos/:id` — solo `ADMINISTRADOR`; baja lógica (`INACTIVO`). Responde `409` si quedan propiedades activas.

@@ -27,6 +27,7 @@ import type {
   Agrupamiento,
   EstadoAgrupamiento,
   TipoAgrupamiento,
+  Usuario,
 } from '../../types';
 
 const TIPOS: TipoAgrupamiento[] = [
@@ -85,6 +86,18 @@ interface GestorAsignable {
   email: string;
 }
 
+function gestorDesdeReferencia(referencia: string | Usuario): GestorAsignable {
+  if (typeof referencia === 'string') {
+    return { _id: referencia, nombre: 'Propietario asignado', apellido: '', email: '' };
+  }
+  return {
+    _id: referencia._id || '',
+    nombre: referencia.nombre,
+    apellido: referencia.apellido,
+    email: referencia.email,
+  };
+}
+
 interface AgrupamientosPanelProps {
   token: string;
   esAdmin: boolean;
@@ -97,8 +110,11 @@ export default function AgrupamientosPanel({
   esPropietario,
 }: AgrupamientosPanelProps) {
   const [agrupamientos, setAgrupamientos] = useState<Agrupamiento[]>([]);
-  const [gestoresDisponibles, setGestoresDisponibles] = useState<GestorAsignable[]>([]);
-  const [cargandoGestores, setCargandoGestores] = useState(false);
+  const [gestoresSeleccionados, setGestoresSeleccionados] = useState<GestorAsignable[]>([]);
+  const [busquedaGestor, setBusquedaGestor] = useState('');
+  const [resultadosGestores, setResultadosGestores] = useState<GestorAsignable[]>([]);
+  const [buscandoGestores, setBuscandoGestores] = useState(false);
+  const [errorBusquedaGestor, setErrorBusquedaGestor] = useState('');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -124,34 +140,63 @@ export default function AgrupamientosPanel({
     }
   }, [token]);
 
-  const cargarGestores = useCallback(async () => {
-    setCargandoGestores(true);
-    try {
-      const data = await apiGet<GestorAsignable[]>('/api/usuarios/gestores-disponibles', token);
-      if (!Array.isArray(data)) throw new Error('Respuesta inválida al consultar propietarios.');
-      setGestoresDisponibles(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar los propietarios.');
-      setGestoresDisponibles([]);
-    } finally {
-      setCargandoGestores(false);
-    }
-  }, [token]);
-
   useEffect(() => {
     const timer = setTimeout(() => void cargar(), 0);
     return () => clearTimeout(timer);
   }, [cargar]);
 
+  useEffect(() => {
+    const termino = busquedaGestor.trim();
+    if (!modalAbierto || termino.length < 2) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setBuscandoGestores(true);
+      setErrorBusquedaGestor('');
+      const query = new URLSearchParams({ q: termino });
+      void apiGet<GestorAsignable[]>(
+        `/api/usuarios/gestores-disponibles?${query.toString()}`,
+        token,
+        { signal: controller.signal },
+      ).then((data) => {
+        if (!Array.isArray(data)) throw new Error('Respuesta inválida al buscar propietarios.');
+        setResultadosGestores(data);
+      }).catch((err) => {
+        if (!controller.signal.aborted) {
+          setResultadosGestores([]);
+          setErrorBusquedaGestor(
+            err instanceof Error ? err.message : 'No se pudieron buscar propietarios.',
+          );
+        }
+      }).finally(() => {
+        if (!controller.signal.aborted) setBuscandoGestores(false);
+      });
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [busquedaGestor, modalAbierto, token]);
+
   const abrirNuevo = () => {
     setEditando(null);
     setForm(FORM_VACIO);
+    setGestoresSeleccionados([]);
+    setBusquedaGestor('');
     setModalAbierto(true);
-    void cargarGestores();
   };
 
   const abrirEdicion = (agrupamiento: Agrupamiento) => {
     setEditando(agrupamiento);
+    setGestoresSeleccionados(
+      (agrupamiento.gestores || [])
+        .map(gestorDesdeReferencia)
+        .filter((gestor) => gestor._id),
+    );
+    setBusquedaGestor('');
     setForm({
       fotos: Array.isArray(agrupamiento.fotos) ? [...agrupamiento.fotos] : [],
       nombre: agrupamiento.nombre || '',
@@ -174,11 +219,14 @@ export default function AgrupamientosPanel({
       moneda: agrupamiento.configuracion?.moneda || 'ARS',
     });
     setModalAbierto(true);
-    void cargarGestores();
   };
 
   const guardar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busquedaGestor.trim()) {
+      setError('Seleccioná un propietario de los resultados o borrá el texto de búsqueda antes de guardar.');
+      return;
+    }
     setGuardando(true);
     setError('');
     setInfo('');
@@ -247,6 +295,23 @@ export default function AgrupamientosPanel({
     } finally {
       setAccionId('');
     }
+  };
+
+  const agregarGestor = (gestor: GestorAsignable) => {
+    if (form.gestores.includes(gestor._id)) return;
+    setForm((actual) => ({ ...actual, gestores: [...actual.gestores, gestor._id] }));
+    setGestoresSeleccionados((actuales) => [...actuales, gestor]);
+    setBusquedaGestor('');
+    setResultadosGestores([]);
+    setErrorBusquedaGestor('');
+  };
+
+  const quitarGestor = (id: string) => {
+    setForm((actual) => ({
+      ...actual,
+      gestores: actual.gestores.filter((gestorId) => gestorId !== id),
+    }));
+    setGestoresSeleccionados((actuales) => actuales.filter((gestor) => gestor._id !== id));
   };
 
   return (
@@ -487,40 +552,83 @@ export default function AgrupamientosPanel({
             )}
             <div>
               <label className={labelClass}>Gestores propietarios</label>
-              <select
-                multiple
+              <input
+                type="search"
                 className={inputClass}
-                size={Math.min(Math.max(gestoresDisponibles.length, 3), 6)}
-                value={form.gestores}
-                disabled={cargandoGestores}
-                onChange={(event) => setForm({
-                  ...form,
-                  gestores: Array.from(event.target.selectedOptions, (option) => option.value),
-                })}
-              >
-                {form.gestores
-                  .filter((id) => !gestoresDisponibles.some((gestor) => gestor._id === id))
-                  .map((id) => {
-                    const actual = (editando?.gestores || []).find(
-                      (gestor) => obtenerIdAgrupamiento(gestor) === id,
-                    );
-                    return (
-                      <option key={id} value={id}>
-                        {actual && typeof actual === 'object'
-                          ? `${actual.nombre || ''} ${actual.apellido || ''}`.trim() || 'Propietario asignado'
-                          : 'Propietario asignado'}
-                      </option>
-                    );
-                  })}
-                {gestoresDisponibles.map((gestor) => (
-                  <option key={gestor._id} value={gestor._id}>
-                    {`${gestor.nombre} ${gestor.apellido}`.trim()} ({gestor.email})
-                  </option>
-                ))}
-              </select>
+                value={busquedaGestor}
+                placeholder="Escribí el nombre o apellido del propietario"
+                autoComplete="off"
+                  onChange={(event) => {
+                    setBusquedaGestor(event.target.value);
+                    setResultadosGestores([]);
+                    setBuscandoGestores(false);
+                    setErrorBusquedaGestor('');
+                  }}
+                />
               <p className="mt-1 text-xs text-slate-500">
-                Solo se pueden asignar usuarios activos con rol propietario.
+                Escribí al menos 2 caracteres y seleccioná un propietario activo para validarlo.
               </p>
+              {buscandoGestores && (
+                <p className="mt-2 text-xs text-slate-500">Buscando propietarios...</p>
+              )}
+              {errorBusquedaGestor && (
+                <p role="alert" className="mt-2 text-xs text-red-600">{errorBusquedaGestor}</p>
+              )}
+              {resultadosGestores.length > 0 && (
+                <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                  {resultadosGestores
+                    .filter((gestor) => !form.gestores.includes(gestor._id))
+                    .map((gestor) => (
+                      <li key={gestor._id}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          onClick={() => agregarGestor(gestor)}
+                        >
+                          <span className="font-medium text-slate-700">
+                            {`${gestor.nombre} ${gestor.apellido}`.trim()}
+                          </span>
+                          <span className="ml-2 text-xs text-slate-500">{gestor.email}</span>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {busquedaGestor.trim().length >= 2
+                && !buscandoGestores
+                && !errorBusquedaGestor
+                && resultadosGestores.length === 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    No encontramos propietarios activos con ese nombre.
+                  </p>
+              )}
+              {gestoresSeleccionados.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {gestoresSeleccionados.map((gestor) => (
+                    <li
+                      key={gestor._id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-slate-700">
+                          {`${gestor.nombre} ${gestor.apellido}`.trim()}
+                        </span>
+                        {gestor.email && (
+                          <span className="block truncate text-xs text-slate-500">{gestor.email}</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs font-medium text-red-600 hover:text-red-700"
+                        onClick={() => quitarGestor(gestor._id)}
+                        aria-label={`Quitar gestor ${gestor.nombre} ${gestor.apellido}`}
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
