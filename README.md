@@ -26,27 +26,35 @@ Plataforma web de gestión de alquileres con asistente de IA — Proyecto Integr
 
 ```text
 .
+├── .github/
+│   └── workflows/              # automatizaciones de CI
 ├── backend/
-│   ├── index.js                 # Express, GET /health, montaje de rutas API
+│   ├── index.js                 # Express, GET /health y montaje de rutas API
 │   ├── src/
-│   │   ├── controllers/         # auth, propiedad, contrato, pago, gasto, reclamo, ai, …
-│   │   ├── models/              # usuario, propiedad, contrato, pago, gasto, reclamo
-│   │   ├── routes/
-│   │   ├── middlewares/
-│   │   ├── services/            # aiService, aiToolsRegistry
-│   │   └── utils/
-│   ├── scripts/                 # seed-usuarios, seed-propiedades, …
-│   └── test/
+│   │   ├── config/              # permisos, JWT, CORS y Cloudinary
+│   │   ├── controllers/         # lógica de endpoints
+│   │   ├── middlewares/         # autenticación, errores y límites
+│   │   ├── models/              # modelos de MongoDB
+│   │   ├── routes/              # rutas de la API
+│   │   ├── services/            # lógica de negocio y servicios de ALQUI
+│   │   └── utils/               # helpers compartidos
+│   ├── scripts/                 # carga de datos de desarrollo
+│   ├── test/                    # pruebas de controladores, rutas, servicios y utilidades
+│   └── package.json
 ├── frontend/
-│   ├── index.html
-│   ├── public/                  # logo (favicon), assets estáticos
+│   ├── index.html               # documento de entrada de Vite
+│   ├── public/                  # archivos estáticos públicos
 │   └── src/
-│       ├── App.tsx              # rutas: /, /registro, /dashboard
-│       ├── AuthProvider.tsx     # sesión; validación con GET /api/usuarios/me
-│       ├── Dashboard.tsx
-│       ├── config/api.ts
-│       └── components/          # asistente, pagos, propiedades, contratos, …
-└── package.json                 # npm run dev (frontend + backend)
+│       ├── App.tsx              # rutas principales
+│       ├── AuthProvider.tsx     # sesión y validación del usuario
+│       ├── Dashboard.tsx        # panel principal y navegación por rol
+│       ├── components/          # pantallas y componentes agrupados por área
+│       ├── config/              # configuración del cliente API
+│       ├── lib/                 # utilidades del frontend
+│       └── theme/               # estilos y tema visual
+├── docs/                        # DER y guía de uso por rol
+├── package.json                 # npm run dev inicia backend y frontend
+└── README.md
 ```
 
 ## Modelo de datos (DER)
