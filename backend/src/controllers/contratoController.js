@@ -308,13 +308,27 @@ const actualizarContrato = async (req, res) => {
     const estadoAnterior = contrato.estado;
     const nuevoEstado = req.body.estado;
     let propiedadModificada = false;
+    let inquilinoContrato = null;
+    let asignoRolInquilino = false;
 
     if (nuevoEstado === 'VIGENTE' && contrato.estado !== 'VIGENTE') {
-      const inquilinoContrato = await Usuario.findById(contrato.id_inquilino);
-      if (!inquilinoContrato || !inquilinoContrato.roles.includes('INQUILINO')) {
+      inquilinoContrato = await Usuario.findById(contrato.id_inquilino);
+      if (!inquilinoContrato) {
+        return res.status(400).json({
+          mensaje: 'No se encontró el usuario inquilino del contrato.',
+        });
+      }
+      const asignarRolInquilino = esAdmin(req.usuario.roles)
+        && !inquilinoContrato.roles.includes('INQUILINO');
+      if (!asignarRolInquilino && !inquilinoContrato.roles.includes('INQUILINO')) {
         return res.status(400).json({
           mensaje: 'El inquilino debe tener rol INQUILINO antes de activar el contrato.',
         });
+      }
+      if (asignarRolInquilino) {
+        inquilinoContrato.roles.push('INQUILINO');
+        inquilinoContrato.roles = inquilinoContrato.roles.filter((rol) => rol !== 'USUARIO');
+        asignoRolInquilino = true;
       }
       const vigenteExistente = await Contrato.findOne({
         id_propiedad: propiedad._id,
@@ -370,7 +384,14 @@ const actualizarContrato = async (req, res) => {
       await ejecutarTransaccion(async (session) => {
         await contrato.save({ session });
         await propiedad.save({ session });
-        if (nuevoEstado === 'VIGENTE' && estadoAnterior !== 'VIGENTE') {
+      if (
+        nuevoEstado === 'VIGENTE'
+        && estadoAnterior !== 'VIGENTE'
+        && asignoRolInquilino
+      ) {
+        await inquilinoContrato.save({ session });
+      }
+      if (nuevoEstado === 'VIGENTE' && estadoAnterior !== 'VIGENTE') {
           await Pago.bulkWrite(construirOperacionesCuotas(contrato), { session, ordered: false });
         }
       });

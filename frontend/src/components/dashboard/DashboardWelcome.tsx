@@ -6,7 +6,6 @@ interface DashboardWelcomeProps {
   subtitulo?: string;
   onVerFinanzas?: () => void;
   onVerPropiedades?: () => void;
-  onVerPagos?: () => void;
   mostrarAcciones?: boolean;
 }
 
@@ -18,16 +17,15 @@ export default function DashboardWelcome({
   subtitulo = 'Esto es lo que está pasando con tus alquileres y contratos hoy.',
   onVerFinanzas,
   onVerPropiedades,
-  onVerPagos,
   mostrarAcciones = true,
 }: DashboardWelcomeProps) {
-  const tieneAcciones = Boolean(onVerFinanzas || onVerPropiedades || onVerPagos);
+  const tieneAcciones = Boolean(onVerFinanzas || onVerPropiedades);
 
   return (
     <section className="mb-8">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div className="space-y-2">
-          <h1 className="text-3xl lg:text-4xl font-bold text-violet-950 tracking-tight">
+          <h1 className="text-2xl lg:text-3xl font-bold text-violet-950 tracking-tight">
             Hola de nuevo, {usuario.nombre}
           </h1>
           <p className="text-slate-600 text-base max-w-xl">
@@ -40,11 +38,6 @@ export default function DashboardWelcome({
             {onVerFinanzas && (
               <button type="button" onClick={onVerFinanzas} className={btnSecondaryClass}>
                 Ver finanzas
-              </button>
-            )}
-            {onVerPagos && (
-              <button type="button" onClick={onVerPagos} className={btnSecondaryClass}>
-                Ver mis pagos
               </button>
             )}
             {onVerPropiedades && (

@@ -55,11 +55,13 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 
 ![Diagrama entidad-relación AlquilAR](docs/der-alquilar.png)
 
+El diagrama es conceptual. En el modelo implementado, `Propiedad.unidad` contiene solo `identificador` (no `piso` ni `torre`); el resumen de entidades de abajo refleja los campos actuales.
+
 | Entidad | Atributos clave (resumen) |
 |---|---|
 | **Usuario** | nombre, apellido, dni, email, password, roles[], estado, telefono, cbu_alias, cuit_cuil, solicitud_propietario |
 | **Propiedad** | id_propietario, id_agrupamiento, unidad.identificador, direccion, tipo, ambientes, descripcion, estado, valor_base, fotos[] |
-| **Agrupamiento** | codigo, nombre, tipo, estado, direccion, descripcion, id_administrador, gestores[], contacto, servicios[], configuracion |
+| **Agrupamiento** | `_id`, nombre, tipo, estado, direccion, descripcion, fotos[], id_administrador, gestores[], contacto, servicios[], configuracion.moneda |
 | **Contrato** | id_propiedad, id_inquilino, fechas, monto_mensual, dia_vencimiento, estado, garante |
 | **Pago** | id_contrato, mes_correspondiente, montos, fechas, estado, comprobantes[] |
 | **Gasto** | id_propiedad, fecha_emision, monto_total, tipo, estado_pago, proveedor, comprobantes[] |
@@ -78,7 +80,9 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
   - `GET` / `POST /solicitud-propietario` — consulta y envío de solicitud de rol propietario
   - `PATCH /:id/solicitud-propietario/aprobar` — aprobación administrativa (asigna `PROPIETARIO`)
   - `PATCH /:id/roles` — agregar roles (admin)
+  - `PATCH /:id/estado` — activar o desactivar una cuenta (`ACTIVO`/`INACTIVO`, admin); no permite desactivar la propia cuenta ni al último administrador activo.
 - Middleware: `verificarToken`, `verificarRol` y `verificarPermiso`. Los permisos por rol se declaran en `backend/src/config/permisos.js`.
+- Desde la vista de administrador se pueden activar o desactivar cuentas (`ACTIVO`/`INACTIVO`), además de gestionar roles y solicitudes de propietario.
 - `verificarToken` valida el JWT contra MongoDB en cada request: si el usuario fue dado de baja o cambió de rol, el cambio impacta sin esperar a que expire el token. Sin token o con usuario inválido responde `401`.
 - Registro con validación de nombre, apellido, DNI, email, contraseña (9–128 caracteres) y teléfono. Login con mensaje genérico para no revelar si el email existe; rate limit en login y registro.
 - Frontend: al recargar la app, si hay token en `localStorage` se valida con `GET /me`; un `401`/`403` limpia la sesión y un error transitorio conserva el token y muestra un aviso.
@@ -88,9 +92,15 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 ### Propiedades y contratos
 
 - CRUD de propiedades y contratos con permisos por rol; cuotas de pago al activar contratos; historial y garantes.
+- El administrador tiene una vista de contratos en borrador con activación individual o por lote; al activar, el backend agrega INQUILINO si falta y lo guarda junto con el contrato, la propiedad y las cuotas en una transacción.
 - `GET /api/propiedades` — listado con JWT: **propietario** ve sus inmuebles; **administrador** ve todos. Usuarios e inquilinos sin rol de gestión reciben 403.
+- En la vista de administrador las propiedades son de solo lectura; crear, editar y dar de baja propiedades es una gestión exclusiva del propietario.
 - `GET /api/propiedades/disponibles` — catálogo para cualquier usuario autenticado. Devuelve solo unidades `DISPONIBLE` con datos públicos de la propiedad (sin `id_propietario` ni datos bancarios).
 - No hay catálogo público ni ingreso anónimo: login o registro obligatorio para usar la app.
+
+### Reportes de administrador
+
+Incluye un mock ilustrativo de la evolución mensual de propietarios, inquilinos y propiedades activas al cierre de cada mes. No muestra datos reales y está marcado “Próximamente - Fuera del MVP”.
 
 ### Agrupamientos de viviendas
 
@@ -98,12 +108,15 @@ Permiten reunir unidades bajo un mismo edificio, complejo o consorcio. Una propi
 
 - Rutas principales (JWT, respuestas `{ success, data, message }`):
   - `GET /api/agrupamientos` — visibles según el rol; filtros opcionales `tipo`, `estado`, `ciudad`, `q`, `id_propietario`.
+  - `GET /api/usuarios/gestores-disponibles?q=<nombre>` — administradores y propietarios buscan por nombre o apellido (desde 2 caracteres) a propietarios activos para asignarlos como gestores; devuelve hasta 10 coincidencias.
   - `POST /api/agrupamientos` — `ADMINISTRADOR` o `PROPIETARIO`.
   - `GET /api/agrupamientos/:id`, `PUT /api/agrupamientos/:id` — administrador del agrupamiento o gestor; el `ADMINISTRADOR` puede todo.
   - `DELETE /api/agrupamientos/:id` — solo `ADMINISTRADOR`; baja lógica (`INACTIVO`). Responde `409` si quedan propiedades activas.
 - Asignación y desasignación: `PUT /api/propiedades/:id` con `id_agrupamiento` y `unidad.identificador`. También se aceptan al crear la propiedad. Cambiar de agrupamiento responde `409`.
 - `unidad.identificador` es único dentro de cada agrupamiento. Sin `id_agrupamiento`, las propiedades siguen funcionando igual que antes.
 - Filtros opcionales `?id_agrupamiento=<id>` en propiedades, contratos, pagos, gastos, reclamos y dashboard. Nunca amplían los permisos del usuario: siempre se cruzan con su alcance habitual. `GET /api/propiedades?sin_agrupamiento=true` lista las unidades sueltas.
+- MongoDB genera el `_id`; no se usa un código comercial. Las fotos del agrupamiento se almacenan en `fotos[]`; la moneda se configura en el agrupamiento y el vencimiento se define en cada contrato.
+- Los gestores son usuarios activos con rol `PROPIETARIO`; no existe un rol global `GESTOR`. El selector de propiedad muestra los agrupamientos visibles para la cuenta y completa la dirección como solo lectura cuando se elige uno.
 - Panel: `AgrupamientosPanel` para el CRUD, selector global en el encabezado para acotar el resto de las vistas y AI opcional. Al crear o editar una propiedad se elige agrupamiento y unidad.
 
 ### Pagos, gastos y reclamos
@@ -132,7 +145,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad y los role
 
 ## Requisitos
 
-- Node.js 18+
+- Node.js 20.19+ o 22.12+ (requerido por Vite 8)
 - Cuenta MongoDB Atlas (configurar `MONGODB_URI` en `.env`)
 
 ## Backend
@@ -228,8 +241,12 @@ Recibos de garante: carga autenticada vía backend. Comprobantes de pago: descar
 
 ## Ambos a la vez
 
+Desde la raíz del repositorio, instalá las dependencias de cada paquete y las herramientas de desarrollo de la raíz:
+
 ```bash
 npm install
+npm --prefix backend install
+npm --prefix frontend install
 npm run dev
 ```
 
@@ -281,5 +298,5 @@ Credenciales de prueba: solicitar al equipo (no publicar en el repo).
 ## Documentación
 
 - **Plan de trabajo:** Drive de la cátedra.
-- **Seguimiento:** https://github.com/users/marcelofabiandiaz-unahur/projects/1
+- **Reporte de Avance:** https://drive.google.com/file/d/1TNFwvCHDEiLMuhwh9yArw201WTW2qZEV/view?usp=drive_link
 - **Repositorio:** https://github.com/marcelofabiandiaz-unahur/alquilAr

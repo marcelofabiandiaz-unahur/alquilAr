@@ -23,6 +23,8 @@ const obtenerPermiso = (router, metodo, path) => {
 describe('permisos declarados en las rutas', () => {
   it('protege la administración de usuarios', () => {
     assert.equal(obtenerPermiso(authRoutes, 'get', '/'), 'VER_USUARIOS');
+    assert.equal(obtenerPermiso(authRoutes, 'patch', '/:id/estado'), 'GESTIONAR_ROLES');
+    assert.equal(obtenerPermiso(authRoutes, 'get', '/gestores-disponibles'), 'VER_GESTORES_ASIGNABLES');
     assert.equal(obtenerPermiso(authRoutes, 'patch', '/:id/roles'), 'GESTIONAR_ROLES');
     assert.equal(
       obtenerPermiso(authRoutes, 'patch', '/:id/solicitud-propietario/aprobar'),

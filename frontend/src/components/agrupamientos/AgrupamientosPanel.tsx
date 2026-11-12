@@ -7,6 +7,8 @@ import EmptyState from '../ui/EmptyState';
 import LoadingRow from '../ui/LoadingRow';
 import Modal from '../ui/Modal';
 import StatBadge from '../ui/StatBadge';
+import PhotoDropzone from '../propiedades/PhotoDropzone';
+import PropertyPhotoCarousel from '../propiedades/PropertyPhotoCarousel';
 import {
   inputClass,
   labelClass,
@@ -25,6 +27,7 @@ import type {
   Agrupamiento,
   EstadoAgrupamiento,
   TipoAgrupamiento,
+  Usuario,
 } from '../../types';
 
 const TIPOS: TipoAgrupamiento[] = [
@@ -37,7 +40,7 @@ const TIPOS: TipoAgrupamiento[] = [
 ];
 
 interface AgrupamientoForm {
-  codigo: string;
+  fotos: string[];
   nombre: string;
   tipo: TipoAgrupamiento;
   estado: EstadoAgrupamiento;
@@ -48,17 +51,16 @@ interface AgrupamientoForm {
   codigoPostal: string;
   descripcion: string;
   idAdministrador: string;
-  gestores: string;
+  gestores: string[];
   contactoNombre: string;
   contactoTelefono: string;
   contactoEmail: string;
   servicios: string;
   moneda: string;
-  diaVencimiento: string;
 }
 
 const FORM_VACIO: AgrupamientoForm = {
-  codigo: '',
+  fotos: [],
   nombre: '',
   tipo: 'EDIFICIO',
   estado: 'ACTIVO',
@@ -69,14 +71,32 @@ const FORM_VACIO: AgrupamientoForm = {
   codigoPostal: '',
   descripcion: '',
   idAdministrador: '',
-  gestores: '',
+  gestores: [],
   contactoNombre: '',
   contactoTelefono: '',
   contactoEmail: '',
   servicios: '',
   moneda: 'ARS',
-  diaVencimiento: '10',
 };
+
+interface GestorAsignable {
+  _id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+}
+
+function gestorDesdeReferencia(referencia: string | Usuario): GestorAsignable {
+  if (typeof referencia === 'string') {
+    return { _id: referencia, nombre: 'Propietario asignado', apellido: '', email: '' };
+  }
+  return {
+    _id: referencia._id || '',
+    nombre: referencia.nombre,
+    apellido: referencia.apellido,
+    email: referencia.email,
+  };
+}
 
 interface AgrupamientosPanelProps {
   token: string;
@@ -90,6 +110,11 @@ export default function AgrupamientosPanel({
   esPropietario,
 }: AgrupamientosPanelProps) {
   const [agrupamientos, setAgrupamientos] = useState<Agrupamiento[]>([]);
+  const [gestoresSeleccionados, setGestoresSeleccionados] = useState<GestorAsignable[]>([]);
+  const [busquedaGestor, setBusquedaGestor] = useState('');
+  const [resultadosGestores, setResultadosGestores] = useState<GestorAsignable[]>([]);
+  const [buscandoGestores, setBuscandoGestores] = useState(false);
+  const [errorBusquedaGestor, setErrorBusquedaGestor] = useState('');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -120,16 +145,60 @@ export default function AgrupamientosPanel({
     return () => clearTimeout(timer);
   }, [cargar]);
 
+  useEffect(() => {
+    const termino = busquedaGestor.trim();
+    if (!modalAbierto || termino.length < 2) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setBuscandoGestores(true);
+      setErrorBusquedaGestor('');
+      const query = new URLSearchParams({ q: termino });
+      void apiGet<GestorAsignable[]>(
+        `/api/usuarios/gestores-disponibles?${query.toString()}`,
+        token,
+        { signal: controller.signal },
+      ).then((data) => {
+        if (!Array.isArray(data)) throw new Error('Respuesta inválida al buscar propietarios.');
+        setResultadosGestores(data);
+      }).catch((err) => {
+        if (!controller.signal.aborted) {
+          setResultadosGestores([]);
+          setErrorBusquedaGestor(
+            err instanceof Error ? err.message : 'No se pudieron buscar propietarios.',
+          );
+        }
+      }).finally(() => {
+        if (!controller.signal.aborted) setBuscandoGestores(false);
+      });
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [busquedaGestor, modalAbierto, token]);
+
   const abrirNuevo = () => {
     setEditando(null);
     setForm(FORM_VACIO);
+    setGestoresSeleccionados([]);
+    setBusquedaGestor('');
     setModalAbierto(true);
   };
 
   const abrirEdicion = (agrupamiento: Agrupamiento) => {
     setEditando(agrupamiento);
+    setGestoresSeleccionados(
+      (agrupamiento.gestores || [])
+        .map(gestorDesdeReferencia)
+        .filter((gestor) => gestor._id),
+    );
+    setBusquedaGestor('');
     setForm({
-      codigo: agrupamiento.codigo || '',
+      fotos: Array.isArray(agrupamiento.fotos) ? [...agrupamiento.fotos] : [],
       nombre: agrupamiento.nombre || '',
       tipo: agrupamiento.tipo,
       estado: agrupamiento.estado,
@@ -142,26 +211,27 @@ export default function AgrupamientosPanel({
       idAdministrador: obtenerIdAgrupamiento(agrupamiento.id_administrador),
       gestores: (agrupamiento.gestores || [])
         .map((gestor) => obtenerIdAgrupamiento(gestor))
-        .filter(Boolean)
-        .join(', '),
+        .filter(Boolean),
       contactoNombre: agrupamiento.contacto?.nombre || '',
       contactoTelefono: agrupamiento.contacto?.telefono || '',
       contactoEmail: agrupamiento.contacto?.email || '',
       servicios: (agrupamiento.servicios || []).join(', '),
       moneda: agrupamiento.configuracion?.moneda || 'ARS',
-      diaVencimiento: String(agrupamiento.configuracion?.dia_vencimiento_default ?? 10),
     });
     setModalAbierto(true);
   };
 
   const guardar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busquedaGestor.trim()) {
+      setError('Seleccioná un propietario de los resultados o borrá el texto de búsqueda antes de guardar.');
+      return;
+    }
     setGuardando(true);
     setError('');
     setInfo('');
     try {
       const body: Record<string, unknown> = {
-        codigo: form.codigo.trim(),
         nombre: form.nombre.trim(),
         tipo: form.tipo,
         estado: form.estado,
@@ -173,7 +243,8 @@ export default function AgrupamientosPanel({
           codigo_postal: form.codigoPostal.trim(),
         },
         descripcion: form.descripcion.trim(),
-        gestores: form.gestores.split(',').map((gestor) => gestor.trim()).filter(Boolean),
+        fotos: form.fotos,
+        gestores: form.gestores,
         contacto: {
           nombre: form.contactoNombre.trim(),
           telefono: form.contactoTelefono.trim(),
@@ -182,7 +253,6 @@ export default function AgrupamientosPanel({
         servicios: form.servicios.split(',').map((servicio) => servicio.trim()).filter(Boolean),
         configuracion: {
           moneda: form.moneda.trim() || 'ARS',
-          dia_vencimiento_default: Number(form.diaVencimiento),
         },
       };
       if (esAdmin && form.idAdministrador.trim()) {
@@ -190,8 +260,12 @@ export default function AgrupamientosPanel({
       }
 
       if (editando) {
-        await apiPut(`/api/agrupamientos/${editando._id}`, token, body);
-        setInfo('Agrupamiento actualizado.');
+        const actualizado = await apiPut<Agrupamiento & { advertencias?: string[] }>(
+          `/api/agrupamientos/${editando._id}`,
+          token,
+          body,
+        );
+        setInfo(['Agrupamiento actualizado.', ...(actualizado.advertencias || [])].join(' '));
       } else {
         await apiPost('/api/agrupamientos', token, body);
         setInfo('Agrupamiento creado.');
@@ -221,6 +295,23 @@ export default function AgrupamientosPanel({
     } finally {
       setAccionId('');
     }
+  };
+
+  const agregarGestor = (gestor: GestorAsignable) => {
+    if (form.gestores.includes(gestor._id)) return;
+    setForm((actual) => ({ ...actual, gestores: [...actual.gestores, gestor._id] }));
+    setGestoresSeleccionados((actuales) => [...actuales, gestor]);
+    setBusquedaGestor('');
+    setResultadosGestores([]);
+    setErrorBusquedaGestor('');
+  };
+
+  const quitarGestor = (id: string) => {
+    setForm((actual) => ({
+      ...actual,
+      gestores: actual.gestores.filter((gestorId) => gestorId !== id),
+    }));
+    setGestoresSeleccionados((actuales) => actuales.filter((gestor) => gestor._id !== id));
   };
 
   return (
@@ -256,12 +347,10 @@ export default function AgrupamientosPanel({
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {agrupamientos.map((agrupamiento) => (
             <Card key={agrupamiento._id} className="p-5">
+              <PropertyPhotoCarousel fotos={agrupamiento.fotos || []} alt={agrupamiento.nombre} />
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500">
-                    {agrupamiento.codigo}
-                  </p>
-                  <h3 className="mt-1 text-base font-bold text-[var(--brand-navy)]">
+                  <h3 className="text-base font-bold text-[var(--brand-navy)]">
                     {agrupamiento.nombre}
                   </h3>
                   <p className="mt-1 text-xs text-slate-500">
@@ -299,10 +388,8 @@ export default function AgrupamientosPanel({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-400">Vencimiento</dt>
+                  <dt className="text-slate-400">Moneda</dt>
                   <dd className="mt-0.5 font-medium text-slate-700">
-                    Día {agrupamiento.configuracion?.dia_vencimiento_default ?? 10}
-                    {' · '}
                     {agrupamiento.configuracion?.moneda || 'ARS'}
                   </dd>
                 </div>
@@ -345,28 +432,15 @@ export default function AgrupamientosPanel({
         wide
       >
         <form onSubmit={guardar} className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className={labelClass}>Código</label>
-              <input
-                required
-                maxLength={20}
-                className={inputClass}
-                placeholder="EDF-PALERMO-01"
-                value={form.codigo}
-                onChange={(event) => setForm({ ...form, codigo: event.target.value.toUpperCase() })}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Nombre</label>
-              <input
-                required
-                maxLength={120}
-                className={inputClass}
-                value={form.nombre}
-                onChange={(event) => setForm({ ...form, nombre: event.target.value })}
-              />
-            </div>
+          <div>
+            <label className={labelClass}>Nombre</label>
+            <input
+              required
+              maxLength={120}
+              className={inputClass}
+              value={form.nombre}
+              onChange={(event) => setForm({ ...form, nombre: event.target.value })}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -455,6 +529,15 @@ export default function AgrupamientosPanel({
             />
           </div>
 
+          <PhotoDropzone
+            fotos={form.fotos}
+            onChange={(fotos) => setForm((prev) => ({
+              ...prev,
+              fotos: typeof fotos === 'function' ? fotos(prev.fotos) : fotos,
+            }))}
+            disabled={guardando}
+          />
+
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {esAdmin && (
               <div>
@@ -468,13 +551,84 @@ export default function AgrupamientosPanel({
               </div>
             )}
             <div>
-              <label className={labelClass}>IDs de gestores (separados por coma)</label>
+              <label className={labelClass}>Gestores propietarios</label>
               <input
+                type="search"
                 className={inputClass}
-                placeholder="ObjectId1, ObjectId2"
-                value={form.gestores}
-                onChange={(event) => setForm({ ...form, gestores: event.target.value })}
-              />
+                value={busquedaGestor}
+                placeholder="Escribí el nombre o apellido del propietario"
+                autoComplete="off"
+                  onChange={(event) => {
+                    setBusquedaGestor(event.target.value);
+                    setResultadosGestores([]);
+                    setBuscandoGestores(false);
+                    setErrorBusquedaGestor('');
+                  }}
+                />
+              <p className="mt-1 text-xs text-slate-500">
+                Escribí al menos 2 caracteres y seleccioná un propietario activo para validarlo.
+              </p>
+              {buscandoGestores && (
+                <p className="mt-2 text-xs text-slate-500">Buscando propietarios...</p>
+              )}
+              {errorBusquedaGestor && (
+                <p role="alert" className="mt-2 text-xs text-red-600">{errorBusquedaGestor}</p>
+              )}
+              {resultadosGestores.length > 0 && (
+                <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                  {resultadosGestores
+                    .filter((gestor) => !form.gestores.includes(gestor._id))
+                    .map((gestor) => (
+                      <li key={gestor._id}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          onClick={() => agregarGestor(gestor)}
+                        >
+                          <span className="font-medium text-slate-700">
+                            {`${gestor.nombre} ${gestor.apellido}`.trim()}
+                          </span>
+                          <span className="ml-2 text-xs text-slate-500">{gestor.email}</span>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {busquedaGestor.trim().length >= 2
+                && !buscandoGestores
+                && !errorBusquedaGestor
+                && resultadosGestores.length === 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    No encontramos propietarios activos con ese nombre.
+                  </p>
+              )}
+              {gestoresSeleccionados.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {gestoresSeleccionados.map((gestor) => (
+                    <li
+                      key={gestor._id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-slate-700">
+                          {`${gestor.nombre} ${gestor.apellido}`.trim()}
+                        </span>
+                        {gestor.email && (
+                          <span className="block truncate text-xs text-slate-500">{gestor.email}</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs font-medium text-red-600 hover:text-red-700"
+                        onClick={() => quitarGestor(gestor._id)}
+                        aria-label={`Quitar gestor ${gestor.nombre} ${gestor.apellido}`}
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
@@ -523,17 +677,6 @@ export default function AgrupamientosPanel({
                 className={inputClass}
                 value={form.moneda}
                 onChange={(event) => setForm({ ...form, moneda: event.target.value })}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Día de vencimiento (1-28)</label>
-              <input
-                type="number"
-                min="1"
-                max="28"
-                className={inputClass}
-                value={form.diaVencimiento}
-                onChange={(event) => setForm({ ...form, diaVencimiento: event.target.value })}
               />
             </div>
           </div>

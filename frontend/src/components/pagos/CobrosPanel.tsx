@@ -11,12 +11,19 @@ import StatBadge from '../ui/StatBadge';
 import ComprobantePagoLink from './ComprobantePagoLink';
 import { btnPrimaryClass } from '../layout/dashboardStyles';
 import { conAgrupamiento } from '../../lib/agrupamientos';
-import type { Pago } from '../../types';
+import {
+  cuotasPendientesEsteMes,
+  pagosCobradosEsteMes,
+  proximasCuotasPendientes,
+} from '../../lib/resumenFinanciero';
+import type { FiltroCobros, Pago } from '../../types';
 
 interface CobrosPanelProps {
   token: string;
   idAgrupamiento?: string;
   embedded?: boolean;
+  filtro: FiltroCobros;
+  setFiltro: (filtro: FiltroCobros) => void;
 }
 
 function obtenerComprobantes(pago: Pago): string[] {
@@ -35,10 +42,32 @@ function periodoVisible(pago: Pago): string {
   return pago.mes_correspondiente;
 }
 
+function identificadorContrato(pago: Pago): { direccion: string; fechas: string } {
+  if (!pago.id_contrato || typeof pago.id_contrato === 'string') {
+    return { direccion: 'Contrato', fechas: '' };
+  }
+  const propiedad = pago.id_contrato.id_propiedad;
+  const direccion = typeof propiedad === 'object' ? propiedad.direccion || 'Contrato' : 'Contrato';
+  const formatoFecha = (fecha?: string) => {
+    if (!fecha) return '';
+    const [anio, mes, dia] = fecha.slice(0, 10).split('-').map(Number);
+    if (!anio || !mes || !dia) return '';
+    return new Intl.DateTimeFormat('es-AR').format(new Date(anio, mes - 1, dia));
+  };
+  const inicio = formatoFecha(pago.id_contrato.fecha_inicio);
+  const fin = formatoFecha(pago.id_contrato.fecha_fin);
+  return {
+    direccion,
+    fechas: inicio || fin ? `${inicio || '—'} – ${fin || 'Sin fecha de fin'}` : '',
+  };
+}
+
 export default function CobrosPanel({
   token,
   idAgrupamiento = '',
   embedded = false,
+  filtro,
+  setFiltro,
 }: CobrosPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -86,6 +115,66 @@ export default function CobrosPanel({
 
   const porValidar = pagos.filter((pago) => pago.estado === 'INGRESADO' && obtenerComprobantes(pago).length > 0);
   const confirmados = pagos.filter((pago) => pago.estado === 'PAGADO');
+  const confirmadosEsteMes = pagosCobradosEsteMes(pagos);
+  const pendientes = pagos.filter((pago) => pago.estado === 'PENDIENTE');
+  const pendientesEsteMes = cuotasPendientesEsteMes(pagos);
+  const proximasCuotas = proximasCuotasPendientes(pagos);
+  const atrasados = pagos.filter((pago) => pago.estado === 'ATRASADO');
+  const etiquetasFiltro: Record<FiltroCobros, string> = {
+    TODOS: 'Todos',
+    PENDIENTE: 'Pendientes',
+    MES_ACTUAL: 'Este mes',
+    PROXIMAS: 'Próximas cuotas',
+    ATRASADO: 'Atrasados',
+    INGRESADO: 'Por validar',
+    PAGADO: 'Cobrados',
+    COBRADO_MES: 'Cobrado este mes',
+  };
+  const mostrarValidar = filtro === 'TODOS' || filtro === 'INGRESADO';
+  const mostrarConfirmados = filtro === 'TODOS' || filtro === 'PAGADO' || filtro === 'COBRADO_MES';
+  const filasConfirmadas = filtro === 'COBRADO_MES' ? confirmadosEsteMes : confirmados;
+  const renderPagosAbiertos = (titulo: string, filas: Pago[], vacio: string) => (
+    <section className="space-y-3">
+      <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">
+        {titulo} ({filas.length})
+      </h2>
+      {cargando ? (
+        <LoadingRow label="Cargando cobros pendientes..." />
+      ) : filas.length === 0 && !error ? (
+        <EmptyState
+          title={`Sin ${vacio}`}
+          description={vacio.includes('atrasados')
+            ? 'No hay cuotas vencidas para mostrar.'
+            : vacio.includes('próximas')
+              ? 'No hay cuotas futuras pendientes para contratos vigentes.'
+              : vacio.includes('este mes')
+                ? 'No hay cuotas pendientes con vencimiento este mes.'
+                : 'No hay cuotas pendientes para mostrar.'}
+        />
+      ) : (
+        <DataTable
+          columns={['Contrato / propiedad', 'Concepto', 'Período', 'Vencimiento', 'Importe', 'Estado']}
+          rows={filas}
+          renderRow={(pago) => {
+            const contrato = identificadorContrato(pago);
+            return (
+              <tr key={pago._id} className="hover:bg-slate-50">
+                <td className="p-4">
+                  <div className="font-medium text-slate-800">{contrato.direccion}</div>
+                  {contrato.fechas && <div className="mt-1 text-xs text-slate-500">{contrato.fechas}</div>}
+                </td>
+                <td className="p-4">{conceptoPago(pago)}</td>
+                <td className="p-4">{periodoVisible(pago)}</td>
+                <td className="p-4">{pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento).toLocaleDateString() : '—'}</td>
+                <td className="p-4 font-semibold">{formatMoneda(pago.monto_total)}</td>
+                <td className="p-4"><StatBadge estado={pago.estado} /></td>
+              </tr>
+            );
+          }}
+        />
+      )}
+    </section>
+  );
 
   return (
     <div className="space-y-6">
@@ -95,7 +184,46 @@ export default function CobrosPanel({
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
 
-      <section className="space-y-3">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar cobros">
+        {(['TODOS', 'PENDIENTE', 'MES_ACTUAL', 'PROXIMAS', 'ATRASADO', 'INGRESADO', 'PAGADO', 'COBRADO_MES'] as FiltroCobros[]).map((opcion) => (
+          <button
+            key={opcion}
+            type="button"
+            aria-pressed={filtro === opcion}
+            onClick={() => setFiltro(opcion)}
+            className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              filtro === opcion
+                ? 'border-violet-700 bg-violet-700 text-white'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {etiquetasFiltro[opcion]}
+          </button>
+        ))}
+      </div>
+
+      {(filtro === 'TODOS' || filtro === 'PENDIENTE') && renderPagosAbiertos(
+        'Cobros pendientes',
+        pendientes,
+        'cobros pendientes',
+      )}
+      {filtro === 'MES_ACTUAL' && renderPagosAbiertos(
+        'A cobrar este mes',
+        pendientesEsteMes,
+        'cobros pendientes este mes',
+      )}
+      {filtro === 'PROXIMAS' && renderPagosAbiertos(
+        'Próximas cuotas (una por contrato vigente)',
+        proximasCuotas,
+        'próximas cuotas',
+      )}
+      {(filtro === 'TODOS' || filtro === 'ATRASADO') && renderPagosAbiertos(
+        'Cobros atrasados',
+        atrasados,
+        'cobros atrasados',
+      )}
+
+      {mostrarValidar && <section className="space-y-3">
         <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">
           Cobros para validar ({porValidar.length})
         </h2>
@@ -105,10 +233,16 @@ export default function CobrosPanel({
           <EmptyState title="Sin cobros para validar" description="Los comprobantes enviados por los inquilinos aparecerán aquí." />
         ) : (
           <DataTable
-            columns={['Concepto', 'Período', 'Vencimiento', 'Importe', 'Estado', 'Comprobante', 'Acción']}
+            columns={['Contrato / propiedad', 'Concepto', 'Período', 'Vencimiento', 'Importe', 'Estado', 'Comprobante', 'Acción']}
             rows={porValidar}
-            renderRow={(pago) => (
+            renderRow={(pago) => {
+              const contrato = identificadorContrato(pago);
+              return (
               <tr key={pago._id} className="hover:bg-slate-50">
+                <td className="p-4">
+                  <div className="font-medium text-slate-800">{contrato.direccion}</div>
+                  {contrato.fechas && <div className="mt-1 text-xs text-slate-500">{contrato.fechas}</div>}
+                </td>
                 <td className="p-4">{conceptoPago(pago)}</td>
                 <td className="p-4">{periodoVisible(pago)}</td>
                 <td className="p-4">{pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento).toLocaleDateString() : '—'}</td>
@@ -140,25 +274,37 @@ export default function CobrosPanel({
                   </button>
                 </td>
               </tr>
-            )}
+              );
+            }}
           />
         )}
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {mostrarConfirmados && <section className="space-y-3">
         <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">
-          Pagos confirmados ({confirmados.length})
+          {filtro === 'COBRADO_MES' ? 'Cobrado este mes' : 'Pagos confirmados'} ({filasConfirmadas.length})
         </h2>
         {cargando ? (
           <LoadingRow label="Cargando pagos confirmados..." />
-        ) : confirmados.length === 0 && !error ? (
-          <EmptyState title="Sin pagos confirmados" description="Los cobros confirmados aparecerán aquí." />
+        ) : filasConfirmadas.length === 0 && !error ? (
+          <EmptyState
+            title={filtro === 'COBRADO_MES' ? 'Sin cobros este mes' : 'Sin pagos confirmados'}
+            description={filtro === 'COBRADO_MES'
+              ? 'No hay pagos confirmados durante el mes actual.'
+              : 'Los cobros confirmados aparecerán aquí.'}
+          />
         ) : (
           <DataTable
-            columns={['Concepto', 'Período', 'Fecha de pago', 'Importe', 'Estado', 'Comprobante']}
-            rows={confirmados}
-            renderRow={(pago) => (
+            columns={['Contrato / propiedad', 'Concepto', 'Período', 'Fecha de pago', 'Importe', 'Estado', 'Comprobante']}
+            rows={filasConfirmadas}
+            renderRow={(pago) => {
+              const contrato = identificadorContrato(pago);
+              return (
               <tr key={pago._id} className="hover:bg-slate-50">
+                <td className="p-4">
+                  <div className="font-medium text-slate-800">{contrato.direccion}</div>
+                  {contrato.fechas && <div className="mt-1 text-xs text-slate-500">{contrato.fechas}</div>}
+                </td>
                 <td className="p-4">{conceptoPago(pago)}</td>
                 <td className="p-4">{periodoVisible(pago)}</td>
                 <td className="p-4">{pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleDateString() : '—'}</td>
@@ -180,10 +326,11 @@ export default function CobrosPanel({
                   ) : '—'}
                 </td>
               </tr>
-            )}
+              );
+            }}
           />
         )}
-      </section>
+      </section>}
 
       <Card className="p-4">
         <p className="text-sm text-slate-600">
