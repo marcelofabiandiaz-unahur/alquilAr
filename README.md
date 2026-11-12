@@ -95,7 +95,6 @@ El diagrama es conceptual. En el modelo implementado, `Propiedad.unidad` contien
 - El administrador tiene una vista de contratos en borrador con activación individual o por lote; al activar, el backend agrega INQUILINO si falta y lo guarda junto con el contrato, la propiedad y las cuotas en una transacción.
 - `GET /api/propiedades` — listado con JWT: **propietario** ve sus inmuebles; **administrador** ve todos. Usuarios e inquilinos sin rol de gestión reciben 403.
 - En la vista de administrador las propiedades son de solo lectura; crear, editar y dar de baja propiedades es una gestión exclusiva del propietario.
-- `GET /api/propiedades/disponibles` — catálogo para cualquier usuario autenticado. Devuelve solo unidades `DISPONIBLE` con datos públicos de la propiedad (sin `id_propietario` ni datos bancarios).
 - No hay catálogo público ni ingreso anónimo: login o registro obligatorio para usar la app.
 
 ### Reportes de administrador
@@ -107,11 +106,11 @@ Incluye un mock ilustrativo de la evolución mensual de propietarios, inquilinos
 Permiten reunir unidades bajo un mismo edificio, complejo o consorcio. Una propiedad pertenece como máximo a un agrupamiento, y su relación se guarda solo en `Propiedad.id_agrupamiento` (no se duplica en contratos, pagos, gastos ni reclamos).
 
 - Rutas principales (JWT, respuestas `{ success, data, message }`):
-  - `GET /api/agrupamientos` — visibles según el rol; filtros opcionales `tipo`, `estado`, `ciudad`, `q`, `id_propietario`.
-  - `GET /api/usuarios/gestores-disponibles?q=<nombre>` — administradores y propietarios buscan por nombre o apellido (desde 2 caracteres) a propietarios activos para asignarlos como gestores; devuelve hasta 10 coincidencias.
-  - `POST /api/agrupamientos` — `ADMINISTRADOR` o `PROPIETARIO`.
-  - `GET /api/agrupamientos/:id`, `PUT /api/agrupamientos/:id` — administrador del agrupamiento o gestor; el `ADMINISTRADOR` puede todo.
-  - `DELETE /api/agrupamientos/:id` — solo `ADMINISTRADOR`; baja lógica (`INACTIVO`). Responde `409` si quedan propiedades activas.
+  - `GET /api/agrupamientos` — listado visible para propietarios según su relación con los agrupamientos, con filtros opcionales `tipo`, `estado`, `ciudad`, `q`, `id_propietario`. Los administradores no tienen acceso a esta pantalla.
+  - `GET /api/usuarios/gestores-disponibles?q=<nombre>` — propietarios buscan por nombre o apellido (desde 2 caracteres) a propietarios activos para asignarlos como gestores; devuelve hasta 10 coincidencias.
+  - `POST /api/agrupamientos` — solo `PROPIETARIO`.
+  - `GET /api/agrupamientos/:id`, `PUT /api/agrupamientos/:id` — consulta según visibilidad; edición para el propietario responsable o gestor asignado.
+  - `DELETE /api/agrupamientos/:id` — propietario responsable o gestor; baja lógica (`INACTIVO`). Responde `409` si quedan propiedades activas.
 - Asignación y desasignación: `PUT /api/propiedades/:id` con `id_agrupamiento` y `unidad.identificador`. También se aceptan al crear la propiedad. Cambiar de agrupamiento responde `409`.
 - `unidad.identificador` es único dentro de cada agrupamiento. Sin `id_agrupamiento`, las propiedades siguen funcionando igual que antes.
 - Filtros opcionales `?id_agrupamiento=<id>` en propiedades, contratos, pagos, gastos, reclamos y dashboard. Nunca amplían los permisos del usuario: siempre se cruzan con su alcance habitual. `GET /api/propiedades?sin_agrupamiento=true` lista las unidades sueltas.
@@ -125,7 +124,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad y los role
 
 - **Pagos:** `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, comprobantes (`POST/GET/DELETE …/comprobantes`), `PATCH …/confirmar`. Cuotas automáticas al activar contrato (depósito `DEPOSITO` + mensuales `YYYYMM`). Estados `PENDIENTE`, `ATRASADO`, `INGRESADO`, `PAGADO`.
 - **Gastos:** `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`, filtros por propiedad, fechas y `estado_pago`.
-- **Reclamos:** `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH …/estado`, `DELETE`. El inquilino abre reclamos sobre contratos vigentes; propietario y administrador gestionan los de sus propiedades.
+- **Reclamos:** `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH …/estado`, `DELETE`. El inquilino abre reclamos sobre contratos vigentes; solo el propietario gestiona los de sus propiedades. El administrador puede consultar todos los reclamos para uso estadístico, sin crear, modificar ni eliminar.
 
 ### ALQUI — asistente IA
 
@@ -141,7 +140,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad y los role
 - Errores tipados: `SIN_PERMISO`, `VALIDACION`, `NO_ENCONTRADO`, `CONFIGURACION`, `AUTENTICACION_PROVEEDOR`, `MODELO_INEXISTENTE`, `LIMITE_PROVEEDOR`, `PROVEEDOR`, `TIMEOUT`, `PASOS_EXCEDIDOS` e `INTERNO`. Los problemas de permisos se responden dentro de la conversación (HTTP 200) para no cerrar la sesión del usuario; los fallos técnicos devuelven un mensaje comprensible y un código, sin exponer detalles internos.
 - Estilo de respuesta: todas las contestaciones (incluidas las consultas predefinidas y las que usan herramientas) se presentan en texto natural y conversacional, sin JSON, bloques de código, nombres de herramientas, códigos internos ni viñetas. Los datos se traducen a frases con montos, fechas y estados legibles. El backend descarta cualquier salida técnica que el modelo devuelva por error.
 - Seguridad: la identidad y los permisos se resuelven con el JWT validado contra MongoDB; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados. Las acciones que crean datos no se reintentan automáticamente.
-- UI: chat flotante ALQUI para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra errores del backend, permite cancelar solicitudes y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, pide revisar “Mis reclamos” antes de reintentar. El historial **no** se persiste en MongoDB.
+- UI: chat flotante ALQUI para inquilinos, propietarios y administradores. El backend usa [la guía de uso por rol](docs/guia-uso-por-rol.md) como referencia para responder dudas sobre pantallas y flujos, sin ampliar permisos ni realizar acciones administrativas desde el chat. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra errores del backend, permite cancelar solicitudes y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, pide revisar “Mis reclamos” antes de reintentar. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 

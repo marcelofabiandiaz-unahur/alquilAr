@@ -218,6 +218,15 @@ describe('authController', () => {
     assert.match(res.body.mensaje, /al menos 2 caracteres/i);
   });
 
+  it('no permite a los administradores buscar gestores aunque también sean propietarios', async () => {
+    const res = mockRes();
+    await listarGestoresAsignables({
+      query: { q: 'Ana' },
+      usuario: { roles: ['ADMINISTRADOR', 'PROPIETARIO'] },
+    }, res);
+    assert.equal(res.statusCode, 403);
+  });
+
   it('actualizarMiPerfil permite editar telefono y cbu_alias', async () => {
     const usuario = {
       _id: usuarioId,

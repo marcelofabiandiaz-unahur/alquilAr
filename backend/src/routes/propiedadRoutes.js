@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const {
   listarPropiedades,
-  listarPropiedadesDisponibles,
   obtenerPropiedad,
   crearPropiedad,
   actualizarPropiedad,
@@ -13,11 +12,6 @@ const { verificarToken, verificarPermiso } = require('../middlewares/authMiddlew
 
 router.use(verificarToken);
 
-router.get(
-  '/disponibles',
-  verificarPermiso('VER_PROPIEDADES_DISPONIBLES'),
-  listarPropiedadesDisponibles,
-);
 router.get('/', verificarPermiso('LISTAR_PROPIEDADES'), listarPropiedades);
 router.post('/', verificarPermiso('GESTIONAR_PROPIEDADES'), crearPropiedad);
 router.get('/:id/contratos', listarContratosPorPropiedad);

@@ -120,6 +120,40 @@ describe('reclamoController', () => {
     assert.equal(res.statusCode, 403);
   });
 
+  it('no permite al administrador actualizar reclamos aunque también sea propietario', async () => {
+    Reclamo.findById = async () => ({ id_contrato: contratoId });
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    const res = mockRes();
+
+    await actualizarReclamo({
+      params: { id: '111111111111111111111111' },
+      body: { estado: 'RESUELTO' },
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR', 'PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 403);
+  });
+
+  it('no permite al administrador eliminar reclamos aunque también sea propietario', async () => {
+    let eliminado = false;
+    Reclamo.findById = async () => ({
+      id_contrato: contratoId,
+      deleteOne: async () => { eliminado = true; },
+    });
+    Contrato.findById = async () => ({ id_propiedad: propiedadId, id_inquilino: inquilinoId });
+    Propiedad.findById = async () => ({ id_propietario: usuarioId });
+    const res = mockRes();
+
+    await eliminarReclamo({
+      params: { id: '111111111111111111111111' },
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR', 'PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(eliminado, false);
+  });
+
   it('rechaza consultas de reclamos para usuarios sin rol relacionado', async () => {
     const res = mockRes();
     await listarReclamos({ usuario: { id: usuarioId, roles: ['USUARIO'] } }, res);
@@ -190,6 +224,13 @@ describe('reclamoController', () => {
       usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
     }, sinRol);
     assert.equal(sinRol.statusCode, 403);
+
+    const administradorInquilino = mockRes();
+    await crearReclamo({
+      body: { id_contrato: contratoId, asunto: 'Fuga', descripcion: 'Detalle', categoria: 'MANTENIMIENTO' },
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR', 'INQUILINO'] },
+    }, administradorInquilino);
+    assert.equal(administradorInquilino.statusCode, 403);
   });
 
   it('valida límites de texto y categorías admitidas para reclamos', async () => {
