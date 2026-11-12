@@ -181,6 +181,9 @@ const listarUsuarios = async (req, res) => {
 
 const listarGestoresAsignables = async (req, res) => {
   try {
+    if (req.usuario?.roles?.includes(ROLES.ADMINISTRADOR)) {
+      return res.status(403).json({ mensaje: 'Los administradores no pueden asignar gestores desde esta pantalla.' });
+    }
     const termino = typeof req.query?.q === 'string' ? req.query.q.trim() : '';
     if (termino.length < 2 || termino.length > 100) {
       return res.status(400).json({ mensaje: 'Ingresá al menos 2 caracteres del nombre o apellido.' });

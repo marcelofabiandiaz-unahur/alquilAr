@@ -35,12 +35,12 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Operación',
     items: [
       { id: 'propiedades', label: 'Propiedades', show: (r) => r.esPropietario || r.esAdministrador },
-      { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario },
+      { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario && !r.esAdministrador },
       { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
       { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario },
       { id: 'reportes', label: 'Reportes', show: (r) => r.esPropietario || r.esAdministrador },
-      { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario },
+      { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
       { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario },
     ],
   },
@@ -538,7 +538,7 @@ export default function DashboardLayout({
             <img src={logoAlquilar} alt="AlquilAR" className="h-10 w-12 object-contain" />
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
-            {roles.esPropietario && (
+            {roles.esPropietario && !roles.esAdministrador && (
               <AgrupamientoSelector
                 token={token}
                 value={idAgrupamiento}

@@ -129,7 +129,7 @@ const crearReclamo = async (req, res) => {
     }
     if (!esObjectIdValido(id_contrato)) return responder(res, 400, null, 'id_contrato inválido.');
     const { id, roles } = obtenerIdentidad(req.usuario);
-    if (!esInquilino(roles)) {
+    if (!esInquilino(roles) || esAdministrador(roles)) {
       return responder(res, 403, null, 'Solo el inquilino del contrato puede crear un reclamo.');
     }
     const { contrato, propiedad, permitido } = await buscarContratoGestionable(id_contrato, req.usuario);
@@ -166,8 +166,8 @@ const actualizarReclamo = async (req, res) => {
     if (!reclamo) return responder(res, 404, null, 'Reclamo no encontrado.');
     const { contrato, permitido } = await buscarContratoGestionable(resolverId(reclamo.id_contrato), req.usuario);
     const roles = obtenerIdentidad(req.usuario).roles;
-    if (!contrato || !permitido || (!esAdministrador(roles) && !esPropietario(roles))) {
-      return responder(res, 403, null, 'Solo el propietario de la propiedad o un administrador puede actualizar el reclamo.');
+    if (!contrato || !permitido || !esPropietario(roles) || esAdministrador(roles)) {
+      return responder(res, 403, null, 'Solo el propietario de la propiedad puede actualizar el reclamo.');
     }
     const { estado, prioridad } = req.body || {};
     if (estado !== undefined) reclamo.estado = estado;
@@ -188,7 +188,7 @@ const eliminarReclamo = async (req, res) => {
     if (!reclamo) return responder(res, 404, null, 'Reclamo no encontrado.');
     const { contrato, permitido } = await buscarContratoGestionable(resolverId(reclamo.id_contrato), req.usuario);
     const roles = obtenerIdentidad(req.usuario).roles;
-    if (!contrato || !permitido || (!esAdministrador(roles) && !esPropietario(roles))) {
+    if (!contrato || !permitido || !esPropietario(roles) || esAdministrador(roles)) {
       return responder(res, 403, null, 'No tenés permiso para eliminar este reclamo.');
     }
     await reclamo.deleteOne();

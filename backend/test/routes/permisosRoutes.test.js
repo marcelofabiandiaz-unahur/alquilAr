@@ -36,18 +36,10 @@ describe('permisos declarados en las rutas', () => {
     assert.equal(obtenerPermiso(propiedadRoutes, 'post', '/'), 'GESTIONAR_PROPIEDADES');
     assert.equal(obtenerPermiso(propiedadRoutes, 'put', '/:id'), 'GESTIONAR_PROPIEDADES');
     assert.equal(obtenerPermiso(propiedadRoutes, 'delete', '/:id'), 'GESTIONAR_PROPIEDADES');
-    assert.equal(
-      obtenerPermiso(propiedadRoutes, 'get', '/disponibles'),
-      'VER_PROPIEDADES_DISPONIBLES',
-    );
   });
 
-  it('declara /disponibles antes de /:id y exige token', () => {
-    const rutas = propiedadRoutes.stack
-      .filter((layer) => layer.route)
-      .map((layer) => layer.route.path);
-    assert.ok(rutas.indexOf('/disponibles') >= 0);
-    assert.ok(rutas.indexOf('/disponibles') < rutas.indexOf('/:id'));
+  it('no expone el catálogo de propiedades para Buscar alquileres', () => {
+    assert.equal(obtenerRuta(propiedadRoutes, 'get', '/disponibles'), undefined);
     assert.ok(
       propiedadRoutes.stack.some((layer) => layer.handle?.name === 'verificarToken'),
       'propiedadRoutes debe aplicar verificarToken',

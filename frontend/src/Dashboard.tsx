@@ -16,7 +16,6 @@ import ReportesAdministradorPanel from './components/reportes/ReportesAdministra
 import AsistentePanel from './components/asistente/AsistentePanel';
 import PerfilPanel from './components/profile/PerfilPanel';
 import AgrupamientosPanel from './components/agrupamientos/AgrupamientosPanel';
-import DisponibilidadPanel from './components/propiedades/DisponibilidadPanel';
 import type {
   FiltroCobros,
   FiltroContratos,
@@ -101,12 +100,10 @@ export default function Dashboard() {
           />
         );
       case 'agrupamientos':
-        if (!roles.esPropietario) return null;
+        if (!roles.esPropietario || roles.esAdministrador) return null;
         return (
           <AgrupamientosPanel
             token={token}
-            esAdmin={roles.esAdministrador}
-            esPropietario={roles.esPropietario}
           />
         );
       case 'contratos':
@@ -170,7 +167,7 @@ export default function Dashboard() {
           />
         );
       case 'reclamos':
-        if (!roles.esPropietario && !roles.esInquilino) return null;
+        if (!roles.esPropietario && !roles.esInquilino && !roles.esAdministrador) return null;
         return (
           <ReclamosPanel
             token={token}
@@ -185,8 +182,6 @@ export default function Dashboard() {
       case 'historial':
         if (roles.esAdministrador) return null;
         return <HistorialPanel token={token} roles={roles} idAgrupamiento={idAgrupamiento} />;
-      case 'disponibilidad':
-        return <DisponibilidadPanel token={token} />;
       case 'usuarios':
         return (
           <UsuariosPanel

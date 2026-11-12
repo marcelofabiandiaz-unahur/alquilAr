@@ -13,7 +13,7 @@ const cloudinaryConfig = require('../config/cloudinary');
 const { parsePropiedadImageUrl } = require('../utils/cloudinaryAssets');
 const {
   buscarAgrupamientosVisibles,
-  puedeGestionarAgrupamiento,
+  esGestor,
   obtenerAgrupamientoVisible,
 } = require('../utils/agrupamientoHelpers');
 
@@ -105,24 +105,6 @@ const validarServicios = (servicios) => {
   return null;
 };
 
-const validarAdministrador = async (idAdministrador, res) => {
-  if (!esObjectIdValido(String(idAdministrador))) {
-    responder(res, 400, null, 'id_administrador inválido.');
-    return null;
-  }
-  const usuario = await Usuario.findById(idAdministrador);
-  if (!usuario) {
-    responder(res, 404, null, 'Administrador no encontrado.');
-    return null;
-  }
-  const roles = Array.isArray(usuario.roles) ? usuario.roles : [];
-  if (!roles.includes('ADMINISTRADOR') && !roles.includes('PROPIETARIO')) {
-    responder(res, 400, null, 'id_administrador debe tener rol ADMINISTRADOR o PROPIETARIO.');
-    return null;
-  }
-  return usuario;
-};
-
 const construirFiltroListado = async (query, usuario) => {
   const { filtro: filtroVisibilidad, error } = await buscarAgrupamientosVisibles(usuario);
   if (error) return { filtro: null, error };
@@ -185,8 +167,21 @@ const construirFiltroListado = async (query, usuario) => {
   };
 };
 
+const puedeGestionarComoPropietario = (agrupamiento, usuario) => {
+  const { id, roles } = obtenerIdentidad(usuario);
+  return Boolean(
+    id
+    && esPropietario(roles)
+    && !esAdministrador(roles)
+    && esGestor(agrupamiento, id),
+  );
+};
+
 const listarAgrupamientos = async (req, res) => {
   try {
+    if (esAdministrador(obtenerIdentidad(req.usuario).roles)) {
+      return responder(res, 403, null, 'Los administradores no pueden acceder a la pantalla de agrupamientos.');
+    }
     const { filtro, error } = await construirFiltroListado(req.query || {}, req.usuario);
     if (error) return responder(res, error.status, null, error.mensaje);
 
@@ -203,6 +198,9 @@ const listarAgrupamientos = async (req, res) => {
 
 const obtenerAgrupamiento = async (req, res) => {
   if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
+  if (esAdministrador(obtenerIdentidad(req.usuario).roles)) {
+    return responder(res, 403, null, 'Los administradores no pueden acceder a la pantalla de agrupamientos.');
+  }
 
   try {
     const { agrupamiento, error } = await obtenerAgrupamientoVisible(req.params.id, req.usuario);
@@ -221,8 +219,8 @@ const obtenerAgrupamiento = async (req, res) => {
 const crearAgrupamiento = async (req, res) => {
   try {
     const { id: usuarioId, roles } = obtenerIdentidad(req.usuario);
-    if (!esAdministrador(roles) && !esPropietario(roles)) {
-      return responder(res, 403, null, 'Solo un administrador o propietario puede crear agrupamientos.');
+    if (!esPropietario(roles) || esAdministrador(roles)) {
+      return responder(res, 403, null, 'Solo un propietario puede crear agrupamientos.');
     }
 
     const body = req.body || {};
@@ -244,13 +242,6 @@ const crearAgrupamiento = async (req, res) => {
     const errorServicios = validarServicios(body.servicios);
     if (errorServicios) return responder(res, 400, null, errorServicios);
 
-    let idAdministrador = usuarioId;
-    if (esAdministrador(roles) && body.id_administrador) {
-      const administrador = await validarAdministrador(body.id_administrador, res);
-      if (!administrador) return undefined;
-      idAdministrador = administrador._id;
-    }
-
     const agrupamiento = new Agrupamiento({
       nombre,
       tipo,
@@ -258,7 +249,7 @@ const crearAgrupamiento = async (req, res) => {
       direccion: normalizarDireccion(body.direccion),
       descripcion: texto(body.descripcion),
       fotos: body.fotos || [],
-      id_administrador: idAdministrador,
+      id_administrador: usuarioId,
       gestores: Array.isArray(body.gestores) ? body.gestores : [],
       contacto: normalizarContacto(body.contacto),
       servicios: Array.isArray(body.servicios) ? body.servicios : [],
@@ -280,13 +271,11 @@ const actualizarAgrupamiento = async (req, res) => {
   try {
     const agrupamiento = await Agrupamiento.findById(req.params.id);
     if (!agrupamiento) return responder(res, 404, null, 'Agrupamiento no encontrado.');
-    if (!puedeGestionarAgrupamiento(agrupamiento, req.usuario)) {
+    if (!puedeGestionarComoPropietario(agrupamiento, req.usuario)) {
       return responder(res, 403, null, 'No tenés permiso para modificar este agrupamiento.');
     }
 
     const body = req.body || {};
-    const { roles } = obtenerIdentidad(req.usuario);
-
     if (body.nombre !== undefined) {
       const nombre = texto(body.nombre);
       if (!nombre) return responder(res, 400, null, 'nombre no puede estar vacío.');
@@ -352,15 +341,6 @@ const actualizarAgrupamiento = async (req, res) => {
       }
       agrupamiento.configuracion = configuracionNueva;
     }
-    if (body.id_administrador !== undefined) {
-      if (!esAdministrador(roles)) {
-        return responder(res, 403, null, 'Solo un administrador puede cambiar el administrador del agrupamiento.');
-      }
-      const administrador = await validarAdministrador(body.id_administrador, res);
-      if (!administrador) return undefined;
-      agrupamiento.id_administrador = administrador._id;
-    }
-
     await agrupamiento.save();
     const advertencias = [];
     for (const url of fotosEliminadas) {
@@ -408,13 +388,11 @@ const eliminarAgrupamiento = async (req, res) => {
   if (!esObjectIdValido(req.params.id)) return responder(res, 400, null, 'ID inválido.');
 
   try {
-    const { roles } = obtenerIdentidad(req.usuario);
-    if (!esAdministrador(roles)) {
-      return responder(res, 403, null, 'Solo un administrador puede dar de baja agrupamientos.');
-    }
-
     const agrupamiento = await Agrupamiento.findById(req.params.id);
     if (!agrupamiento) return responder(res, 404, null, 'Agrupamiento no encontrado.');
+    if (!puedeGestionarComoPropietario(agrupamiento, req.usuario)) {
+      return responder(res, 403, null, 'No tenés permiso para dar de baja este agrupamiento.');
+    }
 
     const propiedadesActivas = await Propiedad.countDocuments({
       id_agrupamiento: agrupamiento._id,

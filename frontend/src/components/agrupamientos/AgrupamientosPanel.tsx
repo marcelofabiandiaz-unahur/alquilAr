@@ -50,7 +50,6 @@ interface AgrupamientoForm {
   provincia: string;
   codigoPostal: string;
   descripcion: string;
-  idAdministrador: string;
   gestores: string[];
   contactoNombre: string;
   contactoTelefono: string;
@@ -70,7 +69,6 @@ const FORM_VACIO: AgrupamientoForm = {
   provincia: '',
   codigoPostal: '',
   descripcion: '',
-  idAdministrador: '',
   gestores: [],
   contactoNombre: '',
   contactoTelefono: '',
@@ -100,14 +98,10 @@ function gestorDesdeReferencia(referencia: string | Usuario): GestorAsignable {
 
 interface AgrupamientosPanelProps {
   token: string;
-  esAdmin: boolean;
-  esPropietario: boolean;
 }
 
 export default function AgrupamientosPanel({
   token,
-  esAdmin,
-  esPropietario,
 }: AgrupamientosPanelProps) {
   const [agrupamientos, setAgrupamientos] = useState<Agrupamiento[]>([]);
   const [gestoresSeleccionados, setGestoresSeleccionados] = useState<GestorAsignable[]>([]);
@@ -123,8 +117,6 @@ export default function AgrupamientosPanel({
   const [form, setForm] = useState<AgrupamientoForm>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [accionId, setAccionId] = useState('');
-
-  const puedeGestionar = esAdmin || esPropietario;
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -208,7 +200,6 @@ export default function AgrupamientosPanel({
       provincia: agrupamiento.direccion?.provincia || '',
       codigoPostal: agrupamiento.direccion?.codigo_postal || '',
       descripcion: agrupamiento.descripcion || '',
-      idAdministrador: obtenerIdAgrupamiento(agrupamiento.id_administrador),
       gestores: (agrupamiento.gestores || [])
         .map((gestor) => obtenerIdAgrupamiento(gestor))
         .filter(Boolean),
@@ -255,10 +246,6 @@ export default function AgrupamientosPanel({
           moneda: form.moneda.trim() || 'ARS',
         },
       };
-      if (esAdmin && form.idAdministrador.trim()) {
-        body.id_administrador = form.idAdministrador.trim();
-      }
-
       if (editando) {
         const actualizado = await apiPut<Agrupamiento & { advertencias?: string[] }>(
           `/api/agrupamientos/${editando._id}`,
@@ -320,11 +307,9 @@ export default function AgrupamientosPanel({
         title="Agrupamientos"
         subtitle="Edificios, complejos y consorcios que agrupan unidades"
         action={
-          puedeGestionar && (
-            <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>
-              + Nuevo agrupamiento
-            </button>
-          )
+        <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>
+          + Nuevo agrupamiento
+        </button>
         }
       />
 
@@ -337,11 +322,11 @@ export default function AgrupamientosPanel({
         <EmptyState
           title="Sin agrupamientos"
           description="Creá un agrupamiento para organizar varias unidades bajo una misma administración."
-          action={puedeGestionar && (
+          action={
             <button type="button" onClick={abrirNuevo} className={btnPrimaryClass}>
               + Nuevo agrupamiento
             </button>
-          )}
+          }
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -366,7 +351,7 @@ export default function AgrupamientosPanel({
 
               <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <dt className="text-slate-400">Administrador</dt>
+                  <dt className="text-slate-400">Propietario responsable</dt>
                   <dd className="mt-0.5 font-medium text-slate-700">
                     {nombreReferencia(agrupamiento.id_administrador)}
                   </dd>
@@ -403,23 +388,21 @@ export default function AgrupamientosPanel({
                 </div>
               </dl>
 
-              {puedeGestionar && (
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                  <button type="button" onClick={() => abrirEdicion(agrupamiento)} className={btnSecondaryClass}>
-                    Editar
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                <button type="button" onClick={() => abrirEdicion(agrupamiento)} className={btnSecondaryClass}>
+                  Editar
+                </button>
+                {agrupamiento.estado === 'ACTIVO' && (
+                  <button
+                    type="button"
+                    disabled={accionId === agrupamiento._id}
+                    onClick={() => void darBaja(agrupamiento)}
+                    className="text-xs px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-medium disabled:opacity-50"
+                  >
+                    {accionId === agrupamiento._id ? 'Dando de baja...' : 'Dar de baja'}
                   </button>
-                  {esAdmin && agrupamiento.estado === 'ACTIVO' && (
-                    <button
-                      type="button"
-                      disabled={accionId === agrupamiento._id}
-                      onClick={() => void darBaja(agrupamiento)}
-                      className="text-xs px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-medium disabled:opacity-50"
-                    >
-                      {accionId === agrupamiento._id ? 'Dando de baja...' : 'Dar de baja'}
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </Card>
           ))}
         </div>
@@ -539,17 +522,6 @@ export default function AgrupamientosPanel({
           />
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {esAdmin && (
-              <div>
-                <label className={labelClass}>ID del administrador (opcional)</label>
-                <input
-                  className={inputClass}
-                  placeholder="ObjectId del usuario administrador"
-                  value={form.idAdministrador}
-                  onChange={(event) => setForm({ ...form, idAdministrador: event.target.value })}
-                />
-              </div>
-            )}
             <div>
               <label className={labelClass}>Gestores propietarios</label>
               <input
