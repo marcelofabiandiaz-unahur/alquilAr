@@ -8,9 +8,11 @@ const {
   loginUsuario,
   obtenerMiPerfil,
   actualizarMiPerfil,
+  listarGestoresAsignables,
   obtenerSolicitudPropietario,
   solicitarRolPropietario,
   aprobarSolicitudPropietario,
+  actualizarEstadoUsuario,
 } = require('../../src/controllers/authController');
 const { mockRes } = require('../helpers/mockRes');
 const { usuarioId, inquilinoId } = require('../helpers/fixtures/ids');
@@ -18,17 +20,23 @@ const { usuarioId, inquilinoId } = require('../helpers/fixtures/ids');
 describe('authController', () => {
   let origFindById;
   let origFindOne;
+  let origFind;
+  let origCountDocuments;
   let origSave;
 
   beforeEach(() => {
     origFindById = Usuario.findById;
     origFindOne = Usuario.findOne;
+    origFind = Usuario.find;
+    origCountDocuments = Usuario.countDocuments;
     origSave = Usuario.prototype.save;
   });
 
   afterEach(() => {
     Usuario.findById = origFindById;
     Usuario.findOne = origFindOne;
+    Usuario.find = origFind;
+    Usuario.countDocuments = origCountDocuments;
     Usuario.prototype.save = origSave;
   });
 
@@ -151,6 +159,30 @@ describe('authController', () => {
         email: 'santiago@alquilar.com',
         roles: ['ADMINISTRADOR'],
       }),
+    });
+
+    it('lista solo datos básicos de propietarios activos para asignarlos como gestores', async () => {
+      let filtro;
+      let proyeccion;
+      Usuario.find = (consulta) => {
+        filtro = consulta;
+        return {
+          select(campos) {
+            proyeccion = campos;
+            return this;
+          },
+          sort: async () => [{ _id: usuarioId, nombre: 'Ana', apellido: 'Propietaria', email: 'ana@example.com' }],
+        };
+      };
+
+      const res = mockRes();
+      await listarGestoresAsignables({}, res);
+
+      assert.deepEqual(filtro, { roles: 'PROPIETARIO', estado: 'ACTIVO' });
+      assert.equal(proyeccion, '_id nombre apellido email');
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body[0].email, 'ana@example.com');
+      assert.equal('password' in res.body[0], false);
     });
 
     const req = { usuario: { _id: usuarioId } };
@@ -356,6 +388,7 @@ describe('authController', () => {
 
     assert.equal(res.statusCode, 200);
     assert.ok(usuario.roles.includes('PROPIETARIO'));
+    assert.ok(!usuario.roles.includes('USUARIO'));
     assert.equal(usuario.cbu_alias, 'mi.alias');
     assert.equal(usuario.cuit_cuil, '20123456789');
     assert.equal(usuario.solicitud_propietario.estado, 'APROBADA');
@@ -422,7 +455,7 @@ describe('authController', () => {
     const res = mockRes();
     await agregarRolesUsuario(req, res);
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(usuario.roles, ['USUARIO', 'INQUILINO']);
+    assert.deepEqual(usuario.roles, ['INQUILINO']);
   });
 
   it('agregarRolesUsuario agrega PROPIETARIO', async () => {
@@ -440,6 +473,8 @@ describe('authController', () => {
     await agregarRolesUsuario(req, res);
     assert.equal(res.statusCode, 200);
     assert.ok(usuario.roles.includes('PROPIETARIO'));
+    assert.ok(usuario.roles.includes('INQUILINO'));
+    assert.ok(!usuario.roles.includes('USUARIO'));
   });
 
   it('agregarRolesUsuario no duplica rol existente', async () => {
@@ -459,6 +494,62 @@ describe('authController', () => {
 
     assert.equal(res.statusCode, 200);
     assert.equal(usuario.roles.filter((r) => r === 'INQUILINO').length, 1);
+  });
+
+  it('actualizarEstadoUsuario permite activar y desactivar usuarios', async () => {
+    const usuario = {
+      _id: inquilinoId,
+      estado: 'ACTIVO',
+      roles: ['INQUILINO'],
+      save: async () => {},
+      toObject() {
+        return { _id: this._id, estado: this.estado, roles: this.roles };
+      },
+    };
+    Usuario.findById = async () => usuario;
+    const res = mockRes();
+
+    await actualizarEstadoUsuario({
+      params: { id: inquilinoId },
+      body: { estado: 'INACTIVO' },
+      usuario: { id: usuarioId },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(usuario.estado, 'INACTIVO');
+  });
+
+  it('actualizarEstadoUsuario rechaza valores de estado inválidos', async () => {
+    const res = mockRes();
+    await actualizarEstadoUsuario({
+      params: { id: inquilinoId },
+      body: { estado: 'PENDIENTE' },
+      usuario: { id: usuarioId },
+    }, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.mensaje, /ACTIVO o INACTIVO/);
+  });
+
+  it('actualizarEstadoUsuario impide desactivar el último administrador activo', async () => {
+    const usuario = {
+      _id: inquilinoId,
+      estado: 'ACTIVO',
+      roles: ['ADMINISTRADOR'],
+      save: async () => assert.fail('No debe guardar el usuario'),
+    };
+    Usuario.findById = async () => usuario;
+    Usuario.countDocuments = async () => 1;
+    const res = mockRes();
+
+    await actualizarEstadoUsuario({
+      params: { id: inquilinoId },
+      body: { estado: 'INACTIVO' },
+      usuario: { id: usuarioId },
+    }, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.mensaje, /último administrador/);
   });
 
   it('loginUsuario valida el correo antes de consultar la base de datos', async () => {

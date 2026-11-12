@@ -7,6 +7,8 @@ import EmptyState from '../ui/EmptyState';
 import LoadingRow from '../ui/LoadingRow';
 import Modal from '../ui/Modal';
 import StatBadge from '../ui/StatBadge';
+import PhotoDropzone from '../propiedades/PhotoDropzone';
+import PropertyPhotoCarousel from '../propiedades/PropertyPhotoCarousel';
 import {
   inputClass,
   labelClass,
@@ -37,7 +39,7 @@ const TIPOS: TipoAgrupamiento[] = [
 ];
 
 interface AgrupamientoForm {
-  codigo: string;
+  fotos: string[];
   nombre: string;
   tipo: TipoAgrupamiento;
   estado: EstadoAgrupamiento;
@@ -48,17 +50,16 @@ interface AgrupamientoForm {
   codigoPostal: string;
   descripcion: string;
   idAdministrador: string;
-  gestores: string;
+  gestores: string[];
   contactoNombre: string;
   contactoTelefono: string;
   contactoEmail: string;
   servicios: string;
   moneda: string;
-  diaVencimiento: string;
 }
 
 const FORM_VACIO: AgrupamientoForm = {
-  codigo: '',
+  fotos: [],
   nombre: '',
   tipo: 'EDIFICIO',
   estado: 'ACTIVO',
@@ -69,14 +70,20 @@ const FORM_VACIO: AgrupamientoForm = {
   codigoPostal: '',
   descripcion: '',
   idAdministrador: '',
-  gestores: '',
+  gestores: [],
   contactoNombre: '',
   contactoTelefono: '',
   contactoEmail: '',
   servicios: '',
   moneda: 'ARS',
-  diaVencimiento: '10',
 };
+
+interface GestorAsignable {
+  _id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+}
 
 interface AgrupamientosPanelProps {
   token: string;
@@ -90,6 +97,8 @@ export default function AgrupamientosPanel({
   esPropietario,
 }: AgrupamientosPanelProps) {
   const [agrupamientos, setAgrupamientos] = useState<Agrupamiento[]>([]);
+  const [gestoresDisponibles, setGestoresDisponibles] = useState<GestorAsignable[]>([]);
+  const [cargandoGestores, setCargandoGestores] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -115,6 +124,20 @@ export default function AgrupamientosPanel({
     }
   }, [token]);
 
+  const cargarGestores = useCallback(async () => {
+    setCargandoGestores(true);
+    try {
+      const data = await apiGet<GestorAsignable[]>('/api/usuarios/gestores-disponibles', token);
+      if (!Array.isArray(data)) throw new Error('Respuesta inválida al consultar propietarios.');
+      setGestoresDisponibles(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los propietarios.');
+      setGestoresDisponibles([]);
+    } finally {
+      setCargandoGestores(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     const timer = setTimeout(() => void cargar(), 0);
     return () => clearTimeout(timer);
@@ -124,12 +147,13 @@ export default function AgrupamientosPanel({
     setEditando(null);
     setForm(FORM_VACIO);
     setModalAbierto(true);
+    void cargarGestores();
   };
 
   const abrirEdicion = (agrupamiento: Agrupamiento) => {
     setEditando(agrupamiento);
     setForm({
-      codigo: agrupamiento.codigo || '',
+      fotos: Array.isArray(agrupamiento.fotos) ? [...agrupamiento.fotos] : [],
       nombre: agrupamiento.nombre || '',
       tipo: agrupamiento.tipo,
       estado: agrupamiento.estado,
@@ -142,16 +166,15 @@ export default function AgrupamientosPanel({
       idAdministrador: obtenerIdAgrupamiento(agrupamiento.id_administrador),
       gestores: (agrupamiento.gestores || [])
         .map((gestor) => obtenerIdAgrupamiento(gestor))
-        .filter(Boolean)
-        .join(', '),
+        .filter(Boolean),
       contactoNombre: agrupamiento.contacto?.nombre || '',
       contactoTelefono: agrupamiento.contacto?.telefono || '',
       contactoEmail: agrupamiento.contacto?.email || '',
       servicios: (agrupamiento.servicios || []).join(', '),
       moneda: agrupamiento.configuracion?.moneda || 'ARS',
-      diaVencimiento: String(agrupamiento.configuracion?.dia_vencimiento_default ?? 10),
     });
     setModalAbierto(true);
+    void cargarGestores();
   };
 
   const guardar = async (event: FormEvent<HTMLFormElement>) => {
@@ -161,7 +184,6 @@ export default function AgrupamientosPanel({
     setInfo('');
     try {
       const body: Record<string, unknown> = {
-        codigo: form.codigo.trim(),
         nombre: form.nombre.trim(),
         tipo: form.tipo,
         estado: form.estado,
@@ -173,7 +195,8 @@ export default function AgrupamientosPanel({
           codigo_postal: form.codigoPostal.trim(),
         },
         descripcion: form.descripcion.trim(),
-        gestores: form.gestores.split(',').map((gestor) => gestor.trim()).filter(Boolean),
+        fotos: form.fotos,
+        gestores: form.gestores,
         contacto: {
           nombre: form.contactoNombre.trim(),
           telefono: form.contactoTelefono.trim(),
@@ -182,7 +205,6 @@ export default function AgrupamientosPanel({
         servicios: form.servicios.split(',').map((servicio) => servicio.trim()).filter(Boolean),
         configuracion: {
           moneda: form.moneda.trim() || 'ARS',
-          dia_vencimiento_default: Number(form.diaVencimiento),
         },
       };
       if (esAdmin && form.idAdministrador.trim()) {
@@ -190,8 +212,12 @@ export default function AgrupamientosPanel({
       }
 
       if (editando) {
-        await apiPut(`/api/agrupamientos/${editando._id}`, token, body);
-        setInfo('Agrupamiento actualizado.');
+        const actualizado = await apiPut<Agrupamiento & { advertencias?: string[] }>(
+          `/api/agrupamientos/${editando._id}`,
+          token,
+          body,
+        );
+        setInfo(['Agrupamiento actualizado.', ...(actualizado.advertencias || [])].join(' '));
       } else {
         await apiPost('/api/agrupamientos', token, body);
         setInfo('Agrupamiento creado.');
@@ -256,12 +282,10 @@ export default function AgrupamientosPanel({
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {agrupamientos.map((agrupamiento) => (
             <Card key={agrupamiento._id} className="p-5">
+              <PropertyPhotoCarousel fotos={agrupamiento.fotos || []} alt={agrupamiento.nombre} />
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500">
-                    {agrupamiento.codigo}
-                  </p>
-                  <h3 className="mt-1 text-base font-bold text-[var(--brand-navy)]">
+                  <h3 className="text-base font-bold text-[var(--brand-navy)]">
                     {agrupamiento.nombre}
                   </h3>
                   <p className="mt-1 text-xs text-slate-500">
@@ -299,10 +323,8 @@ export default function AgrupamientosPanel({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-400">Vencimiento</dt>
+                  <dt className="text-slate-400">Moneda</dt>
                   <dd className="mt-0.5 font-medium text-slate-700">
-                    Día {agrupamiento.configuracion?.dia_vencimiento_default ?? 10}
-                    {' · '}
                     {agrupamiento.configuracion?.moneda || 'ARS'}
                   </dd>
                 </div>
@@ -345,28 +367,15 @@ export default function AgrupamientosPanel({
         wide
       >
         <form onSubmit={guardar} className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className={labelClass}>Código</label>
-              <input
-                required
-                maxLength={20}
-                className={inputClass}
-                placeholder="EDF-PALERMO-01"
-                value={form.codigo}
-                onChange={(event) => setForm({ ...form, codigo: event.target.value.toUpperCase() })}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Nombre</label>
-              <input
-                required
-                maxLength={120}
-                className={inputClass}
-                value={form.nombre}
-                onChange={(event) => setForm({ ...form, nombre: event.target.value })}
-              />
-            </div>
+          <div>
+            <label className={labelClass}>Nombre</label>
+            <input
+              required
+              maxLength={120}
+              className={inputClass}
+              value={form.nombre}
+              onChange={(event) => setForm({ ...form, nombre: event.target.value })}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -455,6 +464,15 @@ export default function AgrupamientosPanel({
             />
           </div>
 
+          <PhotoDropzone
+            fotos={form.fotos}
+            onChange={(fotos) => setForm((prev) => ({
+              ...prev,
+              fotos: typeof fotos === 'function' ? fotos(prev.fotos) : fotos,
+            }))}
+            disabled={guardando}
+          />
+
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {esAdmin && (
               <div>
@@ -468,13 +486,41 @@ export default function AgrupamientosPanel({
               </div>
             )}
             <div>
-              <label className={labelClass}>IDs de gestores (separados por coma)</label>
-              <input
+              <label className={labelClass}>Gestores propietarios</label>
+              <select
+                multiple
                 className={inputClass}
-                placeholder="ObjectId1, ObjectId2"
+                size={Math.min(Math.max(gestoresDisponibles.length, 3), 6)}
                 value={form.gestores}
-                onChange={(event) => setForm({ ...form, gestores: event.target.value })}
-              />
+                disabled={cargandoGestores}
+                onChange={(event) => setForm({
+                  ...form,
+                  gestores: Array.from(event.target.selectedOptions, (option) => option.value),
+                })}
+              >
+                {form.gestores
+                  .filter((id) => !gestoresDisponibles.some((gestor) => gestor._id === id))
+                  .map((id) => {
+                    const actual = (editando?.gestores || []).find(
+                      (gestor) => obtenerIdAgrupamiento(gestor) === id,
+                    );
+                    return (
+                      <option key={id} value={id}>
+                        {actual && typeof actual === 'object'
+                          ? `${actual.nombre || ''} ${actual.apellido || ''}`.trim() || 'Propietario asignado'
+                          : 'Propietario asignado'}
+                      </option>
+                    );
+                  })}
+                {gestoresDisponibles.map((gestor) => (
+                  <option key={gestor._id} value={gestor._id}>
+                    {`${gestor.nombre} ${gestor.apellido}`.trim()} ({gestor.email})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Solo se pueden asignar usuarios activos con rol propietario.
+              </p>
             </div>
           </div>
 
@@ -523,17 +569,6 @@ export default function AgrupamientosPanel({
                 className={inputClass}
                 value={form.moneda}
                 onChange={(event) => setForm({ ...form, moneda: event.target.value })}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Día de vencimiento (1-28)</label>
-              <input
-                type="number"
-                min="1"
-                max="28"
-                className={inputClass}
-                value={form.diaVencimiento}
-                onChange={(event) => setForm({ ...form, diaVencimiento: event.target.value })}
               />
             </div>
           </div>

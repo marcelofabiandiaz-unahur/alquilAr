@@ -14,7 +14,7 @@ import {
   labelClass,
 } from '../layout/dashboardStyles';
 import type { ChangeEvent, FormEvent } from 'react';
-import type { Contrato, Propiedad } from '../../types';
+import type { Contrato, FiltroContratos, Propiedad } from '../../types';
 import { conAgrupamiento } from '../../lib/agrupamientos';
 
 interface ContratoFormState {
@@ -71,6 +71,23 @@ function fechaContrato(fecha?: string): string {
   return new Intl.DateTimeFormat('es-AR').format(new Date(anio, mes - 1, dia));
 }
 
+function progresoContrato(contrato: Contrato): number | null {
+  if (!contrato.fecha_inicio || !contrato.fecha_fin) return null;
+  const fechaLocal = (fecha: string) => {
+    const [anio, mes, dia] = fecha.slice(0, 10).split('-').map(Number);
+    if (!anio || !mes || !dia) return null;
+    const resultado = new Date(anio, mes - 1, dia);
+    return Number.isNaN(resultado.getTime()) ? null : resultado;
+  };
+  const inicio = fechaLocal(contrato.fecha_inicio);
+  const fin = fechaLocal(contrato.fecha_fin);
+  if (!inicio || !fin || fin <= inicio) return null;
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.round(Math.min(1, Math.max(0, (hoy.getTime() - inicio.getTime()) / (fin.getTime() - inicio.getTime()))) * 100);
+}
+
 function fechaInput(fecha?: string): string {
   if (!fecha) return '';
   const fechaISO = fecha.slice(0, 10);
@@ -81,14 +98,20 @@ interface ContratosPanelProps {
   token: string;
   esPropietario: boolean;
   esInquilino: boolean;
+  esAdministrador: boolean;
   idAgrupamiento?: string;
+  filtro: FiltroContratos;
+  setFiltro: (filtro: FiltroContratos) => void;
 }
 
 export default function ContratosPanel({
   token,
   esPropietario,
   esInquilino,
+  esAdministrador,
   idAgrupamiento = '',
+  filtro,
+  setFiltro,
 }: ContratosPanelProps) {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
@@ -103,9 +126,12 @@ export default function ContratosPanel({
   const [errorEdicion, setErrorEdicion] = useState('');
   const [contratoEnEdicion, setContratoEnEdicion] = useState<Contrato | null>(null);
   const [accionId, setAccionId] = useState<string | null>(null);
+  const [contratosSeleccionados, setContratosSeleccionados] = useState<string[]>([]);
+  const [procesandoLote, setProcesandoLote] = useState(false);
   const [contratoSeleccionado, setContratoSeleccionado] = useState<Contrato | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState('');
+  const [resultadoActivacion, setResultadoActivacion] = useState('');
   const [reciboAbierto, setReciboAbierto] = useState(false);
   const [reciboPreviewUrl, setReciboPreviewUrl] = useState<string | null>(null);
   const [cargandoRecibo, setCargandoRecibo] = useState(false);
@@ -116,7 +142,9 @@ export default function ContratosPanel({
     ? 'Contratos (propietario e inquilino)'
     : esPropietario
       ? 'Contratos de mis propiedades'
-      : 'Mis Contratos';
+      : esAdministrador
+        ? 'Contratos por activar'
+        : 'Mis Contratos';
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -157,9 +185,11 @@ export default function ContratosPanel({
   }, [cargar, cargarPropiedades]);
 
   const abrirNuevo = () => {
+    const propiedadSugerida = propiedades[0];
     setForm({
       ...FORM_VACIO,
-      id_propiedad: propiedades[0]?._id || '',
+      id_propiedad: propiedadSugerida?._id || '',
+      monto_mensual: propiedadSugerida ? String(propiedadSugerida.valor_base) : '',
       fecha_inicio: new Date().toISOString().slice(0, 10),
     });
     setModalAbierto(true);
@@ -284,6 +314,45 @@ export default function ContratosPanel({
   const activar = (id: string) =>
     conAccion(id, () => apiPut(`/api/contratos/${id}`, token, { estado: 'VIGENTE' }));
 
+  const contratosBorradorAdmin = contratos.filter((contrato) => contrato.estado === 'BORRADOR');
+  const alternarSeleccionContrato = (id: string) => {
+    setContratosSeleccionados((actuales) => actuales.includes(id)
+      ? actuales.filter((seleccionado) => seleccionado !== id)
+      : [...actuales, id]);
+  };
+  const seleccionarTodosListos = () => {
+    setContratosSeleccionados(contratosListosAdmin.map((contrato) => contrato._id));
+  };
+  const activarContratosAdmin = async (ids: string[]) => {
+    if (ids.length === 0 || procesandoLote) return;
+    setProcesandoLote(true);
+    setResultadoActivacion('');
+    setError('');
+    const activados: string[] = [];
+    const fallidos: string[] = [];
+    for (const id of ids) {
+      const contrato = contratosBorradorAdmin.find((item) => item._id === id);
+      const etiqueta = contrato
+        ? `${direccionPropiedad(contrato)} — ${obtenerNombreInquilino(contrato)}`
+        : id;
+      try {
+        await apiPut(`/api/contratos/${id}`, token, { estado: 'VIGENTE' });
+        activados.push(etiqueta);
+      } catch (err) {
+        fallidos.push(`${etiqueta}: ${err instanceof Error ? err.message : 'No se pudo activar.'}`);
+      }
+    }
+    setContratosSeleccionados([]);
+    await cargar();
+    setProcesandoLote(false);
+    if (activados.length > 0) {
+      setResultadoActivacion(`Contratos activados: ${activados.length}. Se asignó el rol INQUILINO automáticamente cuando faltaba.`);
+    }
+    if (fallidos.length > 0) {
+      setError(`No se pudieron activar ${fallidos.length} contratos: ${fallidos.join(' · ')}`);
+    }
+  };
+
   const finalizar = (id: string) =>
     conAccion(id, () => apiPatch(`/api/contratos/${id}/finalizar`, token, {}));
 
@@ -293,8 +362,8 @@ export default function ContratosPanel({
   };
 
   const columnas = esPropietario
-    ? ['Propiedad', 'Inquilino', 'Monto', 'Venc.', 'Estado', 'Acciones']
-    : ['Propiedad', 'Monto', 'Venc.', 'Estado'];
+    ? ['Propiedad', 'Inquilino', 'Progreso', 'Monto', 'Venc.', 'Estado', 'Acciones']
+    : ['Propiedad', ...(esInquilino ? ['Progreso'] : []), 'Monto', 'Venc.', 'Estado'];
 
   const abrirDetalle = async (contrato: Contrato) => {
     setContratoSeleccionado(contrato);
@@ -357,6 +426,139 @@ export default function ContratosPanel({
   const otrosContratos = contratos.filter(
     (contrato) => contrato.estado !== 'VIGENTE' && contrato.estado !== 'FINALIZADO',
   );
+  const contratosPorVencer = contratosVigentes.filter((contrato) => {
+    if (!contrato.fecha_fin) return false;
+    const [anio, mes, dia] = contrato.fecha_fin.slice(0, 10).split('-').map(Number);
+    if (!anio || !mes || !dia) return false;
+    const fechaFin = new Date(anio, mes - 1, dia);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const limite = new Date(hoy);
+    limite.setDate(limite.getDate() + 30);
+    return fechaFin >= hoy && fechaFin <= limite;
+  });
+  const idsContratosVigentes = new Set(
+    contratosVigentes.map((contrato) => {
+      const propiedad = contrato.id_propiedad;
+      return typeof propiedad === 'string' ? propiedad : propiedad?._id;
+    }).filter((id): id is string => Boolean(id)),
+  );
+  const contratosListosAdmin = contratosBorradorAdmin.filter((contrato) => {
+    const propiedad = contrato.id_propiedad;
+    return typeof propiedad === 'object'
+      && Boolean(propiedad._id)
+      && ['DISPONIBLE', 'EN_MANTENIMIENTO'].includes(propiedad.estado || '')
+      && !idsContratosVigentes.has(propiedad._id);
+  });
+
+  if (esAdministrador) {
+    const seleccionadosListos = contratosSeleccionados.filter(
+      (id) => contratosListosAdmin.some((contrato) => contrato._id === id),
+    );
+    return (
+      <div className="space-y-4">
+        <PageHeader
+          title={titulo}
+          subtitle="Revisá los contratos en borrador y activá uno o varios. Si falta, el rol INQUILINO se asigna al activar."
+        />
+        {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
+        {resultadoActivacion && (
+          <Alert theme="light" type="success" onClose={() => setResultadoActivacion('')}>
+            {resultadoActivacion}
+          </Alert>
+        )}
+        {cargando ? (
+          <LoadingRow label="Cargando contratos por activar..." />
+        ) : contratosBorradorAdmin.length === 0 ? (
+          <EmptyState
+            title="No hay contratos por activar"
+            description="Los contratos nuevos en borrador aparecerán en esta lista."
+          />
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-600">
+                {contratosBorradorAdmin.length} borradores · {contratosListosAdmin.length} con propiedad apta para activar
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={procesandoLote || contratosListosAdmin.length === 0}
+                  onClick={seleccionarTodosListos}
+                  className={`px-3 py-2 text-sm ${btnVioletOutlineClass}`}
+                >
+                  Seleccionar disponibles
+                </button>
+                <button
+                  type="button"
+                  disabled={procesandoLote || seleccionadosListos.length === 0}
+                  onClick={() => {
+                    if (window.confirm(`¿Activar ${seleccionadosListos.length} contratos seleccionados?`)) {
+                      void activarContratosAdmin(seleccionadosListos);
+                    }
+                  }}
+                  className={`px-3 py-2 text-sm ${btnGreenOutlineClass}`}
+                >
+                  {procesandoLote ? 'Activando...' : `Activar seleccionados (${seleccionadosListos.length})`}
+                </button>
+                <button
+                  type="button"
+                  disabled={procesandoLote || contratosListosAdmin.length === 0}
+                  onClick={() => {
+                    if (window.confirm(`¿Activar todos los ${contratosListosAdmin.length} contratos con propiedad apta?`)) {
+                      void activarContratosAdmin(contratosListosAdmin.map((contrato) => contrato._id));
+                    }
+                  }}
+                  className={`px-3 py-2 text-sm ${btnGreenOutlineClass}`}
+                >
+                  Activar todos los aptos
+                </button>
+              </div>
+            </div>
+            <DataTable
+              columns={['Seleccionar', 'Propiedad', 'Inquilino', 'Inicio', 'Fin', 'Monto mensual', 'Estado de activación']}
+              rows={contratosBorradorAdmin}
+              renderRow={(contrato) => {
+                const propiedad = contrato.id_propiedad;
+                const propiedadId = typeof propiedad === 'string' ? propiedad : propiedad?._id;
+                const propiedadDisponible = typeof propiedad === 'object'
+                  && ['DISPONIBLE', 'EN_MANTENIMIENTO'].includes(propiedad.estado || '');
+                const tieneVigente = Boolean(propiedadId && idsContratosVigentes.has(propiedadId));
+                const listo = contratosListosAdmin.some((item) => item._id === contrato._id);
+                return (
+                  <tr key={contrato._id} className="hover:bg-slate-50">
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        aria-label={`Seleccionar contrato de ${direccionPropiedad(contrato)}`}
+                        checked={contratosSeleccionados.includes(contrato._id)}
+                        disabled={!listo || procesandoLote}
+                        onChange={() => alternarSeleccionContrato(contrato._id)}
+                        className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                      />
+                    </td>
+                    <td className="p-4 font-medium text-slate-800">{direccionPropiedad(contrato)}</td>
+                    <td className="p-4 text-slate-600">
+                      {obtenerNombreInquilino(contrato)}
+                      {typeof contrato.id_inquilino === 'object' && contrato.id_inquilino.email && (
+                        <span className="mt-1 block text-xs text-slate-500">{contrato.id_inquilino.email}</span>
+                      )}
+                    </td>
+                    <td className="p-4">{fechaContrato(contrato.fecha_inicio)}</td>
+                    <td className="p-4">{fechaContrato(contrato.fecha_fin)}</td>
+                    <td className="p-4">{formatMoneda(contrato.monto_mensual)}</td>
+                    <td className="p-4">
+                      {tieneVigente ? 'Ya existe un contrato vigente para esta propiedad' : !propiedadDisponible ? 'La propiedad no está disponible' : 'Listo; el rol de inquilino se asigna si falta'}
+                    </td>
+                  </tr>
+                );
+              }}
+            />
+          </>
+        )}
+      </div>
+    );
+  }
 
   const renderTabla = (filas: Contrato[]) => (
     <DataTable
@@ -383,6 +585,31 @@ export default function ContratosPanel({
               <div className="text-xs text-slate-500">
                 {typeof c.id_inquilino === 'object' ? c.id_inquilino.email : ''}
               </div>
+            </td>
+          )}
+          {(esInquilino || esPropietario) && (
+            <td className="p-4 min-w-40">
+              {c.estado === 'VIGENTE' ? (() => {
+                const progreso = progresoContrato(c);
+                return progreso === null ? (
+                  <span className="text-xs text-slate-500">Fechas no disponibles</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-violet-600 transition-all"
+                        style={{ width: `${progreso}%` }}
+                        role="progressbar"
+                        aria-label={`Plazo transcurrido del contrato: ${progreso}%`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progreso}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500">{progreso}% del plazo</p>
+                  </div>
+                );
+              })() : <span className="text-slate-400">—</span>}
             </td>
           )}
           <td className="p-4">{formatMoneda(c.monto_mensual)}</td>
@@ -487,6 +714,24 @@ export default function ContratosPanel({
         }
       />
 
+      <div className="inline-flex max-w-full flex-wrap rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner" role="group" aria-label="Filtrar contratos">
+        {(['TODOS', 'POR_VENCER'] as FiltroContratos[]).map((opcion) => (
+          <button
+            key={opcion}
+            type="button"
+            aria-pressed={filtro === opcion}
+            onClick={() => setFiltro(opcion)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
+              filtro === opcion
+                ? 'bg-white text-violet-800 shadow-sm ring-1 ring-slate-200/70'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {opcion === 'TODOS' ? 'Todos' : 'Por vencer (30 días)'}
+          </button>
+        ))}
+      </div>
+
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="info" onClose={() => setInfo('')}>{info}</Alert>}
 
@@ -515,9 +760,15 @@ export default function ContratosPanel({
         />
       ) : (
         <div className="space-y-8">
-          {renderSeccion('Contratos vigentes', contratosVigentes)}
-          {renderSeccion('Contratos finalizados', contratosFinalizados)}
-          {otrosContratos.length > 0 && renderSeccion('Borradores y otros estados', otrosContratos)}
+          {filtro === 'POR_VENCER' ? (
+            renderSeccion('Contratos por vencer (próximos 30 días)', contratosPorVencer)
+          ) : (
+            <>
+              {renderSeccion('Contratos vigentes', contratosVigentes)}
+              {renderSeccion('Contratos finalizados', contratosFinalizados)}
+              {otrosContratos.length > 0 && renderSeccion('Borradores y otros estados', otrosContratos)}
+            </>
+          )}
         </div>
       )}
 
@@ -553,8 +804,8 @@ export default function ContratosPanel({
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
               {errorDetalle && <Alert theme="light" onClose={() => setErrorDetalle('')}>{errorDetalle}</Alert>}
               {cargandoDetalle && <LoadingRow label="Cargando información completa del contrato..." />}
-              <div>
-                <p className="mb-2 text-sm font-semibold text-slate-700">Estado</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-semibold text-slate-700">Estado</p>
                 <StatBadge estado={contratoSeleccionado.estado} />
               </div>
               <section>
@@ -794,7 +1045,14 @@ export default function ContratosPanel({
               required
               className={inputClass}
               value={form.id_propiedad}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) => setForm({ ...form, id_propiedad: e.target.value })}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                const propiedadSeleccionada = propiedades.find((propiedad) => propiedad._id === e.target.value);
+                setForm({
+                  ...form,
+                  id_propiedad: e.target.value,
+                  monto_mensual: propiedadSeleccionada ? String(propiedadSeleccionada.valor_base) : '',
+                });
+              }}
             >
               <option value="">Seleccionar...</option>
               {propiedades.map((p) => (
@@ -857,13 +1115,17 @@ export default function ContratosPanel({
           <div>
             <label className={labelClass}>Monto mensual (ARS)</label>
             <input
+              required
               type="number"
               min="0"
-              readOnly
-              aria-readonly="true"
-              className={`${inputClass} cursor-not-allowed bg-slate-50`}
+              step="0.01"
+              className={inputClass}
               value={form.monto_mensual}
+              onChange={(event) => setForm({ ...form, monto_mensual: event.target.value })}
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Valor base sugerido de la propiedad; podés modificarlo según el monto acordado.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

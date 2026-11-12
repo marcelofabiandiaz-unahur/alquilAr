@@ -22,7 +22,9 @@ describe('configuración de permisos', () => {
 
   it('mantiene los permisos críticos en los roles esperados', () => {
     assert.deepEqual(PERMISOS.VER_USUARIOS, [ROLES.ADMINISTRADOR]);
+    assert.deepEqual(PERMISOS.VER_GESTORES_ASIGNABLES, [ROLES.PROPIETARIO, ROLES.ADMINISTRADOR]);
     assert.deepEqual(PERMISOS.GESTIONAR_ROLES, [ROLES.ADMINISTRADOR]);
+    assert.deepEqual(PERMISOS.GESTIONAR_PROPIEDADES, [ROLES.PROPIETARIO]);
     assert.deepEqual(PERMISOS.GESTIONAR_PAGOS, [ROLES.PROPIETARIO, ROLES.ADMINISTRADOR]);
     assert.deepEqual(PERMISOS.SUBIR_COMPROBANTE_PAGO, [ROLES.INQUILINO]);
     assert.deepEqual(PERMISOS.CREAR_RECLAMO, [ROLES.INQUILINO]);

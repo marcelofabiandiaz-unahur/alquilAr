@@ -12,7 +12,12 @@ import ComprobantePagoLink from './ComprobantePagoLink';
 import { btnPrimaryClass, btnGhostClass, inputClass, labelClass } from '../layout/dashboardStyles';
 import { conAgrupamiento } from '../../lib/agrupamientos';
 import type { FormEvent } from 'react';
-import type { Pago } from '../../types';
+import type {
+  Contrato,
+  FiltroContratosPagos,
+  FiltroPagos,
+  Pago,
+} from '../../types';
 
 interface DatosBancariosPropietario {
   cbu_alias?: string;
@@ -35,6 +40,47 @@ function periodoVisible(pago: Pago): string {
   return pago.mes_correspondiente;
 }
 
+function fechaContratoVisible(fecha?: string): string {
+  if (!fecha) return '';
+  const [anio, mes, dia] = fecha.slice(0, 10).split('-').map(Number);
+  if (!anio || !mes || !dia) return '';
+  return new Intl.DateTimeFormat('es-AR').format(new Date(anio, mes - 1, dia));
+}
+
+function identificadorContrato(pago: Pago): { direccion: string; periodo: string } {
+  if (!pago.id_contrato || typeof pago.id_contrato === 'string') {
+    return { direccion: 'Contrato', periodo: '' };
+  }
+  const propiedad = pago.id_contrato.id_propiedad;
+  const direccion = typeof propiedad === 'object' ? propiedad.direccion || 'Contrato' : 'Contrato';
+  const inicio = fechaContratoVisible(pago.id_contrato.fecha_inicio);
+  const fin = fechaContratoVisible(pago.id_contrato.fecha_fin);
+  const periodo = inicio || fin ? `${inicio || '—'} – ${fin || 'Sin fecha de fin'}` : '';
+  return { direccion, periodo };
+}
+
+interface GrupoPagosContrato {
+  contrato: Contrato;
+  pagos: Pago[];
+}
+
+function agruparPagosPorContrato(pagos: Pago[], estado: 'VIGENTE' | 'FINALIZADO'): GrupoPagosContrato[] {
+  const grupos = new Map<string, GrupoPagosContrato>();
+  for (const pago of pagos) {
+    if (!pago.id_contrato || typeof pago.id_contrato === 'string') continue;
+    const contrato = pago.id_contrato;
+    if (contrato.estado !== estado) continue;
+
+    const grupo = grupos.get(contrato._id);
+    if (grupo) {
+      grupo.pagos.push(pago);
+    } else {
+      grupos.set(contrato._id, { contrato, pagos: [pago] });
+    }
+  }
+  return [...grupos.values()];
+}
+
 function obtenerDatosBancarios(pago: Pago): DatosBancariosPropietario | null {
   if (typeof pago.id_contrato !== 'object') return null;
   const propiedad = pago.id_contrato.id_propiedad;
@@ -49,6 +95,8 @@ interface PagosPanelProps {
   esInquilino: boolean;
   esAdmin: boolean;
   idAgrupamiento?: string;
+  filtro: FiltroPagos;
+  setFiltro: (filtro: FiltroPagos) => void;
 }
 
 export default function PagosPanel({
@@ -57,8 +105,11 @@ export default function PagosPanel({
   esInquilino,
   esAdmin,
   idAgrupamiento = '',
+  filtro,
+  setFiltro,
 }: PagosPanelProps) {
   const [pagos, setPagos] = useState<Pago[]>([]);
+  const [filtroContrato, setFiltroContrato] = useState<FiltroContratosPagos>('VIGENTE');
   const [cargando, setCargando] = useState(true);
   const [accionId, setAccionId] = useState('');
   const [error, setError] = useState('');
@@ -186,8 +237,22 @@ export default function PagosPanel({
     if (Number.isNaN(vencimientoB)) return -1;
     return vencimientoA - vencimientoB;
   });
-  const pagosPendientes = ordenarPorVencimiento(pagos.filter((pago) => pago.estado !== 'PAGADO'));
-  const pagosPagados = ordenarPorVencimiento(pagos.filter((pago) => pago.estado === 'PAGADO'));
+  const pagosFiltrados = filtro === 'TODOS'
+    ? pagos
+    : pagos.filter((pago) => pago.estado === filtro);
+  const contratosVisibles = agruparPagosPorContrato(pagosFiltrados, filtroContrato);
+  const cantidadPagosVisibles = contratosVisibles
+    .reduce((total, grupo) => total + grupo.pagos.length, 0);
+  const nombreFiltro: Record<FiltroPagos, string> = {
+    TODOS: 'Todos los pagos',
+    PENDIENTE: 'Pendientes',
+    ATRASADO: 'Vencidos',
+    PAGADO: 'Pagados',
+  };
+  const estadoContratoVisible = filtroContrato === 'VIGENTE' ? 'vigentes' : 'finalizados';
+  const descripcionSinPagos = filtro === 'TODOS'
+    ? `No hay pagos asociados a contratos ${estadoContratoVisible}.`
+    : `No hay pagos ${nombreFiltro[filtro].toLowerCase()} en contratos ${estadoContratoVisible}.`;
   const datosBancariosPago = pagoVerCBU ? obtenerDatosBancarios(pagoVerCBU) : null;
   const renderTabla = (lista: Pago[]) => (
     <DataTable
@@ -216,11 +281,6 @@ export default function PagosPanel({
             ) : '—'}
           </td>
           <td className="p-4">
-            {puedeSubir && (
-              <button type="button" onClick={() => setPagoVerCBU(pago)} className={btnGhostClass}>
-                Ver CBU
-              </button>
-            )}
             {puedeSubir && pago.estado !== 'PAGADO' && (
               <button type="button" disabled={accionId === pago._id} onClick={() => cargarComprobante(pago)} className={btnGhostClass}>
                 {obtenerComprobantes(pago).length ? 'Editar comprobantes' : 'Informar pago'}
@@ -243,6 +303,34 @@ export default function PagosPanel({
       )}
     />
   );
+  const renderGrupoContrato = (grupo: GrupoPagosContrato) => {
+    const pagoReferencia = grupo.pagos[0];
+    const { direccion, periodo } = identificadorContrato(pagoReferencia);
+    const encabezado = (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-semibold text-[var(--brand-navy)]">{direccion}</h3>
+          {periodo && <p className="mt-1 text-xs text-slate-500">Contrato: {periodo}</p>}
+          <p className="mt-1 text-xs text-slate-500">
+            {grupo.pagos.length} {grupo.pagos.length === 1 ? 'cuota' : 'cuotas'}
+          </p>
+        </div>
+        {puedeSubir && (
+          <button type="button" onClick={() => setPagoVerCBU(pagoReferencia)} className={btnGhostClass}>
+            Ver CBU
+          </button>
+        )}
+      </div>
+    );
+    const tabla = renderTabla(ordenarPorVencimiento(grupo.pagos));
+
+    return (
+      <section key={grupo.contrato._id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        {encabezado}
+        {tabla}
+      </section>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -252,25 +340,66 @@ export default function PagosPanel({
           ? 'Consultá tus cuotas, vencimientos e informá tus pagos'
           : 'Consultá las cuotas y vencimientos generados desde los contratos'}
       />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pagos">
+          {(['TODOS', 'PENDIENTE', 'ATRASADO', 'PAGADO'] as FiltroPagos[]).map((opcion) => (
+            <button
+              key={opcion}
+              type="button"
+              aria-pressed={filtro === opcion}
+              onClick={() => setFiltro(opcion)}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                filtro === opcion
+                  ? 'border-violet-700 bg-violet-700 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {nombreFiltro[opcion]}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2" role="group" aria-label="Filtrar por estado del contrato">
+          <span className="text-sm font-medium text-slate-600">Contrato</span>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner">
+            {(['VIGENTE', 'FINALIZADO'] as FiltroContratosPagos[]).map((opcion) => (
+              <button
+                key={opcion}
+                type="button"
+                aria-pressed={filtroContrato === opcion}
+                onClick={() => setFiltroContrato(opcion)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
+                  filtroContrato === opcion
+                    ? 'bg-white text-violet-800 shadow-sm ring-1 ring-slate-200/70'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {opcion === 'VIGENTE' ? 'Vigentes' : 'Finalizados'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
       {cargando ? (
         <LoadingRow label="Cargando pagos..." />
-      ) : pagos.length === 0 && !error ? (
-        <EmptyState title="Sin pagos" description="Todavía no hay pagos asociados a tus contratos." />
+      ) : cantidadPagosVisibles === 0 && !error ? (
+        <EmptyState title="Sin pagos" description={descripcionSinPagos} />
       ) : (
         <div className="space-y-6">
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800">Pendientes y vencidos</h2>
-            {pagosPendientes.length > 0
-              ? renderTabla(pagosPendientes)
-              : <p className="text-sm text-slate-500">No hay pagos pendientes ni vencidos.</p>}
-          </section>
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800">Pagados</h2>
-            {pagosPagados.length > 0
-              ? renderTabla(pagosPagados)
-              : <p className="text-sm text-slate-500">Todavía no hay pagos confirmados.</p>}
+            <h2 className="text-lg font-semibold text-slate-800">
+              Contratos {filtroContrato === 'VIGENTE' ? 'vigentes' : 'finalizados'}
+            </h2>
+            {contratosVisibles.length > 0 ? (
+              <div className="space-y-4">
+                {contratosVisibles.map((grupo) => renderGrupoContrato(grupo))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                {descripcionSinPagos}
+              </p>
+            )}
           </section>
         </div>
       )}
