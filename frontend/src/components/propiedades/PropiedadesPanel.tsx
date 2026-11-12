@@ -112,6 +112,11 @@ export default function PropiedadesPanel({
   }, [token, idAgrupamiento, esAdmin]);
 
   const cargarAgrupamientos = useCallback(async () => {
+    if (esAdmin) {
+      setAgrupamientos([]);
+      return;
+    }
+
     try {
       const data = await apiGet<Agrupamiento[]>('/api/agrupamientos', token);
       setAgrupamientos(Array.isArray(data) ? data : []);
@@ -119,7 +124,7 @@ export default function PropiedadesPanel({
       setAgrupamientos([]);
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los agrupamientos.');
     }
-  }, [token]);
+  }, [token, esAdmin]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

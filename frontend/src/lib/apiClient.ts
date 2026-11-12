@@ -35,11 +35,6 @@ export interface OpcionesRed {
   onReintento?: (intento: number, totalReintentos: number) => void;
   /** Permite cancelar la solicitud (por ejemplo, al desmontar el chat). */
   signal?: AbortSignal;
-  /**
-   * Por defecto, un 403 con Authorization dispara el cierre de sesión global.
-   * El asistente lo desactiva: un 403 de alcance no significa sesión vencida.
-   */
-  desloguearEn403?: boolean;
 }
 
 const TIEMPO_LIMITE_MS = 45_000;
@@ -154,12 +149,8 @@ const fetchConRed = async (
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       const tieneAutorizacion = new Headers(options.headers).has('Authorization');
-      const desloguearEn403 = config.desloguearEn403 !== false;
 
-      if (
-        tieneAutorizacion
-        && (response.status === 401 || (response.status === 403 && desloguearEn403))
-      ) {
+      if (tieneAutorizacion && response.status === 401) {
         const authorization = new Headers(options.headers).get('Authorization');
         const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
         notificarSesionNoAutorizada(token);
