@@ -26,27 +26,35 @@ Plataforma web de gestión de alquileres con asistente de IA — Proyecto Integr
 
 ```text
 .
+├── .github/
+│   └── workflows/              # automatizaciones de CI
 ├── backend/
-│   ├── index.js                 # Express, GET /health, montaje de rutas API
+│   ├── index.js                 # Express, GET /health y montaje de rutas API
 │   ├── src/
-│   │   ├── controllers/         # auth, propiedad, contrato, pago, gasto, reclamo, ai, …
-│   │   ├── models/              # usuario, propiedad, contrato, pago, gasto, reclamo
-│   │   ├── routes/
-│   │   ├── middlewares/
-│   │   ├── services/            # aiService, aiToolsRegistry
-│   │   └── utils/
-│   ├── scripts/                 # seed-usuarios, seed-propiedades, …
-│   └── test/
+│   │   ├── config/              # permisos, JWT, CORS y Cloudinary
+│   │   ├── controllers/         # lógica de endpoints
+│   │   ├── middlewares/         # autenticación, errores y límites
+│   │   ├── models/              # modelos de MongoDB
+│   │   ├── routes/              # rutas de la API
+│   │   ├── services/            # lógica de negocio y servicios de ALQUI
+│   │   └── utils/               # helpers compartidos
+│   ├── scripts/                 # carga de datos de desarrollo
+│   ├── test/                    # pruebas de controladores, rutas, servicios y utilidades
+│   └── package.json
 ├── frontend/
-│   ├── index.html
-│   ├── public/                  # logo (favicon), assets estáticos
+│   ├── index.html               # documento de entrada de Vite
+│   ├── public/                  # archivos estáticos públicos
 │   └── src/
-│       ├── App.tsx              # rutas: /, /registro, /dashboard
-│       ├── AuthProvider.tsx     # sesión; validación con GET /api/usuarios/me
-│       ├── Dashboard.tsx
-│       ├── config/api.ts
-│       └── components/          # asistente, pagos, propiedades, contratos, …
-└── package.json                 # npm run dev (frontend + backend)
+│       ├── App.tsx              # rutas principales
+│       ├── AuthProvider.tsx     # sesión y validación del usuario
+│       ├── Dashboard.tsx        # panel principal y navegación por rol
+│       ├── components/          # pantallas y componentes agrupados por área
+│       ├── config/              # configuración del cliente API
+│       ├── lib/                 # utilidades del frontend
+│       └── theme/               # estilos y tema visual
+├── docs/                        # DER y guía de uso por rol
+├── package.json                 # npm run dev inicia backend y frontend
+└── README.md
 ```
 
 ## Modelo de datos (DER)
@@ -55,11 +63,13 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 
 ![Diagrama entidad-relación AlquilAR](docs/der-alquilar.png)
 
+El diagrama es conceptual. En el modelo implementado, `Propiedad.unidad` contiene solo `identificador` (no `piso` ni `torre`); el resumen de entidades de abajo refleja los campos actuales.
+
 | Entidad | Atributos clave (resumen) |
 |---|---|
 | **Usuario** | nombre, apellido, dni, email, password, roles[], estado, telefono, cbu_alias, cuit_cuil, solicitud_propietario |
 | **Propiedad** | id_propietario, id_agrupamiento, unidad.identificador, direccion, tipo, ambientes, descripcion, estado, valor_base, fotos[] |
-| **Agrupamiento** | codigo, nombre, tipo, estado, direccion, descripcion, id_administrador, gestores[], contacto, servicios[], configuracion |
+| **Agrupamiento** | `_id`, nombre, tipo, estado, direccion, descripcion, fotos[], id_administrador, gestores[], contacto, servicios[], configuracion.moneda |
 | **Contrato** | id_propiedad, id_inquilino, fechas, monto_mensual, dia_vencimiento, estado, garante |
 | **Pago** | id_contrato, mes_correspondiente, montos, fechas, estado, comprobantes[] |
 | **Gasto** | id_propiedad, fecha_emision, monto_total, tipo, estado_pago, proveedor, comprobantes[] |
@@ -78,7 +88,9 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
   - `GET` / `POST /solicitud-propietario` — consulta y envío de solicitud de rol propietario
   - `PATCH /:id/solicitud-propietario/aprobar` — aprobación administrativa (asigna `PROPIETARIO`)
   - `PATCH /:id/roles` — agregar roles (admin)
+  - `PATCH /:id/estado` — activar o desactivar una cuenta (`ACTIVO`/`INACTIVO`, admin); no permite desactivar la propia cuenta ni al último administrador activo.
 - Middleware: `verificarToken`, `verificarRol` y `verificarPermiso`. Los permisos por rol se declaran en `backend/src/config/permisos.js`.
+- Desde la vista de administrador se pueden activar o desactivar cuentas (`ACTIVO`/`INACTIVO`), además de gestionar roles y solicitudes de propietario.
 - `verificarToken` valida el JWT contra MongoDB en cada request: si el usuario fue dado de baja o cambió de rol, el cambio impacta sin esperar a que expire el token. Sin token o con usuario inválido responde `401`.
 - Registro con validación de nombre, apellido, DNI, email, contraseña (9–128 caracteres) y teléfono. Login con mensaje genérico para no revelar si el email existe; rate limit en login y registro.
 - Frontend: al recargar la app, si hay token en `localStorage` se valida con `GET /me`; un `401`/`403` limpia la sesión y un error transitorio conserva el token y muestra un aviso.
@@ -88,22 +100,30 @@ Entidades principales y relaciones (implementadas en `backend/src/models/`).
 ### Propiedades y contratos
 
 - CRUD de propiedades y contratos con permisos por rol; cuotas de pago al activar contratos; historial y garantes.
+- El administrador tiene una vista de contratos en borrador con activación individual o por lote; al activar, el backend agrega INQUILINO si falta y lo guarda junto con el contrato, la propiedad y las cuotas en una transacción.
 - `GET /api/propiedades` — listado con JWT: **propietario** ve sus inmuebles; **administrador** ve todos. Usuarios e inquilinos sin rol de gestión reciben 403.
-- `GET /api/propiedades/disponibles` — catálogo para cualquier usuario autenticado. Devuelve solo unidades `DISPONIBLE` con datos públicos de la propiedad (sin `id_propietario` ni datos bancarios).
+- En la vista de administrador las propiedades son de solo lectura; crear, editar y dar de baja propiedades es una gestión exclusiva del propietario.
 - No hay catálogo público ni ingreso anónimo: login o registro obligatorio para usar la app.
+
+### Reportes de administrador
+
+Incluye un mock ilustrativo de la evolución mensual de propietarios, inquilinos y propiedades activas al cierre de cada mes. No muestra datos reales y está marcado “Próximamente - Fuera del MVP”.
 
 ### Agrupamientos de viviendas
 
 Permiten reunir unidades bajo un mismo edificio, complejo o consorcio. Una propiedad pertenece como máximo a un agrupamiento, y su relación se guarda solo en `Propiedad.id_agrupamiento` (no se duplica en contratos, pagos, gastos ni reclamos).
 
 - Rutas principales (JWT, respuestas `{ success, data, message }`):
-  - `GET /api/agrupamientos` — visibles según el rol; filtros opcionales `tipo`, `estado`, `ciudad`, `q`, `id_propietario`.
-  - `POST /api/agrupamientos` — `ADMINISTRADOR` o `PROPIETARIO`.
-  - `GET /api/agrupamientos/:id`, `PUT /api/agrupamientos/:id` — administrador del agrupamiento o gestor; el `ADMINISTRADOR` puede todo.
-  - `DELETE /api/agrupamientos/:id` — solo `ADMINISTRADOR`; baja lógica (`INACTIVO`). Responde `409` si quedan propiedades activas.
+  - `GET /api/agrupamientos` — listado visible para propietarios según su relación con los agrupamientos, con filtros opcionales `tipo`, `estado`, `ciudad`, `q`, `id_propietario`. Los administradores no tienen acceso a esta pantalla.
+  - `GET /api/usuarios/gestores-disponibles?q=<nombre>` — propietarios buscan por nombre o apellido (desde 2 caracteres) a propietarios activos para asignarlos como gestores; devuelve hasta 10 coincidencias.
+  - `POST /api/agrupamientos` — solo `PROPIETARIO`.
+  - `GET /api/agrupamientos/:id`, `PUT /api/agrupamientos/:id` — consulta según visibilidad; edición para el propietario responsable o gestor asignado.
+  - `DELETE /api/agrupamientos/:id` — propietario responsable o gestor; baja lógica (`INACTIVO`). Responde `409` si quedan propiedades activas.
 - Asignación y desasignación: `PUT /api/propiedades/:id` con `id_agrupamiento` y `unidad.identificador`. También se aceptan al crear la propiedad. Cambiar de agrupamiento responde `409`.
 - `unidad.identificador` es único dentro de cada agrupamiento. Sin `id_agrupamiento`, las propiedades siguen funcionando igual que antes.
 - Filtros opcionales `?id_agrupamiento=<id>` en propiedades, contratos, pagos, gastos, reclamos y dashboard. Nunca amplían los permisos del usuario: siempre se cruzan con su alcance habitual. `GET /api/propiedades?sin_agrupamiento=true` lista las unidades sueltas.
+- MongoDB genera el `_id`; no se usa un código comercial. Las fotos del agrupamiento se almacenan en `fotos[]`; la moneda se configura en el agrupamiento y el vencimiento se define en cada contrato.
+- Los gestores son usuarios activos con rol `PROPIETARIO`; no existe un rol global `GESTOR`. El selector de propiedad muestra los agrupamientos visibles para la cuenta y completa la dirección como solo lectura cuando se elige uno.
 - Panel: `AgrupamientosPanel` para el CRUD, selector global en el encabezado para acotar el resto de las vistas y AI opcional. Al crear o editar una propiedad se elige agrupamiento y unidad.
 
 ### Pagos, gastos y reclamos
@@ -112,7 +132,7 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad y los role
 
 - **Pagos:** `GET/POST /api/pagos`, `GET/PUT/DELETE /api/pagos/:id`, comprobantes (`POST/GET/DELETE …/comprobantes`), `PATCH …/confirmar`. Cuotas automáticas al activar contrato (depósito `DEPOSITO` + mensuales `YYYYMM`). Estados `PENDIENTE`, `ATRASADO`, `INGRESADO`, `PAGADO`.
 - **Gastos:** `GET/POST /api/gastos`, `GET/PUT/DELETE /api/gastos/:id`, filtros por propiedad, fechas y `estado_pago`.
-- **Reclamos:** `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH …/estado`, `DELETE`. El inquilino abre reclamos sobre contratos vigentes; propietario y administrador gestionan los de sus propiedades.
+- **Reclamos:** `GET/POST /api/reclamos`, `GET /api/reclamos/:id`, `PATCH …/estado`, `DELETE`. El inquilino abre reclamos sobre contratos vigentes; solo el propietario gestiona los de sus propiedades. El administrador puede consultar todos los reclamos para uso estadístico, sin crear, modificar ni eliminar.
 
 ### ALQUI — asistente IA
 
@@ -128,11 +148,11 @@ Los endpoints requieren `Authorization: Bearer <token>`. La identidad y los role
 - Errores tipados: `SIN_PERMISO`, `VALIDACION`, `NO_ENCONTRADO`, `CONFIGURACION`, `AUTENTICACION_PROVEEDOR`, `MODELO_INEXISTENTE`, `LIMITE_PROVEEDOR`, `PROVEEDOR`, `TIMEOUT`, `PASOS_EXCEDIDOS` e `INTERNO`. Los problemas de permisos se responden dentro de la conversación (HTTP 200) para no cerrar la sesión del usuario; los fallos técnicos devuelven un mensaje comprensible y un código, sin exponer detalles internos.
 - Estilo de respuesta: todas las contestaciones (incluidas las consultas predefinidas y las que usan herramientas) se presentan en texto natural y conversacional, sin JSON, bloques de código, nombres de herramientas, códigos internos ni viñetas. Los datos se traducen a frases con montos, fechas y estados legibles. El backend descarta cualquier salida técnica que el modelo devuelva por error.
 - Seguridad: la identidad y los permisos se resuelven con el JWT validado contra MongoDB; las herramientas ignoran IDs de usuario enviados por el modelo y rechazan campos no autorizados. Las acciones que crean datos no se reintentan automáticamente.
-- UI: chat flotante ALQUI para inquilinos, propietarios y administradores. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra errores del backend, permite cancelar solicitudes y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, pide revisar “Mis reclamos” antes de reintentar. El historial **no** se persiste en MongoDB.
+- UI: chat flotante ALQUI para inquilinos, propietarios y administradores. El backend usa [la guía de uso por rol](docs/guia-uso-por-rol.md) como referencia para responder dudas sobre pantallas y flujos, sin ampliar permisos ni realizar acciones administrativas desde el chat. Antes de enviar recorta el historial a los últimos **10** mensajes y limita cada mensaje a **4000** caracteres. Muestra errores del backend, permite cancelar solicitudes y reintentar manualmente; si un fallo de red o timeout impide confirmar si un reclamo se creó, pide revisar “Mis reclamos” antes de reintentar. El historial **no** se persiste en MongoDB.
 
 ## Requisitos
 
-- Node.js 18+
+- Node.js 20.19+ o 22.12+ (requerido por Vite 8)
 - Cuenta MongoDB Atlas (configurar `MONGODB_URI` en `.env`)
 
 ## Backend
@@ -201,7 +221,9 @@ npm run dev
 ```
 
 En desarrollo el front usa `http://localhost:3000` como API si no se define
-`VITE_API_URL` (`frontend/src/config/api.ts`).
+`VITE_API_URL` (`frontend/src/config/api.ts`). Para usar otro backend, configurá
+`VITE_API_URL` en `frontend/.env.local`; si es local, asegurate de iniciar
+MongoDB y el backend.
 
 El tema claro/oscuro puede cambiarse desde el botón del encabezado; la selección se conserva en `localStorage` (`alquilar_theme`) y, si todavía no existe, se toma de la preferencia del sistema. La paleta del tema usa violeta para acciones principales y verde agua para acciones secundarias y el chat.
 
@@ -218,7 +240,7 @@ servidor puede estar iniciando.
 
 | Variable | Uso |
 |---|---|
-| `VITE_API_URL` | URL del backend (ej. `https://alquilar-pmdp.onrender.com`) |
+| `VITE_API_URL` | URL base del backend; por defecto `http://localhost:3000` en desarrollo y `https://alquilar-pmdp.onrender.com` en producción |
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloud name |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES` | Fotos → `alquilar/propiedades` |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_GASTOS` | Comprobantes de gastos |
@@ -228,8 +250,12 @@ Recibos de garante: carga autenticada vía backend. Comprobantes de pago: descar
 
 ## Ambos a la vez
 
+Desde la raíz del repositorio, instalá las dependencias de cada paquete y las herramientas de desarrollo de la raíz:
+
 ```bash
 npm install
+npm --prefix backend install
+npm --prefix frontend install
 npm run dev
 ```
 
@@ -281,5 +307,5 @@ Credenciales de prueba: solicitar al equipo (no publicar en el repo).
 ## Documentación
 
 - **Plan de trabajo:** Drive de la cátedra.
-- **Seguimiento:** https://github.com/users/marcelofabiandiaz-unahur/projects/1
+- **Reporte de Avance:** https://drive.google.com/file/d/1TNFwvCHDEiLMuhwh9yArw201WTW2qZEV/view?usp=drive_link
 - **Repositorio:** https://github.com/marcelofabiandiaz-unahur/alquilAr

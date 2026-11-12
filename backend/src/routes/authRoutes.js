@@ -6,10 +6,12 @@ const {
   obtenerMiPerfil,
   actualizarMiPerfil,
   listarUsuarios,
+  listarGestoresAsignables,
   agregarRolesUsuario,
   obtenerSolicitudPropietario,
   solicitarRolPropietario,
   aprobarSolicitudPropietario,
+  actualizarEstadoUsuario,
 } = require('../controllers/authController');
 const { verificarToken, verificarPermiso } = require('../middlewares/authMiddleware');
 const { limiteLogin, limiteRegistro } = require('../middlewares/rateLimiters');
@@ -30,6 +32,12 @@ router.post(
   verificarPermiso('VER_PERFIL'),
   solicitarRolPropietario,
 );
+router.get(
+  '/gestores-disponibles',
+  verificarToken,
+  verificarPermiso('VER_GESTORES_ASIGNABLES'),
+  listarGestoresAsignables,
+);
 router.get('/', verificarToken, verificarPermiso('VER_USUARIOS'), listarUsuarios);
 router.patch(
   '/:id/solicitud-propietario/aprobar',
@@ -42,6 +50,12 @@ router.patch(
   verificarToken,
   verificarPermiso('GESTIONAR_ROLES'),
   agregarRolesUsuario,
+);
+router.patch(
+  '/:id/estado',
+  verificarToken,
+  verificarPermiso('GESTIONAR_ROLES'),
+  actualizarEstadoUsuario,
 );
 
 module.exports = router;

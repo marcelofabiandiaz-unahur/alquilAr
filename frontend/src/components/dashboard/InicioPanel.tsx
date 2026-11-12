@@ -7,56 +7,51 @@ import { formatMoneda } from '../../lib/estadoStyles';
 import { apiGet } from '../../lib/apiClient';
 import Alert from '../ui/Alert';
 import { btnSecondaryClass } from '../layout/dashboardStyles';
-import { brandClasses } from '../../theme/alquilar';
-import { NavIcon } from '../layout/dashboardNavIcons';
 import {
-  claveMesActual,
-  claveMesAnterior,
-  formatearTendenciaPct,
-  ingresoCobradoEnMes,
+  cobradoEnMesPorFechaPago,
+  cuotasPendientesEsteMes,
+  fechaLocal,
+  proximasCuotasPendientes,
 } from '../../lib/resumenFinanciero';
 import { conAgrupamiento } from '../../lib/agrupamientos';
-import type { DashboardProps, Pago, Propiedad, Reclamo, Contrato, ResumenDashboard, Usuario } from '../../types';
+import type {
+  DashboardProps,
+  FiltroCobros,
+  FiltroContratos,
+  FiltroPropiedades,
+  FiltroReclamos,
+  FiltroPagos,
+  Pago,
+  Propiedad,
+  Reclamo,
+  Contrato,
+  Gasto,
+  ResumenDashboard,
+  Usuario,
+} from '../../types';
 
-const ACCESO_STYLES: Partial<Record<string, string>> = {
-  propiedades: 'bg-violet-50 text-violet-600',
-  agrupamientos: 'bg-fuchsia-50 text-fuchsia-600',
-  contratos: 'bg-sky-50 text-sky-600',
-  usuarios: 'bg-violet-50 text-violet-600',
-  finanzas: 'bg-emerald-50 text-emerald-700',
-  reportes: 'bg-slate-100 text-slate-700',
-  propietarios: 'bg-violet-50 text-violet-700',
-  pagos: 'bg-sky-50 text-sky-600',
-  reclamos: 'bg-amber-50 text-amber-600',
-  disponibilidad: 'bg-indigo-50 text-indigo-600',
-};
-
-function fechaLocal(fecha?: string): Date | null {
-  if (!fecha) return null;
-  const soloFecha = fecha.slice(0, 10);
-  const resultado = /^\d{4}-\d{2}-\d{2}$/.test(soloFecha)
-    ? new Date(`${soloFecha}T12:00:00`)
-    : new Date(fecha);
-  return Number.isNaN(resultado.getTime()) ? null : resultado;
-}
-
-interface AccesoRapido {
-  id: string;
-  label: string;
-  desc: string;
-  icon: string;
-}
-
-export default function InicioPanel({ usuario, token, roles, setSeccionActiva, idAgrupamiento = '' }: DashboardProps) {
+export default function InicioPanel({
+  usuario,
+  token,
+  roles,
+  setSeccionActiva,
+  setFiltroPagos,
+  setFiltroCobros,
+  setFiltroPropiedades,
+  setFiltroReclamos,
+  setFiltroContratos,
+  setFiltroUsuarios,
+  irAGastosEsteMes,
+  idAgrupamiento = '',
+}: DashboardProps) {
   const [resumen, setResumen] = useState<ResumenDashboard | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
-  const tieneAccesoOperativo = roles.esPropietario || roles.esInquilino || roles.esAdministrador;
+  const tieneAccesoOperativo = roles.esPropietario || roles.esInquilino;
   const tieneAccesoPropiedades = roles.esPropietario || roles.esAdministrador;
-  const tieneAccesoFinanzas = roles.esPropietario || roles.esAdministrador;
+  const tieneAccesoFinanzas = roles.esPropietario;
   const tieneResumenOperativo = roles.esInquilino || roles.esPropietario || roles.esAdministrador;
-  const seccionPagos = tieneAccesoFinanzas ? 'finanzas' : 'pagos';
 
   const esAdministrador = roles.esAdministrador;
 
@@ -64,7 +59,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
     setCargando(true);
     setError('');
     try {
-      const [propiedades, pagos, reclamos, contratos, usuarios] = await Promise.all([
+      const [propiedades, pagos, reclamos, contratos, usuarios, gastos] = await Promise.all([
         tieneAccesoPropiedades
           ? apiGet<Propiedad[]>(conAgrupamiento('/api/propiedades', idAgrupamiento), token)
           : Promise.resolve([] as Propiedad[]),
@@ -74,15 +69,18 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
         tieneAccesoOperativo
           ? apiGet<Reclamo[]>(conAgrupamiento('/api/reclamos', idAgrupamiento), token)
           : Promise.resolve([] as Reclamo[]),
-        tieneAccesoOperativo
+        tieneAccesoOperativo || esAdministrador
           ? apiGet<Contrato[]>(conAgrupamiento('/api/contratos', idAgrupamiento), token)
           : Promise.resolve([] as Contrato[]),
         esAdministrador
           ? apiGet<Usuario[]>('/api/usuarios', token)
           : Promise.resolve([] as Usuario[]),
+        roles.esPropietario
+          ? apiGet<Gasto[]>(conAgrupamiento('/api/gastos', idAgrupamiento), token)
+          : Promise.resolve([] as Gasto[]),
       ]);
 
-      if (![propiedades, pagos, reclamos, contratos].every(Array.isArray)) {
+      if (![propiedades, pagos, reclamos, contratos, gastos].every(Array.isArray)) {
         throw new Error('El backend devolvió una respuesta inesperada.');
       }
 
@@ -93,10 +91,12 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
 
       const propiedadesActivas = propiedades.filter((p) => p.estado !== 'INACTIVA');
       const alquiladas = propiedades.filter((p) => p.estado === 'ALQUILADA').length;
-      const mesActual = claveMesActual();
-      const mesAnterior = claveMesAnterior();
-      const ingresoMesActual = ingresoCobradoEnMes(pagos, mesActual);
-      const ingresoMesAnterior = ingresoCobradoEnMes(pagos, mesAnterior);
+      const gastosDelMes = gastos.filter((gasto) => {
+        const fecha = fechaLocal(gasto.fecha_emision);
+        return fecha
+          && fecha.getFullYear() === hoy.getFullYear()
+          && fecha.getMonth() === hoy.getMonth();
+      });
       const propietariosActivos = usuarios.filter(
         (u) => u.roles.includes('PROPIETARIO') && (!u.estado || u.estado === 'ACTIVO'),
       ).length;
@@ -112,10 +112,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
           return String(pago.id_contrato.id_inquilino) === idUsuario;
         })
         : [];
-      const pagosPendientes = pagosComoInquilino.filter(
-        (pago) => ['PENDIENTE', 'ATRASADO'].includes(pago.estado),
-      );
-      const aPagar = pagosPendientes.reduce((total, pago) => total + pago.monto_total, 0);
+      const pagosPendientes = pagosComoInquilino.filter((pago) => pago.estado === 'PENDIENTE');
       const proximoPago = [...pagosPendientes]
         .filter((pago) => {
           const fecha = fechaLocal(pago.fecha_vencimiento);
@@ -127,15 +124,25 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
       const proximoVencimiento = proximoPago
         ? fechaLocal(proximoPago.fecha_vencimiento)?.toLocaleDateString('es-AR') ?? null
         : null;
+      const pagosEsteMes = cuotasPendientesEsteMes(pagos, hoy);
+      const proximasCuotas = proximasCuotasPendientes(pagos, hoy);
+      const proximaCuota = proximasCuotas[0];
 
       setResumen({
-        aCobrar: pagos
-          .filter((pago) => ['PENDIENTE', 'ATRASADO', 'INGRESADO'].includes(pago.estado))
-          .reduce((total, pago) => total + pago.monto_total, 0),
+        aCobrar: pagosEsteMes.reduce((total, pago) => total + pago.monto_total, 0),
+        proximasCuotas: proximasCuotas.reduce((total, pago) => total + pago.monto_total, 0),
+        proximasCuotasCantidad: proximasCuotas.length,
+        proximaCuotaFecha: proximaCuota
+          ? fechaLocal(proximaCuota.fecha_vencimiento)?.toLocaleDateString('es-AR') ?? null
+          : null,
         cobrado: pagos
           .filter((pago) => pago.estado === 'PAGADO')
           .reduce((total, pago) => total + pago.monto_total, 0),
-        aPagar,
+        cobradoEsteMes: cobradoEnMesPorFechaPago(pagos, hoy),
+        pendiente: pagosPendientes.reduce((total, pago) => total + pago.monto_total, 0),
+        vencido: pagos
+          .filter((pago) => pago.estado === 'ATRASADO')
+          .reduce((total, pago) => total + pago.monto_total, 0),
         proximoVencimiento,
         proximoVencimientoMonto: proximoPago?.monto_total ?? 0,
         cobrosParaValidar: pagos.filter((pago) => pago.estado === 'INGRESADO').length,
@@ -151,11 +158,13 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
         propiedadesDisponibles: propiedades.filter((propiedad) => propiedad.estado === 'DISPONIBLE').length,
         propiedadesAlquiladas: alquiladas,
         contratos: contratos.length,
+        contratosPendientesActivacion: contratos.filter((contrato) => contrato.estado === 'BORRADOR').length,
         totalPropiedades: propiedadesActivas.length,
         propietariosActivos,
-        ingresoMesActual,
-        ingresoMesAnterior,
+        ingresoMesActual: 0,
+        ingresoMesAnterior: 0,
         tasaOcupacion,
+        gastosEsteMes: gastosDelMes.reduce((total, gasto) => total + gasto.monto_total, 0),
       });
     } catch (err) {
       setResumen(null);
@@ -168,6 +177,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
     tieneAccesoOperativo,
     tieneAccesoPropiedades,
     roles.esInquilino,
+    roles.esPropietario,
     usuario._id,
     token,
     idAgrupamiento,
@@ -179,53 +189,6 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
     return () => clearTimeout(timer);
   }, [cargarResumen, tieneResumenOperativo]);
 
-  const accesos: AccesoRapido[] = [];
-
-  if (roles.esPropietario || roles.esAdministrador) {
-    accesos.push({
-      id: 'propiedades',
-      label: roles.esAdministrador && !roles.esPropietario ? 'Propiedades' : 'Mis propiedades',
-      desc: 'Inmuebles y estado operativo',
-      icon: 'propiedades',
-    });
-    accesos.push({
-      id: 'agrupamientos',
-      label: 'Agrupamientos',
-      desc: 'Edificios y complejos',
-      icon: 'agrupamientos',
-    });
-  }
-  if (roles.esPropietario) {
-    accesos.push({ id: 'contratos', label: 'Contratos', desc: 'Borradores y vigentes', icon: 'contratos' });
-  }
-  if (roles.esInquilino && !roles.esPropietario) {
-    accesos.push({ id: 'contratos', label: 'Mis Contratos', desc: 'Contratos activos', icon: 'contratos' });
-    accesos.push({ id: 'historial', label: 'Historial', desc: 'Alquileres anteriores', icon: 'historial' });
-  }
-  if (roles.esInquilino) {
-    accesos.push({ id: 'pagos', label: 'Mis pagos', desc: 'Cuotas y comprobantes', icon: 'pagos' });
-  }
-  if (!roles.esAdministrador && (roles.esInquilino || roles.esUsuarioBase)) {
-    accesos.push({
-      id: 'disponibilidad',
-      label: 'Buscar alquileres',
-      desc: 'Propiedades disponibles',
-      icon: 'disponibilidad',
-    });
-  }
-  if (tieneAccesoFinanzas) {
-    accesos.push({ id: 'finanzas', label: 'Finanzas', desc: 'Cobros y gastos', icon: 'finanzas' });
-    accesos.push({ id: 'reportes', label: 'Reportes', desc: 'Resumen del período', icon: 'reportes' });
-  }
-  if (tieneAccesoOperativo) {
-    accesos.push({ id: 'reclamos', label: 'Reclamos', desc: 'Incidencias y seguimiento', icon: 'reclamos' });
-  }
-  if (roles.esAdministrador) {
-    accesos.push({ id: 'propietarios', label: 'Propietarios', desc: 'Cartera de propietarios', icon: 'propietarios' });
-    accesos.push({ id: 'usuarios', label: 'Usuarios', desc: 'Roles y permisos', icon: 'usuarios' });
-  }
-
-  const puedeVerPropiedades = roles.esPropietario || roles.esAdministrador;
   const subtitulo = esAdministrador
     ? 'Resumen general de la plataforma y su operación.'
     : roles.esPropietario
@@ -233,17 +196,34 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
       : roles.esInquilino
         ? 'Tus próximos vencimientos, contratos y reclamos.'
         : 'Esto es lo que está pasando con tus alquileres y contratos hoy.';
-  const onVerPagos = roles.esInquilino ? () => setSeccionActiva('pagos') : undefined;
-
+  const irAPagos = (filtro: FiltroPagos) => {
+    setFiltroPagos(filtro);
+    setSeccionActiva('pagos');
+  };
+  const irAFinanzas = (filtro: FiltroCobros) => {
+    setFiltroCobros(filtro);
+    setSeccionActiva('finanzas');
+  };
+  const irAPropiedades = (filtro: FiltroPropiedades) => {
+    setFiltroPropiedades(filtro);
+    setSeccionActiva('propiedades');
+  };
+  const irAReclamos = (filtro: FiltroReclamos) => {
+    setFiltroReclamos(filtro);
+    setSeccionActiva('reclamos');
+  };
+  const irAContratos = (filtro: FiltroContratos) => {
+    setFiltroContratos(filtro);
+    setSeccionActiva('contratos');
+  };
   return (
     <div className="space-y-10">
       <DashboardWelcome
         usuario={usuario}
         subtitulo={subtitulo}
-        onVerFinanzas={tieneAccesoFinanzas ? () => setSeccionActiva('finanzas') : undefined}
-        onVerPropiedades={puedeVerPropiedades ? () => setSeccionActiva('propiedades') : undefined}
-        onVerPagos={onVerPagos}
-        mostrarAcciones={tieneAccesoFinanzas || puedeVerPropiedades || roles.esInquilino}
+        onVerFinanzas={roles.esPropietario ? () => setSeccionActiva('finanzas') : undefined}
+        onVerPropiedades={roles.esPropietario ? () => setSeccionActiva('propiedades') : undefined}
+        mostrarAcciones={!esAdministrador}
       />
 
       {tieneResumenOperativo && (
@@ -273,14 +253,23 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
           ) : resumen ? (
             <>
             {esAdministrador && (
-              <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-5 xl:grid-cols-4">
+              <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-8 sm:gap-5 xl:grid-cols-5">
                 <MetricCard
                   label="Total propiedades"
                   value={resumen.totalPropiedades ?? 0}
                   icon="propiedades"
                   variant="blue"
-                  trend={{ value: `${resumen.propiedadesDisponibles} disponibles`, caption: 'En el sistema' }}
-                  onClick={() => setSeccionActiva('propiedades')}
+                  trend={{ value: 'En el sistema', caption: 'Ver todas' }}
+                  onClick={() => irAPropiedades('TODAS')}
+                  compact
+                />
+                <MetricCard
+                  label="Disponibles"
+                  value={resumen.propiedadesDisponibles}
+                  icon="propiedades"
+                  variant="emerald"
+                  trend={{ value: 'Unidades', caption: 'Para alquilar' }}
+                  onClick={() => irAPropiedades('DISPONIBLE')}
                   compact
                 />
                 <MetricCard
@@ -289,23 +278,10 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                   icon="propietarios"
                   variant="emerald"
                   trend={{ value: 'Cartera', caption: 'Con rol propietario' }}
-                  onClick={() => setSeccionActiva('propietarios')}
-                  compact
-                />
-                <MetricCard
-                  label="Ingresos del mes"
-                  value={formatMoneda(resumen.ingresoMesActual ?? 0)}
-                  icon="efectivo"
-                  variant="violet"
-                  trend={{
-                    value:
-                      formatearTendenciaPct(
-                        resumen.ingresoMesActual ?? 0,
-                        resumen.ingresoMesAnterior ?? 0,
-                      ) ?? 'Sin histórico',
-                    caption: 'vs mes anterior',
+                  onClick={() => {
+                    setFiltroUsuarios('PROPIETARIO');
+                    setSeccionActiva('usuarios');
                   }}
-                  onClick={() => setSeccionActiva('finanzas')}
                   compact
                 />
                 <MetricCard
@@ -317,32 +293,63 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                     value: `${resumen.propiedadesAlquiladas} alquiladas`,
                     caption: 'Unidades ocupadas',
                   }}
-                  onClick={() => setSeccionActiva('propiedades')}
+                  onClick={() => irAPropiedades('ALQUILADA')}
+                  compact
+                />
+                <MetricCard
+                  label="Contratos por activar"
+                  value={resumen.contratosPendientesActivacion ?? 0}
+                  icon="contratos"
+                  variant="amber"
+                  trend={{ value: 'Borradores', caption: 'Revisar y activar' }}
+                  onClick={() => setSeccionActiva('contratos')}
                   compact
                 />
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
+            {!esAdministrador && (
+              <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
               {tieneAccesoOperativo && !esAdministrador && (
                 <>
                   {roles.esPropietario && (
                     <>
                       <MetricCard
-                        label="A cobrar"
+                        label="A cobrar este mes"
                         value={formatMoneda(resumen.aCobrar)}
                         icon="efectivo"
                         variant="violet"
-                        hint="Pendiente"
-                        onClick={() => setSeccionActiva(seccionPagos)}
+                        onClick={() => irAFinanzas('MES_ACTUAL')}
                         compact
                       />
                       <MetricCard
-                        label="Cobrado"
+                        label="Próximas cuotas"
+                        value={formatMoneda(resumen.proximasCuotas ?? 0)}
+                        icon="calendario"
+                        variant="sky"
+                        trend={resumen.proximaCuotaFecha
+                          ? {
+                            value: `${resumen.proximasCuotasCantidad ?? 0} cuotas`,
+                            caption: `Primera vence ${resumen.proximaCuotaFecha}`,
+                          }
+                          : undefined}
+                        onClick={() => irAFinanzas('PROXIMAS')}
+                        compact
+                      />
+                      <MetricCard
+                        label="Cobrado Total"
                         value={formatMoneda(resumen.cobrado)}
                         icon="check"
                         variant="emerald"
-                        onClick={() => setSeccionActiva(seccionPagos)}
+                        onClick={() => irAFinanzas('PAGADO')}
+                        compact
+                      />
+                      <MetricCard
+                        label="Cobrado este mes"
+                        value={formatMoneda(resumen.cobradoEsteMes ?? 0)}
+                        icon="check"
+                        variant="emerald"
+                        onClick={() => irAFinanzas('COBRADO_MES')}
                         compact
                       />
                     </>
@@ -350,12 +357,14 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                   {roles.esInquilino && (
                     <>
                       <MetricCard
-                        label="Total a pagar"
-                        value={formatMoneda(resumen.aPagar ?? 0)}
+                        label="Pendiente"
+                        value={formatMoneda(resumen.pendiente ?? 0)}
                         icon="efectivo"
                         variant="violet"
-                        hint={(resumen.aPagar ?? 0) > 0 ? 'Pendiente' : 'Al día'}
-                        onClick={() => setSeccionActiva('pagos')}
+                        hint={(resumen.pendiente ?? 0) > 0
+                          ? 'Por pagar'
+                          : (resumen.vencido ?? 0) > 0 ? 'Hay vencidos' : 'Al día'}
+                        onClick={() => irAPagos('PENDIENTE')}
                         compact
                       />
                       <MetricCard
@@ -368,17 +377,20 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                         trend={resumen.proximoVencimiento
                           ? { value: resumen.proximoVencimiento, caption: 'Vence' }
                           : undefined}
-                        onClick={() => setSeccionActiva('pagos')}
+                        onClick={() => irAPagos('PENDIENTE')}
                         compact
                       />
                     </>
                   )}
                   <MetricCard
-                    label="Pagos atrasados"
-                    value={resumen.atrasados}
+                    label={roles.esInquilino ? 'Vencido' : 'Pagos atrasados'}
+                    value={formatMoneda(resumen.vencido ?? 0)}
                     icon="alerta"
                     variant="rose"
-                    onClick={() => setSeccionActiva(seccionPagos)}
+                    hint={`${resumen.atrasados} cuotas`}
+                    onClick={() => roles.esInquilino
+                      ? irAPagos('ATRASADO')
+                      : irAFinanzas('ATRASADO')}
                     compact
                   />
                   {tieneAccesoFinanzas && (
@@ -387,7 +399,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                       value={resumen.cobrosParaValidar}
                       icon="comprobante"
                       variant="blue"
-                      onClick={() => setSeccionActiva('finanzas')}
+                      onClick={() => irAFinanzas('INGRESADO')}
                       compact
                     />
                   )}
@@ -396,7 +408,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                     value={resumen.reclamosAbiertos}
                     icon="reclamos"
                     variant="amber"
-                    onClick={() => setSeccionActiva('reclamos')}
+                    onClick={() => irAReclamos('ABIERTOS')}
                     compact
                   />
                   <MetricCard
@@ -405,7 +417,7 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                     icon="calendario"
                     variant="sky"
                     hint="30 días"
-                    onClick={() => setSeccionActiva('contratos')}
+                    onClick={() => irAContratos('POR_VENCER')}
                     compact
                   />
                 </>
@@ -413,11 +425,19 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
               {tieneAccesoPropiedades && !esAdministrador && (
                 <>
                   <MetricCard
+                    label="Gastos de este mes"
+                    value={formatMoneda(resumen.gastosEsteMes ?? 0)}
+                    icon="comprobante"
+                    variant="amber"
+                    onClick={irAGastosEsteMes}
+                    compact
+                  />
+                  <MetricCard
                     label="Unidades disponibles"
                     value={resumen.propiedadesDisponibles}
                     icon="propiedades"
                     variant="emerald"
-                    onClick={() => setSeccionActiva('propiedades')}
+                    onClick={() => irAPropiedades('DISPONIBLE')}
                     compact
                   />
                   <MetricCard
@@ -425,83 +445,18 @@ export default function InicioPanel({ usuario, token, roles, setSeccionActiva, i
                     value={resumen.propiedadesAlquiladas}
                     icon="llave"
                     variant="blue"
-                    onClick={() => setSeccionActiva('propiedades')}
+                    onClick={() => irAPropiedades('ALQUILADA')}
                     compact
                   />
                 </>
               )}
-              {esAdministrador && (
-                <>
-                  <MetricCard
-                    label="Pagos atrasados"
-                    value={resumen.atrasados}
-                    icon="alerta"
-                    variant="rose"
-                    onClick={() => setSeccionActiva('finanzas')}
-                    compact
-                  />
-                  <MetricCard
-                    label="Cobros para validar"
-                    value={resumen.cobrosParaValidar}
-                    icon="comprobante"
-                    variant="amber"
-                    onClick={() => setSeccionActiva('finanzas')}
-                    compact
-                  />
-                  <MetricCard
-                    label="Reclamos abiertos"
-                    value={resumen.reclamosAbiertos}
-                    icon="reclamos"
-                    variant="amber"
-                    onClick={() => setSeccionActiva('reclamos')}
-                    compact
-                  />
-                  <MetricCard
-                    label="Contratos por vencer"
-                    value={resumen.contratosPorVencer}
-                    icon="calendario"
-                    variant="sky"
-                    trend={{ value: '30 días', caption: 'Ventana de aviso' }}
-                    onClick={() => setSeccionActiva('historial')}
-                    compact
-                  />
-                </>
-              )}
-            </div>
+              </div>
+            )}
             </>
           ) : null}
         </div>
       )}
 
-      {accesos.length > 0 && (
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">
-            Accesos rápidos
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {accesos.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSeccionActiva(item.id)}
-                className="text-left group"
-              >
-                <Card className={`p-5 h-full ${brandClasses.cardHover} hover:shadow-md transition-all`}>
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${ACCESO_STYLES[item.id] || 'bg-slate-100 text-slate-600'}`}
-                  >
-                    <NavIcon id={item.icon} />
-                  </div>
-                  <h3 className="font-semibold text-[var(--brand-navy)] mt-4 group-hover:text-violet-600 transition-colors">
-                    {item.label}
-                  </h3>
-                  <p className="text-slate-500 text-sm mt-1">{item.desc}</p>
-                </Card>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

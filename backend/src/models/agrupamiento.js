@@ -2,14 +2,6 @@ const mongoose = require('mongoose');
 
 const agrupamientoSchema = new mongoose.Schema(
   {
-    codigo: {
-      type: String,
-      required: true,
-      unique: true,
-      uppercase: true,
-      trim: true,
-      match: /^[A-Z0-9-]{3,20}$/,
-    },
     nombre: { type: String, required: true, trim: true, maxlength: 120 },
     tipo: {
       type: String,
@@ -29,6 +21,7 @@ const agrupamientoSchema = new mongoose.Schema(
       codigo_postal: { type: String, trim: true },
     },
     descripcion: { type: String, trim: true, maxlength: 1000 },
+    fotos: { type: [{ type: String, trim: true }], default: [] },
     id_administrador: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Usuario',
@@ -48,7 +41,6 @@ const agrupamientoSchema = new mongoose.Schema(
     servicios: [{ type: String, trim: true }],
     configuracion: {
       moneda: { type: String, default: 'ARS', trim: true },
-      dia_vencimiento_default: { type: Number, min: 1, max: 28, default: 10 },
     },
   },
   { timestamps: true, collection: 'agrupamientos' },

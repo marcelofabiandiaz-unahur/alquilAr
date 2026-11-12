@@ -75,17 +75,16 @@ export interface ContactoAgrupamiento {
 
 export interface ConfiguracionAgrupamiento {
   moneda?: string;
-  dia_vencimiento_default?: number;
 }
 
 export interface Agrupamiento {
   _id: string;
-  codigo: string;
   nombre: string;
   tipo: TipoAgrupamiento;
   estado: EstadoAgrupamiento;
   direccion: DireccionAgrupamiento;
   descripcion?: string;
+  fotos?: string[];
   id_administrador?: string | Usuario;
   gestores?: Array<string | Usuario>;
   contacto?: ContactoAgrupamiento;
@@ -187,8 +186,13 @@ export interface RolesDashboard {
 
 export interface ResumenDashboard {
   aCobrar: number;
+  proximasCuotas?: number;
+  proximasCuotasCantidad?: number;
+  proximaCuotaFecha?: string | null;
   cobrado: number;
-  aPagar?: number;
+  cobradoEsteMes?: number;
+  pendiente?: number;
+  vencido?: number;
   proximoVencimiento?: string | null;
   proximoVencimientoMonto?: number;
   cobrosParaValidar: number;
@@ -204,6 +208,8 @@ export interface ResumenDashboard {
   ingresoMesActual?: number;
   ingresoMesAnterior?: number;
   tasaOcupacion?: number;
+  gastosEsteMes?: number;
+  contratosPendientesActivacion?: number;
 }
 
 export interface ContratoForm {
@@ -222,5 +228,29 @@ export interface DashboardProps {
   token: string;
   roles: RolesDashboard;
   setSeccionActiva: Dispatch<SetStateAction<string>>;
+  setFiltroPagos: Dispatch<SetStateAction<FiltroPagos>>;
+  setFiltroCobros: Dispatch<SetStateAction<FiltroCobros>>;
+  setFiltroPropiedades: Dispatch<SetStateAction<FiltroPropiedades>>;
+  setFiltroReclamos: Dispatch<SetStateAction<FiltroReclamos>>;
+  setFiltroContratos: Dispatch<SetStateAction<FiltroContratos>>;
+  filtroUsuarios: FiltroUsuarios;
+  setFiltroUsuarios: Dispatch<SetStateAction<FiltroUsuarios>>;
+  irAGastosEsteMes: () => void;
   idAgrupamiento?: string;
 }
+
+export type FiltroPagos = 'TODOS' | 'PENDIENTE' | 'ATRASADO' | 'PAGADO';
+export type FiltroContratosPagos = 'VIGENTE' | 'FINALIZADO';
+export type FiltroCobros =
+  | 'TODOS'
+  | 'PENDIENTE'
+  | 'MES_ACTUAL'
+  | 'PROXIMAS'
+  | 'ATRASADO'
+  | 'INGRESADO'
+  | 'PAGADO'
+  | 'COBRADO_MES';
+export type FiltroPropiedades = 'TODAS' | 'DISPONIBLE' | 'ALQUILADA';
+export type FiltroReclamos = 'TODOS' | 'ABIERTOS' | 'RESUELTOS';
+export type FiltroContratos = 'TODOS' | 'POR_VENCER';
+export type FiltroUsuarios = 'TODOS' | Role;

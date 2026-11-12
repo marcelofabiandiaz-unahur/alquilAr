@@ -179,6 +179,37 @@ const listarUsuarios = async (req, res) => {
   }
 };
 
+const listarGestoresAsignables = async (req, res) => {
+  try {
+    if (req.usuario?.roles?.includes(ROLES.ADMINISTRADOR)) {
+      return res.status(403).json({ mensaje: 'Los administradores no pueden asignar gestores desde esta pantalla.' });
+    }
+    const termino = typeof req.query?.q === 'string' ? req.query.q.trim() : '';
+    if (termino.length < 2 || termino.length > 100) {
+      return res.status(400).json({ mensaje: 'Ingresá al menos 2 caracteres del nombre o apellido.' });
+    }
+
+    const partes = termino.split(/\s+/).map((parte) => (
+      new RegExp(parte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    ));
+    const filtro = {
+      roles: ROLES.PROPIETARIO,
+      estado: 'ACTIVO',
+      $and: partes.map((parte) => ({
+        $or: [{ nombre: parte }, { apellido: parte }],
+      })),
+    };
+    const propietarios = await Usuario.find(filtro)
+      .select('_id nombre apellido email')
+      .sort({ nombre: 1, apellido: 1 })
+      .limit(10);
+    return res.json(propietarios);
+  } catch (error) {
+    console.error('Error al buscar propietarios asignables como gestores:', error);
+    return res.status(500).json({ mensaje: 'No se pudieron consultar los propietarios.' });
+  }
+};
+
 const obtenerSolicitudPropietario = async (req, res) => {
   try {
     const usuario = await Usuario.findById(req.usuario.id).select('solicitud_propietario');
@@ -242,6 +273,7 @@ const aprobarSolicitudPropietario = async (req, res) => {
     }
 
     if (!usuario.roles.includes(ROLES.PROPIETARIO)) usuario.roles.push(ROLES.PROPIETARIO);
+    usuario.roles = usuario.roles.filter((rol) => rol !== ROLES.USUARIO);
     usuario.cbu_alias = usuario.solicitud_propietario.cbu_alias;
     usuario.cuit_cuil = usuario.solicitud_propietario.cuit_cuil;
     usuario.solicitud_propietario.estado = 'APROBADA';
@@ -278,6 +310,10 @@ const agregarRolesUsuario = async (req, res) => {
       }
     }
 
+    if (agregar.some((rol) => [ROLES.PROPIETARIO, ROLES.INQUILINO].includes(rol))) {
+      usuario.roles = usuario.roles.filter((rol) => rol !== ROLES.USUARIO);
+    }
+
     await usuario.save();
     res.json(serializarUsuario(usuario));
   } catch (error) {
@@ -289,14 +325,56 @@ const agregarRolesUsuario = async (req, res) => {
   }
 };
 
+const actualizarEstadoUsuario = async (req, res) => {
+  try {
+    const { estado } = req.body || {};
+    if (!['ACTIVO', 'INACTIVO'].includes(estado)) {
+      return res.status(400).json({ mensaje: 'El estado debe ser ACTIVO o INACTIVO.' });
+    }
+
+    const usuario = await Usuario.findById(req.params.id);
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    }
+    if (estado === 'INACTIVO' && String(usuario._id) === String(req.usuario.id)) {
+      return res.status(400).json({ mensaje: 'No podés desactivar tu propia cuenta.' });
+    }
+    if (
+      estado === 'INACTIVO'
+      && usuario.roles.includes(ROLES.ADMINISTRADOR)
+      && usuario.estado !== 'INACTIVO'
+    ) {
+      const administradoresActivos = await Usuario.countDocuments({
+        roles: ROLES.ADMINISTRADOR,
+        $or: [{ estado: 'ACTIVO' }, { estado: { $exists: false } }],
+      });
+      if (administradoresActivos <= 1) {
+        return res.status(400).json({ mensaje: 'No se puede desactivar al último administrador activo.' });
+      }
+    }
+
+    usuario.estado = estado;
+    await usuario.save();
+    return res.json(serializarUsuario(usuario));
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ mensaje: 'El estado indicado no es válido.' });
+    }
+    console.error('Error al actualizar el estado del usuario:', error);
+    return res.status(500).json({ mensaje: 'No se pudo actualizar el estado del usuario.' });
+  }
+};
+
 module.exports = {
   registrarUsuario,
   loginUsuario,
   obtenerMiPerfil,
   actualizarMiPerfil,
   listarUsuarios,
+  listarGestoresAsignables,
   agregarRolesUsuario,
   obtenerSolicitudPropietario,
   solicitarRolPropietario,
   aprobarSolicitudPropietario,
+  actualizarEstadoUsuario,
 };

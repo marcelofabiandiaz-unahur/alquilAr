@@ -35,20 +35,18 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Operación',
     items: [
       { id: 'propiedades', label: 'Propiedades', show: (r) => r.esPropietario || r.esAdministrador },
-      { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario || r.esAdministrador },
-      { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario },
-      { id: 'disponibilidad', label: 'Buscar alquileres', show: (r) => !r.esAdministrador && (r.esInquilino || r.esUsuarioBase) },
+      { id: 'agrupamientos', label: 'Agrupamientos', show: (r) => r.esPropietario && !r.esAdministrador },
+      { id: 'contratos', label: 'Contratos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
       { id: 'pagos', label: 'Pagos', show: (r) => r.esInquilino },
-      { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario || r.esAdministrador },
+      { id: 'finanzas', label: 'Finanzas', show: (r) => r.esPropietario },
       { id: 'reportes', label: 'Reportes', show: (r) => r.esPropietario || r.esAdministrador },
       { id: 'reclamos', label: 'Reclamos', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
-      { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario || r.esAdministrador },
+      { id: 'historial', label: 'Historial', show: (r) => r.esInquilino || r.esPropietario },
     ],
   },
   {
     label: 'Administración',
     items: [
-      { id: 'propietarios', label: 'Propietarios', show: (r) => r.esAdministrador },
       { id: 'usuarios', label: 'Usuarios', show: (r) => r.esAdministrador },
       { id: 'configuracion', label: 'Configuración', show: (r) => r.esAdministrador },
     ],
@@ -540,7 +538,7 @@ export default function DashboardLayout({
             <img src={logoAlquilar} alt="AlquilAR" className="h-10 w-12 object-contain" />
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
-            {(roles.esPropietario || roles.esAdministrador) && (
+            {roles.esPropietario && !roles.esAdministrador && (
               <AgrupamientoSelector
                 token={token}
                 value={idAgrupamiento}
@@ -626,7 +624,7 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6 lg:p-10">
+        <main className="flex-1 overflow-y-auto bg-slate-50 px-6 pb-6 pt-4 lg:px-10 lg:pb-10 lg:pt-6">
           <div className="flex min-h-full flex-col">
             <div className="flex-1">{children}</div>
             <footer className="mt-12 border-t border-slate-200/80 py-5 text-center text-xs text-slate-500 sm:flex sm:items-center sm:justify-between sm:text-left">

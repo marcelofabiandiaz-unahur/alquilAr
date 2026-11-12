@@ -16,7 +16,6 @@ const { usuarioId, otroId, propiedadId } = require('../helpers/fixtures/ids');
 const agrupamientoId = '507f1f77bcf86cd799439099';
 
 const cuerpoValido = () => ({
-  codigo: 'EDF-PALERMO-01',
   nombre: 'Edificio Palermo',
   tipo: 'EDIFICIO',
   direccion: {
@@ -39,6 +38,7 @@ describe('agrupamientoController', () => {
       propiedadFind: Propiedad.find,
       propiedadExists: Propiedad.exists,
       propiedadCount: Propiedad.countDocuments,
+      usuarioFind: require('../../src/models/usuario').find,
       contratoFind: Contrato.find,
     };
     Agrupamiento.find = () => ({
@@ -55,10 +55,11 @@ describe('agrupamientoController', () => {
     Propiedad.find = originales.propiedadFind;
     Propiedad.exists = originales.propiedadExists;
     Propiedad.countDocuments = originales.propiedadCount;
+    require('../../src/models/usuario').find = originales.usuarioFind;
     Contrato.find = originales.contratoFind;
   });
 
-  it('lista todos los agrupamientos para un administrador', async () => {
+  it('no permite a un administrador listar agrupamientos', async () => {
     let filtroCapturado;
     Agrupamiento.find = (filtro) => {
       filtroCapturado = filtro;
@@ -69,11 +70,13 @@ describe('agrupamientoController', () => {
     };
     const res = mockRes();
 
-    await listarAgrupamientos({ query: {}, usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] } }, res);
+    await listarAgrupamientos({
+      query: {},
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR', 'USUARIO'] },
+    }, res);
 
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(filtroCapturado, {});
-    assert.equal(res.body.data.length, 1);
+    assert.equal(res.statusCode, 403);
+    assert.equal(filtroCapturado, undefined);
   });
 
   it('limita los agrupamientos del propietario a los que administra o tienen sus unidades', async () => {
@@ -127,10 +130,13 @@ describe('agrupamientoController', () => {
   });
 
   it('valida los filtros de listado', async () => {
+    Propiedad.find = () => ({
+      select: async () => [],
+    });
     const res = mockRes();
     await listarAgrupamientos({
       query: { tipo: 'INVALIDO' },
-      usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
     }, res);
     assert.equal(res.statusCode, 400);
   });
@@ -152,7 +158,7 @@ describe('agrupamientoController', () => {
     assert.equal(res.statusCode, 403);
   });
 
-  it('crea un agrupamiento con el propietario autenticado como administrador', async () => {
+  it('crea un agrupamiento con el propietario autenticado como responsable', async () => {
     let guardado;
     Agrupamiento.prototype.save = async function save() {
       guardado = this;
@@ -166,21 +172,68 @@ describe('agrupamientoController', () => {
     }, res);
 
     assert.equal(res.statusCode, 201);
-    assert.equal(guardado.codigo, 'EDF-PALERMO-01');
+    assert.equal(guardado.codigo, undefined);
+    assert.deepEqual(guardado.fotos, []);
     assert.equal(guardado.id_administrador.toString(), usuarioId);
     assert.equal(res.body.data.id_administrador.toString(), usuarioId);
   });
 
-  it('rechaza códigos inválidos al crear', async () => {
+  it('crea agrupamientos sin aceptar código ni día de vencimiento', async () => {
+    let guardado;
+    Agrupamiento.prototype.save = async function save() {
+      guardado = this;
+      return this;
+    };
     const res = mockRes();
     await crearAgrupamiento({
-      body: { ...cuerpoValido(), codigo: 'ab' },
-      usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] },
+      body: {
+        ...cuerpoValido(),
+        codigo: 'dato-ignorado',
+        configuracion: { moneda: 'ARS', dia_vencimiento_default: 5 },
+      },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
     }, res);
-    assert.equal(res.statusCode, 400);
+    assert.equal(res.statusCode, 201);
+    assert.equal(guardado.codigo, undefined);
+    assert.equal(guardado.configuracion.dia_vencimiento_default, undefined);
   });
 
-  it('solo permite actualizar al administrador o gestor', async () => {
+  it('no permite a un administrador crear agrupamientos aunque conserve rol de usuario', async () => {
+    const res = mockRes();
+    await crearAgrupamiento({
+      body: cuerpoValido(),
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR', 'USUARIO'] },
+    }, res);
+    assert.equal(res.statusCode, 403);
+  });
+
+  it('rechaza asignar como gestor a un usuario que no sea propietario activo', async () => {
+    const Usuario = require('../../src/models/usuario');
+    Usuario.find = () => ({
+      select: async () => [{ _id: otroId, roles: ['INQUILINO'], estado: 'ACTIVO' }],
+    });
+    const res = mockRes();
+
+    await crearAgrupamiento({
+      body: { ...cuerpoValido(), gestores: [otroId] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.message, /propietarios activos/i);
+  });
+
+  it('valida la cantidad máxima de fotos del agrupamiento', async () => {
+    const res = mockRes();
+    await crearAgrupamiento({
+      body: { ...cuerpoValido(), fotos: Array(6).fill('https://example.com/foto.jpg') },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.message, /máximo 5 fotos/i);
+  });
+
+  it('solo permite actualizar al responsable o gestor asignado', async () => {
     Agrupamiento.findById = async () => ({
       _id: agrupamientoId,
       id_administrador: otroId,
@@ -222,6 +275,7 @@ describe('agrupamientoController', () => {
   it('bloquea la baja si el agrupamiento tiene propiedades activas', async () => {
     Agrupamiento.findById = async () => ({
       _id: agrupamientoId,
+      id_administrador: usuarioId,
       estado: 'ACTIVO',
       save: async () => {},
     });
@@ -230,7 +284,7 @@ describe('agrupamientoController', () => {
 
     await eliminarAgrupamiento({
       params: { id: agrupamientoId },
-      usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
     }, res);
 
     assert.equal(res.statusCode, 409);
@@ -239,6 +293,7 @@ describe('agrupamientoController', () => {
   it('da de baja un agrupamiento vacío', async () => {
     const agrupamiento = {
       _id: agrupamientoId,
+      id_administrador: usuarioId,
       estado: 'ACTIVO',
       save: async () => {},
     };
@@ -248,7 +303,7 @@ describe('agrupamientoController', () => {
 
     await eliminarAgrupamiento({
       params: { id: agrupamientoId },
-      usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] },
+      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
     }, res);
 
     assert.equal(res.statusCode, 200);
@@ -256,11 +311,17 @@ describe('agrupamientoController', () => {
     assert.equal(res.body.data.estado, 'INACTIVO');
   });
 
-  it('solo un administrador puede dar de baja un agrupamiento', async () => {
+  it('no permite a un administrador dar de baja un agrupamiento', async () => {
+    Agrupamiento.findById = async () => ({
+      _id: agrupamientoId,
+      id_administrador: usuarioId,
+      estado: 'ACTIVO',
+      save: async () => {},
+    });
     const res = mockRes();
     await eliminarAgrupamiento({
       params: { id: agrupamientoId },
-      usuario: { id: usuarioId, roles: ['PROPIETARIO'] },
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] },
     }, res);
     assert.equal(res.statusCode, 403);
   });

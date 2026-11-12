@@ -45,6 +45,7 @@ interface GastosPanelProps {
   esAdmin: boolean;
   embedded?: boolean;
   idAgrupamiento?: string;
+  filtrarMesActual?: boolean;
 }
 
 function propiedadDeGasto(gasto: Gasto): PropiedadReferencia | null {
@@ -196,13 +197,22 @@ export default function GastosPanel({
   esAdmin,
   embedded = false,
   idAgrupamiento = '',
+  filtrarMesActual = false,
 }: GastosPanelProps) {
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
   const [filtroPropiedad, setFiltroPropiedad] = useState('');
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const [desde, setDesde] = useState(() => {
+    if (!filtrarMesActual) return '';
+    const hoy = new Date();
+    return fechaLocal(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+  });
+  const [hasta, setHasta] = useState(() => {
+    if (!filtrarMesActual) return '';
+    const hoy = new Date();
+    return fechaLocal(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
+  });
   const [modalAbierto, setModalAbierto] = useState(false);
   const [form, setForm] = useState<GastoForm>(FORM_INICIAL);
   const [gastoEditando, setGastoEditando] = useState('');

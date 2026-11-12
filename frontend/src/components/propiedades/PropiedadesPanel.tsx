@@ -8,6 +8,7 @@ import EmptyState from '../ui/EmptyState';
 import LoadingRow from '../ui/LoadingRow';
 import Modal from '../ui/Modal';
 import Card from '../ui/Card';
+import DataTable from '../ui/DataTable';
 import PhotoDropzone from './PhotoDropzone';
 import PropertyPhotoCarousel from './PropertyPhotoCarousel';
 import {
@@ -18,9 +19,16 @@ import {
   btnGhostClass,
 } from '../layout/dashboardStyles';
 import type { FormEvent } from 'react';
-import type { Agrupamiento, Contrato, Propiedad } from '../../types';
+import type {
+  Agrupamiento,
+  Contrato,
+  FiltroPropiedades,
+  Propiedad,
+  Usuario,
+} from '../../types';
 import {
   conAgrupamiento,
+  direccionAgrupamiento,
   obtenerIdAgrupamiento,
 } from '../../lib/agrupamientos';
 
@@ -53,6 +61,8 @@ interface PropiedadesPanelProps {
   esPropietario: boolean;
   esAdmin: boolean;
   idAgrupamiento?: string;
+  filtroEstado: FiltroPropiedades;
+  setFiltroEstado: (filtro: FiltroPropiedades) => void;
 }
 
 export default function PropiedadesPanel({
@@ -60,8 +70,11 @@ export default function PropiedadesPanel({
   esPropietario,
   esAdmin,
   idAgrupamiento = '',
+  filtroEstado,
+  setFiltroEstado,
 }: PropiedadesPanelProps) {
   const [propiedades, setPropiedades] = useState<Propiedad[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [agrupamientos, setAgrupamientos] = useState<Agrupamiento[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -74,29 +87,37 @@ export default function PropiedadesPanel({
   const [historial, setHistorial] = useState<Contrato[]>([]);
   const [historialTitulo, setHistorialTitulo] = useState('');
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const propiedadesFiltradas = propiedades.filter((propiedad) => (
+    filtroEstado === 'TODAS' || propiedad.estado === filtroEstado
+  ));
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError('');
     try {
-      const data = await apiGet<Propiedad[]>(
-        conAgrupamiento('/api/propiedades', idAgrupamiento),
-        token,
-      );
-      setPropiedades(Array.isArray(data) ? data : []);
+      const [data, usuariosData] = await Promise.all([
+        apiGet<Propiedad[]>(conAgrupamiento('/api/propiedades', idAgrupamiento), token),
+        esAdmin ? apiGet<Usuario[]>('/api/usuarios', token) : Promise.resolve([] as Usuario[]),
+      ]);
+      if (!Array.isArray(data) || !Array.isArray(usuariosData)) {
+        throw new Error('El backend devolvió una respuesta inesperada.');
+      }
+      setPropiedades(data);
+      setUsuarios(usuariosData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar las propiedades.');
     } finally {
       setCargando(false);
     }
-  }, [token, idAgrupamiento]);
+  }, [token, idAgrupamiento, esAdmin]);
 
   const cargarAgrupamientos = useCallback(async () => {
     try {
       const data = await apiGet<Agrupamiento[]>('/api/agrupamientos', token);
       setAgrupamientos(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (err) {
       setAgrupamientos([]);
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los agrupamientos.');
     }
   }, [token]);
 
@@ -128,6 +149,16 @@ export default function PropiedadesPanel({
       unidad: prop.unidad?.identificador || '',
     });
     setModalAbierto(true);
+  };
+
+  const cambiarAgrupamiento = (idAgrupamiento: string) => {
+    const agrupamiento = agrupamientos.find((item) => item._id === idAgrupamiento);
+    setForm((actual) => ({
+      ...actual,
+      id_agrupamiento: idAgrupamiento,
+      direccion: agrupamiento ? direccionAgrupamiento(agrupamiento) : actual.direccion,
+      unidad: idAgrupamiento ? actual.unidad : '',
+    }));
   };
 
   const guardar = async (e: FormEvent<HTMLFormElement>) => {
@@ -224,10 +255,10 @@ export default function PropiedadesPanel({
   return (
     <div className="space-y-4">
       <PageHeader
-        title={esAdmin && !esPropietario ? 'Propiedades' : 'Mis propiedades'}
-        subtitle="Unidades registradas y su estado operativo"
+        title={esAdmin ? 'Propiedades' : 'Mis propiedades'}
+        subtitle={esAdmin ? 'Consulta las propiedades y su estado operativo' : 'Unidades registradas y su estado operativo'}
         action={
-          (esPropietario || esAdmin) && (
+          esPropietario && !esAdmin && (
             <button type="button" onClick={abrirNueva} className={btnPrimaryClass}>
               + Nueva propiedad
             </button>
@@ -238,21 +269,83 @@ export default function PropiedadesPanel({
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {aviso && <Alert type="info" theme="light" onClose={() => setAviso('')}>{aviso}</Alert>}
 
+      <div className="inline-flex max-w-full flex-wrap rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner" role="group" aria-label="Filtrar propiedades por estado">
+        {(['TODAS', 'DISPONIBLE', 'ALQUILADA'] as FiltroPropiedades[]).map((opcion) => (
+          <button
+            key={opcion}
+            type="button"
+            aria-pressed={filtroEstado === opcion}
+            onClick={() => setFiltroEstado(opcion)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
+              filtroEstado === opcion
+                ? 'bg-white text-violet-800 shadow-sm ring-1 ring-slate-200/70'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {opcion === 'TODAS' ? 'Todas' : opcion === 'DISPONIBLE' ? 'Disponibles' : 'Alquiladas'}
+          </button>
+        ))}
+      </div>
+
       {cargando ? (
         <LoadingRow label="Cargando propiedades..." />
       ) : propiedades.length === 0 ? (
         <EmptyState
           title="Sin propiedades registradas"
-          description="Creá tu primera propiedad para comenzar a gestionar contratos."
+          description={esAdmin
+            ? 'Todavía no hay propiedades registradas.'
+            : 'Creá tu primera propiedad para comenzar a gestionar contratos.'}
           action={
-            <button type="button" onClick={abrirNueva} className={btnPrimaryClass}>
-              + Nueva propiedad
-            </button>
+            esPropietario && !esAdmin
+              ? (
+                <button type="button" onClick={abrirNueva} className={btnPrimaryClass}>
+                  + Nueva propiedad
+                </button>
+              )
+              : undefined
           }
+        />
+      ) : propiedadesFiltradas.length === 0 ? (
+        <EmptyState
+          title="Sin propiedades en este estado"
+          description={filtroEstado === 'DISPONIBLE'
+            ? 'No hay unidades disponibles en este momento.'
+            : 'No hay unidades alquiladas en este momento.'}
+        />
+      ) : esAdmin ? (
+        <DataTable
+          columns={['Propiedad', 'Propietario', 'Tipo', 'Agrupamiento', 'Estado', 'Valor base']}
+          rows={propiedadesFiltradas}
+          emptyMessage="No hay propiedades para mostrar."
+          renderRow={(prop) => {
+            const idPropietario = typeof prop.id_propietario === 'string'
+              ? prop.id_propietario
+              : prop.id_propietario?._id;
+            const propietario = usuarios.find((usuario) => usuario._id === idPropietario);
+            const idAgrupamientoPropiedad = obtenerIdAgrupamiento(prop.id_agrupamiento);
+            const agrupamiento = agrupamientos.find((item) => item._id === idAgrupamientoPropiedad);
+            return (
+              <tr key={prop._id} className="hover:bg-slate-50">
+                <td className="p-4">
+                  <p className="font-semibold text-slate-800">{prop.direccion}</p>
+                  {prop.unidad?.identificador && (
+                    <p className="mt-1 text-xs text-slate-500">Unidad {prop.unidad.identificador}</p>
+                  )}
+                </td>
+                <td className="p-4 text-slate-600">
+                  {propietario ? `${propietario.nombre} ${propietario.apellido}` : 'Sin datos'}
+                </td>
+                <td className="p-4 text-slate-600">{prop.tipo} · {prop.ambientes} amb.</td>
+                <td className="p-4 text-slate-600">{agrupamiento?.nombre || '—'}</td>
+                <td className="p-4"><StatBadge estado={prop.estado} /></td>
+                <td className="p-4 font-semibold text-slate-700">{formatMoneda(prop.valor_base)}</td>
+              </tr>
+            );
+          }}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {propiedades.map((prop) => (
+          {propiedadesFiltradas.map((prop) => (
             <Card key={prop._id} className="overflow-hidden flex flex-col">
               <PropertyPhotoCarousel fotos={prop.fotos || []} alt={prop.direccion} />
               <div className="p-5 flex flex-col gap-3 flex-1">
@@ -309,14 +402,59 @@ export default function PropiedadesPanel({
         onClose={() => setModalAbierto(false)}
       >
         <form onSubmit={guardar} className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Agrupamiento</label>
+              <select
+                className={inputClass}
+                value={form.id_agrupamiento}
+                onChange={(event) => cambiarAgrupamiento(event.target.value)}
+              >
+                <option value="">Sin agrupamiento</option>
+                {form.id_agrupamiento
+                  && !agrupamientos.some((item) => item._id === form.id_agrupamiento) && (
+                    <option value={form.id_agrupamiento}>Agrupamiento actual</option>
+                  )}
+                {agrupamientos.map((agrupamiento) => (
+                  <option key={agrupamiento._id} value={agrupamiento._id}>
+                    {agrupamiento.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Se muestran los agrupamientos visibles para tu cuenta.
+              </p>
+            </div>
+            <div>
+              <label className={labelClass}>Unidad dentro del agrupamiento</label>
+              <input
+                className={inputClass}
+                placeholder="Ej. 4B, PB-2"
+                disabled={!form.id_agrupamiento}
+                value={form.unidad}
+                onChange={(event) => setForm({ ...form, unidad: event.target.value })}
+              />
+              {form.id_agrupamiento && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Identificador único dentro del agrupamiento.
+                </p>
+              )}
+            </div>
+          </div>
           <div>
             <label className={labelClass}>Dirección</label>
             <input
               required
               className={inputClass}
+              readOnly={Boolean(form.id_agrupamiento)}
               value={form.direccion}
               onChange={(e) => setForm({ ...form, direccion: e.target.value })}
             />
+            {form.id_agrupamiento && (
+              <p className="mt-1 text-xs text-slate-500">
+                La dirección se toma del agrupamiento seleccionado.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -359,46 +497,6 @@ export default function PropiedadesPanel({
               value={form.descripcion}
               onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
             />
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className={labelClass}>Agrupamiento</label>
-              <select
-                className={inputClass}
-                value={form.id_agrupamiento}
-                onChange={(e) => setForm({
-                  ...form,
-                  id_agrupamiento: e.target.value,
-                  unidad: e.target.value ? form.unidad : '',
-                })}
-              >
-                <option value="">Sin agrupamiento</option>
-                {form.id_agrupamiento
-                  && !agrupamientos.some((item) => item._id === form.id_agrupamiento) && (
-                    <option value={form.id_agrupamiento}>Agrupamiento actual</option>
-                  )}
-                {agrupamientos.map((agrupamiento) => (
-                  <option key={agrupamiento._id} value={agrupamiento._id}>
-                    {agrupamiento.nombre} ({agrupamiento.codigo})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Unidad dentro del agrupamiento</label>
-              <input
-                className={inputClass}
-                placeholder="Ej. 4B, PB-2"
-                disabled={!form.id_agrupamiento}
-                value={form.unidad}
-                onChange={(e) => setForm({ ...form, unidad: e.target.value })}
-              />
-              {form.id_agrupamiento && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Identificador único dentro del agrupamiento.
-                </p>
-              )}
-            </div>
           </div>
           <PhotoDropzone
             fotos={form.fotos}

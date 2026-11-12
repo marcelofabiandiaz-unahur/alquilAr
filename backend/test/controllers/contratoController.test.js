@@ -231,6 +231,55 @@ describe('contratoController', () => {
     assert.equal(operacionesCuotas[0].updateOne.update.$setOnInsert.fecha_vencimiento.toISOString(), '2026-01-15T00:00:00.000Z');
   });
 
+  it('el administrador asigna INQUILINO al activar y quita el rol base en la misma transacción', async () => {
+    let usuarioGuardado = false;
+    const inquilino = {
+      _id: inquilinoId,
+      roles: ['USUARIO'],
+      save: async ({ session }) => {
+        assert.ok(session);
+        usuarioGuardado = true;
+      },
+    };
+    const propiedad = {
+      _id: propiedadId,
+      estado: 'DISPONIBLE',
+      save: async () => {},
+    };
+    const contrato = {
+      _id: contratoId,
+      id_propiedad: propiedadId,
+      id_inquilino: inquilinoId,
+      estado: 'BORRADOR',
+      fecha_inicio: new Date('2026-01-15T00:00:00.000Z'),
+      fecha_fin: new Date('2026-03-31T00:00:00.000Z'),
+      monto_mensual: 100000,
+      dia_vencimiento: 10,
+      save: async () => {},
+      toObject() {
+        return { ...this };
+      },
+    };
+    Contrato.findById = () => mockFindByIdQuery(contrato);
+    Contrato.findOne = async () => null;
+    Usuario.findById = async () => inquilino;
+    Propiedad.findById = async () => propiedad;
+    Pago.bulkWrite = async () => ({ upsertedCount: 3 });
+    const res = mockRes();
+
+    await actualizarContrato({
+      params: { id: contratoId },
+      body: { estado: 'VIGENTE' },
+      usuario: { id: usuarioId, roles: ['ADMINISTRADOR'] },
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(inquilino.roles, ['INQUILINO']);
+    assert.equal(usuarioGuardado, true);
+    assert.equal(contrato.estado, 'VIGENTE');
+    assert.equal(propiedad.estado, 'ALQUILADA');
+  });
+
   it('actualizarContrato no permite cambiar el monto mensual de un contrato vigente', async () => {
     let guardado = false;
     Contrato.findById = async () => ({

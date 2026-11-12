@@ -12,7 +12,7 @@ import { CATEGORIAS_RECLAMO, PRIORIDADES_RECLAMO } from '../../lib/reclamoOpcion
 import type { CategoriaReclamo, PrioridadReclamo } from '../../lib/reclamoOpciones';
 import { conAgrupamiento } from '../../lib/agrupamientos';
 import type { FormEvent } from 'react';
-import type { Contrato, Reclamo } from '../../types';
+import type { Contrato, FiltroReclamos, Reclamo } from '../../types';
 
 interface ReclamoForm {
   id_contrato: string;
@@ -41,6 +41,8 @@ interface ReclamosPanelProps {
   esInquilino: boolean;
   esAdmin: boolean;
   idAgrupamiento?: string;
+  filtro: FiltroReclamos;
+  setFiltro: (filtro: FiltroReclamos) => void;
 }
 
 export default function ReclamosPanel({
@@ -49,6 +51,8 @@ export default function ReclamosPanel({
   esInquilino,
   esAdmin,
   idAgrupamiento = '',
+  filtro,
+  setFiltro,
 }: ReclamosPanelProps) {
   const [reclamos, setReclamos] = useState<Reclamo[]>([]);
   const [contratos, setContratos] = useState<Contrato[]>([]);
@@ -122,28 +126,82 @@ export default function ReclamosPanel({
     }
   };
 
-  const puedeGestionar = esPropietario || esAdmin;
-  const puedeCrear = esInquilino;
+  const puedeGestionar = esPropietario && !esAdmin;
+  const puedeCrear = esInquilino && !esAdmin;
+  const reclamosFiltrados = reclamos.filter((reclamo) => {
+    if (filtro === 'TODOS') return true;
+    if (filtro === 'ABIERTOS') return reclamo.estado !== 'RESUELTO' && reclamo.estado !== 'CANCELADO';
+    return reclamo.estado === 'RESUELTO' || reclamo.estado === 'CANCELADO';
+  });
+  const totalPendientes = reclamos.filter((reclamo) => reclamo.estado === 'PENDIENTE').length;
+  const totalEnProceso = reclamos.filter((reclamo) => reclamo.estado === 'EN_PROCESO').length;
+  const totalResueltos = reclamos.filter((reclamo) => reclamo.estado === 'RESUELTO').length;
+  const totalCancelados = reclamos.filter((reclamo) => reclamo.estado === 'CANCELADO').length;
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Reclamos"
-        subtitle="Reportá incidencias del contrato y seguí su resolución"
+        subtitle={esAdmin
+          ? 'Consulta general de reclamos para seguimiento estadístico'
+          : 'Reportá incidencias del contrato y seguí su resolución'}
         action={puedeCrear ? (
           <button type="button" onClick={() => setModalAbierto(true)} className={btnPrimaryClass}>+ Nuevo reclamo</button>
         ) : null}
       />
+      {esAdmin && !cargando && !error && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          {[
+            { label: 'Total', value: reclamos.length },
+            { label: 'Pendientes', value: totalPendientes },
+            { label: 'En proceso', value: totalEnProceso },
+            { label: 'Resueltos', value: totalResueltos },
+            { label: 'Cancelados', value: totalCancelados },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
       {error && <Alert theme="light" onClose={() => setError('')}>{error}</Alert>}
       {info && <Alert theme="light" type="success" onClose={() => setInfo('')}>{info}</Alert>}
+      <div className="inline-flex max-w-full flex-wrap rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-inner" role="group" aria-label="Filtrar reclamos">
+        {(['TODOS', 'ABIERTOS', 'RESUELTOS'] as FiltroReclamos[]).map((opcion) => (
+          <button
+            key={opcion}
+            type="button"
+            aria-pressed={filtro === opcion}
+            onClick={() => setFiltro(opcion)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
+              filtro === opcion
+                ? 'bg-white text-violet-800 shadow-sm ring-1 ring-slate-200/70'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {opcion === 'TODOS' ? 'Todos' : opcion === 'ABIERTOS' ? 'Abiertos' : 'Cerrados'}
+          </button>
+        ))}
+      </div>
       {cargando ? (
         <LoadingRow label="Cargando reclamos..." />
       ) : reclamos.length === 0 && !error ? (
         <EmptyState title="Sin reclamos" description="No hay reclamos disponibles para tu cuenta." />
       ) : (
-        <DataTable
-          columns={['Propiedad', 'Asunto', 'Categoría', 'Prioridad', 'Creado', 'Estado', 'Acciones']}
-          rows={reclamos}
+      reclamosFiltrados.length === 0 ? (
+        <EmptyState title="Sin reclamos en este estado" description="No hay reclamos que coincidan con el filtro seleccionado." />
+      ) : <DataTable
+        columns={[
+          'Propiedad',
+          'Asunto',
+          'Categoría',
+          'Prioridad',
+          'Creado',
+          'Estado',
+          ...(puedeGestionar ? ['Acciones'] : []),
+        ]}
+        rows={reclamosFiltrados}
           renderRow={(reclamo) => (
             <tr key={reclamo._id} className="hover:bg-slate-50">
               <td className="p-4">{direccion(reclamo)}</td>
@@ -155,8 +213,9 @@ export default function ReclamosPanel({
               <td className="p-4">{reclamo.prioridad}</td>
               <td className="p-4">{reclamo.fecha_creacion ? new Date(reclamo.fecha_creacion).toLocaleDateString() : '—'}</td>
               <td className="p-4"><StatBadge estado={reclamo.estado} /></td>
-              <td className="p-4">
-                {puedeGestionar && reclamo.estado !== 'RESUELTO' && (
+              {puedeGestionar && (
+                <td className="p-4">
+                  {reclamo.estado !== 'RESUELTO' && reclamo.estado !== 'CANCELADO' && (
                   <select
                     aria-label={`Actualizar estado de ${reclamo.asunto}`}
                     disabled={accionId === reclamo._id}
@@ -166,8 +225,9 @@ export default function ReclamosPanel({
                   >
                     {ESTADOS.map((estado) => <option key={estado} value={estado}>{estado}</option>)}
                   </select>
-                )}
-              </td>
+                  )}
+                </td>
+              )}
             </tr>
           )}
         />
