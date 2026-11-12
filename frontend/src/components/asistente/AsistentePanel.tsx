@@ -164,7 +164,6 @@ export default function AsistentePanel({
       }, {
         timeoutMs: TIEMPO_LIMITE_CHAT_MS,
         reintentos: 0,
-        desloguearEn403: false,
         signal: controller.signal,
       });
 
