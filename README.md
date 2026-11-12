@@ -221,7 +221,9 @@ npm run dev
 ```
 
 En desarrollo el front usa `http://localhost:3000` como API si no se define
-`VITE_API_URL` (`frontend/src/config/api.ts`).
+`VITE_API_URL` (`frontend/src/config/api.ts`). Para usar otro backend, configurá
+`VITE_API_URL` en `frontend/.env.local`; si es local, asegurate de iniciar
+MongoDB y el backend.
 
 El tema claro/oscuro puede cambiarse desde el botón del encabezado; la selección se conserva en `localStorage` (`alquilar_theme`) y, si todavía no existe, se toma de la preferencia del sistema. La paleta del tema usa violeta para acciones principales y verde agua para acciones secundarias y el chat.
 
@@ -238,7 +240,7 @@ servidor puede estar iniciando.
 
 | Variable | Uso |
 |---|---|
-| `VITE_API_URL` | URL del backend (ej. `https://alquilar-pmdp.onrender.com`) |
+| `VITE_API_URL` | URL base del backend; por defecto `http://localhost:3000` en desarrollo y `https://alquilar-pmdp.onrender.com` en producción |
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloud name |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_PROPIEDADES` | Fotos → `alquilar/propiedades` |
 | `VITE_CLOUDINARY_UPLOAD_PRESET_GASTOS` | Comprobantes de gastos |
